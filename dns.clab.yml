@@ -1,0 +1,109 @@
+name: dns
+
+mgmt:
+  network: dns-mgmt
+  ipv4-subnet: 10.233.4.0/24
+
+topology:
+  nodes:
+    # Router
+    isp-r1:
+      kind: linux
+      image: dnsnode:1.0
+      mgmt-ipv4: 10.233.4.11
+      binds:
+        - configs/isp-r1/frr.conf:/etc/frr/frr.conf
+        - configs/isp-r1/daemons:/etc/frr/daemons
+
+    # Caches (Anycast 172.31.31.81/32)
+    bc-cache1:
+      kind: linux
+      image: dnsnode:1.0
+      mgmt-ipv4: 10.233.4.21
+      binds:
+        - configs/bc-cache1/frr.conf:/etc/frr/frr.conf
+        - configs/bc-cache1/daemons:/etc/frr/daemons
+
+    bc-cache2:
+      kind: linux
+      image: dnsnode:1.0
+      mgmt-ipv4: 10.233.4.22
+      binds:
+        - configs/bc-cache2/frr.conf:/etc/frr/frr.conf
+        - configs/bc-cache2/daemons:/etc/frr/daemons
+
+    # Rec Master (no FRR)
+    bc-rmaster:
+      kind: linux
+      image: dnsnode:1.0
+      mgmt-ipv4: 10.233.4.30
+
+    # Rec Slaves (Anycast 172.30.30.85/32)
+    bc-rslave1:
+      kind: linux
+      image: dnsnode:1.0
+      mgmt-ipv4: 10.233.4.31
+      binds:
+        - configs/bc-rslave1/frr.conf:/etc/frr/frr.conf
+        - configs/bc-rslave1/daemons:/etc/frr/daemons
+
+    bc-rslave2:
+      kind: linux
+      image: dnsnode:1.0
+      mgmt-ipv4: 10.233.4.32
+      binds:
+        - configs/bc-rslave2/frr.conf:/etc/frr/frr.conf
+        - configs/bc-rslave2/daemons:/etc/frr/daemons
+
+    # External & Auth DNS (no FRR)
+    ex-dns:
+      kind: linux
+      image: dnsnode:1.0
+      mgmt-ipv4: 10.233.4.41
+
+    root:
+      kind: linux
+      image: dnsnode:1.0
+      mgmt-ipv4: 10.233.4.51
+
+    cmp-auth:
+      kind: linux
+      image: dnsnode:1.0
+      mgmt-ipv4: 10.233.4.52
+
+    # Client Host (no FRR)
+    pc:
+      kind: linux
+      image: host:max
+      mgmt-ipv4: 10.233.4.101
+
+    # Shared Broadcast Bridges
+    br-dnscache:
+      kind: bridge
+    br-dnsrec:
+      kind: bridge
+    br-dnsext:
+      kind: bridge
+
+  links:
+    # 172.21.21.0/24: pc <-> isp-r1
+    - endpoints: ["pc:eth1", "isp-r1:eth1"]
+
+    # 172.22.22.0/24: isp-r1, bc-cache1, bc-cache2 via br-dnscache
+    - endpoints: ["isp-r1:eth2", "br-dnscache:r1-eth2"]
+    - endpoints: ["bc-cache1:eth1", "br-dnscache:c1-eth1"]
+    - endpoints: ["bc-cache2:eth1", "br-dnscache:c2-eth1"]
+
+    # 172.23.23.0/24: isp-r1, bc-rmaster, bc-rslave1, bc-rslave2 via br-dnsrec
+    - endpoints: ["isp-r1:eth3", "br-dnsrec:r1-eth3"]
+    - endpoints: ["bc-rmaster:eth1", "br-dnsrec:rm-eth1"]
+    - endpoints: ["bc-rslave1:eth1", "br-dnsrec:rs1-eth1"]
+    - endpoints: ["bc-rslave2:eth1", "br-dnsrec:rs2-eth1"]
+
+    # 172.25.25.0/24: ex-dns <-> isp-r1
+    - endpoints: ["ex-dns:eth1", "isp-r1:eth4"]
+
+    # 172.26.26.0/24: isp-r1, root, cmp-auth via br-dnsext
+    - endpoints: ["isp-r1:eth5", "br-dnsext:r1-eth5"]
+    - endpoints: ["root:eth1", "br-dnsext:rt-eth1"]
+    - endpoints: ["cmp-auth:eth1", "br-dnsext:ca-eth1"]
