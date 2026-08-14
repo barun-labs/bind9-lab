@@ -251,8 +251,11 @@ LOOP_DIG=$(docker exec clab-dns-pc dig www.lab.test || true)
 echo "${LOOP_DIG}"
 
 echo ""
-echo "Evidence from bc-cache1 log in variant 'loop':"
+echo "Evidence from cache log (bc-cache1 / bc-cache2) in variant 'loop':"
 CACHE_LOG=$(docker exec clab-dns-bc-cache1 cat /var/log/named.log | grep -E "timed out|query failed" || true)
+if [[ -z "${CACHE_LOG}" ]]; then
+    CACHE_LOG=$(docker exec clab-dns-bc-cache2 cat /var/log/named.log | grep -E "timed out|query failed" || true)
+fi
 echo "${CACHE_LOG}"
 
 echo ""
