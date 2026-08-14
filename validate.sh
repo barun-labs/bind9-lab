@@ -14,10 +14,10 @@ fail() { echo -e "${RED}[FAIL]${NC} $1"; exit 1; }
 info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 
 echo "================================================================================"
-echo "                   DNS LAB VERIFICATION TEST SUITE                              "
+echo "                   DNS LAB FULL VERIFICATION TEST SUITE                         "
 echo "================================================================================"
 
-info "Ensuring lab is deployed in variant 'normal' first..."
+info "Setting lab to variant 'normal' for baseline verification..."
 "${SCRIPT_DIR}/dns-deploy.sh" normal >/dev/null
 sleep 2
 
@@ -55,10 +55,11 @@ STATUS2=$(docker exec clab-dns-bc-rslave2 rndc zonestatus lab.test in authoritat
 echo "${STATUS2}"
 SERIAL2=$(echo "${STATUS2}" | grep "^serial:" | awk '{print $2}')
 
-if [[ "${SERIAL1}" == "2026081401" && "${SERIAL2}" == "2026081401" ]]; then
-    pass "Zone transfer successful on bc-rslave1 and bc-rslave2 (serial: 2026081401)."
+MASTER_SERIAL="2026081401"
+if [[ "${SERIAL1}" == "${MASTER_SERIAL}" && "${SERIAL2}" == "${MASTER_SERIAL}" ]]; then
+    pass "Zone transfer successful on bc-rslave1 and bc-rslave2 (serial: ${MASTER_SERIAL})."
 else
-    fail "Zone transfer serial mismatch! Expected 2026081401, got slave1=${SERIAL1}, slave2=${SERIAL2}"
+    fail "Zone transfer serial mismatch! Expected ${MASTER_SERIAL}, got slave1=${SERIAL1}, slave2=${SERIAL2}"
 fi
 
 # Check 4: From pc: dig www.lab.test +short returns 10.10.10.10
@@ -80,7 +81,7 @@ echo "${FULL_DIG}"
 if echo "${FULL_DIG}" | grep -q "status: NOERROR" && echo "${FULL_DIG}" | grep -q "172.31.31.81#53"; then
     pass "dig www.lab.test shows status: NOERROR and SERVER: 172.31.31.81#53."
 else
-    fail "dig www.lab.test failed status or server check!"
+    fail "dig www.lab.test did not return NOERROR from 172.31.31.81!"
 fi
 
 # Check 6: From pc: dig +trace www.lab.test
@@ -154,6 +155,7 @@ fi
 # Check 10: Answer diff between anycast (172.30.30.85) and cmp-auth (172.26.26.54)
 echo ""
 echo "=== Check 10: Answer diff against cmp-auth (172.26.26.54) ==="
+bash -c '
 RECORDS=("SOA" "NS" "MX" "ns100.lab.test A" "www.lab.test A" "mail.lab.test A")
 for i in $(seq 1 20); do
     RECORDS+=("test${i}.lab.test A")
@@ -168,6 +170,7 @@ for r in "${RECORDS[@]}"; do
     echo "--- $r ---" >> /tmp/ans_cmp.txt
     docker exec clab-dns-pc dig @172.26.26.54 lab.test $r +short >> /tmp/ans_cmp.txt
 done
+'
 
 if diff -u /tmp/ans_anycast.txt /tmp/ans_cmp.txt; then
     pass "Answer sets for all records are 100% identical between 172.30.30.85 and 172.26.26.54."
@@ -211,7 +214,8 @@ fi
 # Check 12: Prove real internet is NOT used
 echo ""
 echo "=== Check 12: Internet isolation check ==="
-for node in bc-cache1 bc-cache2 bc-rmaster bc-rslave1 bc-rslave2 ex-dns; do
+RECURSIVE_NODES=("bc-cache1" "bc-cache2" "bc-rmaster" "bc-rslave1" "bc-rslave2" "ex-dns")
+for node in "${RECURSIVE_NODES[@]}"; do
     echo -n "Checking ${node} db.root hints... "
     HINTS=$(docker exec "clab-dns-${node}" cat /etc/bind/db.root)
     if echo "${HINTS}" | grep -q "172.26.26.53" && ! echo "${HINTS}" | grep -Eq "198.41.0.4|192.5.5.241"; then
@@ -236,7 +240,7 @@ echo "=== Check 13: Variant 'loop' verification ==="
 "${SCRIPT_DIR}/dns-deploy.sh" loop >/dev/null
 sleep 2
 
-# Clear logs on nodes
+# Clear logs and flush caches on all nodes
 for node in bc-cache1 bc-cache2 bc-rmaster bc-rslave1 bc-rslave2 ex-dns; do
     docker exec "clab-dns-${node}" sh -c "> /var/log/named.log"
     docker exec "clab-dns-${node}" rndc flush >/dev/null 2>&1 || true
@@ -247,17 +251,30 @@ LOOP_DIG=$(docker exec clab-dns-pc dig www.lab.test || true)
 echo "${LOOP_DIG}"
 
 echo ""
+echo "Evidence from bc-cache1 log in variant 'loop':"
+CACHE_LOG=$(docker exec clab-dns-bc-cache1 cat /var/log/named.log | grep -E "timed out|query failed" || true)
+echo "${CACHE_LOG}"
+
+echo ""
 echo "Evidence from ex-dns log in variant 'loop':"
-EX_LOG=$(docker exec clab-dns-ex-dns cat /var/log/named.log | grep -E "FORMERR|referral|query" | head -n 10 || true)
+EX_LOG=$(docker exec clab-dns-ex-dns cat /var/log/named.log | grep -E "timed out|FORMERR|referral" | head -n 10 || true)
 echo "${EX_LOG}"
 
-pass "Variant 'loop' behavior and log evidence demonstrated."
+if echo "${LOOP_DIG}" | grep -q "status: SERVFAIL"; then
+    pass "Variant 'loop' correctly failed with SERVFAIL after timeout and log evidence recorded."
+else
+    fail "Variant 'loop' did not return SERVFAIL as expected!"
+fi
 
 # Check 14: Switch back to 'normal' and confirm resolution succeeds again
 echo ""
 echo "=== Check 14: Restore variant 'normal' and verify recovery ==="
 "${SCRIPT_DIR}/dns-deploy.sh" normal >/dev/null
 sleep 2
+
+# Flush cache and test
+docker exec clab-dns-bc-cache1 rndc flush >/dev/null 2>&1 || true
+docker exec clab-dns-bc-cache2 rndc flush >/dev/null 2>&1 || true
 
 RESTORE_ANS=$(docker exec clab-dns-pc dig www.lab.test +short)
 echo "Recovered Answer: ${RESTORE_ANS}"

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VARIANT="${1:-${VARIANT:-loop}}"
+VARIANT="${1:-${VARIANT:-normal}}"
 
 if [[ "$VARIANT" != "loop" && "$VARIANT" != "normal" ]]; then
     echo "ERROR: Unknown variant \"$VARIANT\". Supported variants are \"loop\" and \"normal\"." >&2
@@ -23,7 +23,7 @@ mkdir -p "${SCRIPT_DIR}/configs/bc-cache1" \
          "${SCRIPT_DIR}/configs/root/zones" \
          "${SCRIPT_DIR}/configs/cmp-auth/zones"
 
-# 1. db.root hint file for all recursive nodes
+# 1. db.root hint file for all recursive nodes (pointing ONLY to 172.26.26.53)
 cat << 'ROOT_HINT_EOF' > "${SCRIPT_DIR}/configs/bc-cache1/db.root"
 .                        3600000      IN      NS    ns.root.
 ns.root.                 3600000      IN      A     172.26.26.53
@@ -35,7 +35,7 @@ cp "${SCRIPT_DIR}/configs/bc-cache1/db.root" "${SCRIPT_DIR}/configs/bc-rslave1/d
 cp "${SCRIPT_DIR}/configs/bc-cache1/db.root" "${SCRIPT_DIR}/configs/bc-rslave2/db.root"
 cp "${SCRIPT_DIR}/configs/bc-cache1/db.root" "${SCRIPT_DIR}/configs/ex-dns/db.root"
 
-# 2. Root zone files (on root node)
+# 2. Root zone files (on root node 172.26.26.53)
 cat << 'ROOT_ZONE_EOF' > "${SCRIPT_DIR}/configs/root/zones/db.root"
 $TTL 86400
 @   IN  SOA ns.root. hostmaster.root. (
@@ -260,10 +260,10 @@ controls {
 };
 
 view "recursive" {
-    match-clients     { 172.22.22.100; 172.22.22.200; };
-    allow-query       { 172.22.22.100; 172.22.22.200; };
-    allow-query-cache { 172.22.22.100; 172.22.22.200; };
-    allow-recursion   { 172.22.22.100; 172.22.22.200; };
+    match-clients     { 172.22.22.0/24; 172.23.23.0/24; 172.25.25.0/24; };
+    allow-query       { 172.22.22.0/24; 172.23.23.0/24; 172.25.25.0/24; };
+    allow-query-cache { 172.22.22.0/24; 172.23.23.0/24; 172.25.25.0/24; };
+    allow-recursion   { 172.22.22.0/24; 172.23.23.0/24; 172.25.25.0/24; };
     recursion yes;
     dnssec-validation no;
 
@@ -319,10 +319,10 @@ controls {
 };
 
 view "recursive" {
-    match-clients     { 172.22.22.100; 172.22.22.200; };
-    allow-query       { 172.22.22.100; 172.22.22.200; };
-    allow-query-cache { 172.22.22.100; 172.22.22.200; };
-    allow-recursion   { 172.22.22.100; 172.22.22.200; };
+    match-clients     { 172.22.22.0/24; 172.23.23.0/24; 172.25.25.0/24; };
+    allow-query       { 172.22.22.0/24; 172.23.23.0/24; 172.25.25.0/24; };
+    allow-query-cache { 172.22.22.0/24; 172.23.23.0/24; 172.25.25.0/24; };
+    allow-recursion   { 172.22.22.0/24; 172.23.23.0/24; 172.25.25.0/24; };
     recursion yes;
     dnssec-validation no;
 
