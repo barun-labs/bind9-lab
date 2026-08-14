@@ -39,7 +39,7 @@ cp "${SCRIPT_DIR}/configs/bc-cache1/db.root" "${SCRIPT_DIR}/configs/ex-dns/db.ro
 cat << 'ROOT_ZONE_EOF' > "${SCRIPT_DIR}/configs/root/zones/db.root"
 $TTL 86400
 @   IN  SOA ns.root. hostmaster.root. (
-        2026081401 ; serial
+        2026081501 ; serial
         3600       ; refresh
         1800       ; retry
         604800     ; expire
@@ -47,15 +47,16 @@ $TTL 86400
     IN  NS  ns.root.
 ns.root. IN A  172.26.26.53
 
-; Delegation of test.
-test. IN NS ns.root.
+; Delegations
+test.       IN  NS  ns.root.
+arpa.       IN  NS  ns.root.
 ROOT_ZONE_EOF
 
 cat << 'TEST_ZONE_EOF' > "${SCRIPT_DIR}/configs/root/zones/db.test"
 $TTL 86400
 $ORIGIN test.
 @   IN  SOA ns.root. hostmaster.test. (
-        2026081401 ; serial
+        2026081501 ; serial
         3600       ; refresh
         1800       ; retry
         604800     ; expire
@@ -67,46 +68,145 @@ lab.test.       IN  NS  ns100.lab.test.
 ns100.lab.test. IN  A   172.30.30.85
 TEST_ZONE_EOF
 
+cat << 'ARPA_ZONE_EOF' > "${SCRIPT_DIR}/configs/root/zones/db.arpa"
+$TTL 86400
+$ORIGIN arpa.
+@   IN  SOA ns.root. hostmaster.root. (
+        2026081501 ; serial
+        3600       ; refresh
+        1800       ; retry
+        604800     ; expire
+        86400 )    ; minimum
+    IN  NS  ns.root.
+
+; Delegation of in-addr.arpa.
+in-addr     IN  NS  ns.root.
+ARPA_ZONE_EOF
+
+cat << 'INADDR_ZONE_EOF' > "${SCRIPT_DIR}/configs/root/zones/db.in-addr.arpa"
+$TTL 86400
+$ORIGIN in-addr.arpa.
+@   IN  SOA ns.root. hostmaster.root. (
+        2026081501 ; serial
+        3600       ; refresh
+        1800       ; retry
+        604800     ; expire
+        86400 )    ; minimum
+    IN  NS  ns.root.
+
+; Delegation of 0.20.10.in-addr.arpa.
+0.20.10         IN  NS  ns100.lab.test.
+INADDR_ZONE_EOF
+
 # 3. Zone lab.test (on bc-rmaster and cmp-auth)
 cat << 'LAB_TEST_EOF' > "${SCRIPT_DIR}/configs/bc-rmaster/zones/db.lab.test"
 $TTL 86400
 $ORIGIN lab.test.
 @   IN  SOA ns100.lab.test. hostmaster.lab.test. (
-        2026081401 ; serial
+        2026081501 ; serial
         3600       ; refresh
         1800       ; retry
         604800     ; expire
         86400 )    ; minimum
     IN  NS  ns100.lab.test.
     IN  MX  10 mail.lab.test.
+    IN  TXT "v=spf1 mx -all"
 
-ns100   IN  A   172.30.30.85
-www     IN  A   10.10.10.10
-mail    IN  A   10.10.10.20
+_dmarc      IN  TXT "v=DMARC1; p=none; sp=none; aspf=r;"
 
-test1   IN  A   10.20.0.1
-test2   IN  A   10.20.0.2
-test3   IN  A   10.20.0.3
-test4   IN  A   10.20.0.4
-test5   IN  A   10.20.0.5
-test6   IN  A   10.20.0.6
-test7   IN  A   10.20.0.7
-test8   IN  A   10.20.0.8
-test9   IN  A   10.20.0.9
-test10  IN  A   10.20.0.10
-test11  IN  A   10.20.0.11
-test12  IN  A   10.20.0.12
-test13  IN  A   10.20.0.13
-test14  IN  A   10.20.0.14
-test15  IN  A   10.20.0.15
-test16  IN  A   10.20.0.16
-test17  IN  A   10.20.0.17
-test18  IN  A   10.20.0.18
-test19  IN  A   10.20.0.19
-test20  IN  A   10.20.0.20
+ns100       IN  A   172.30.30.85
+www         IN  A   10.10.10.10
+mail        IN  A   10.10.10.20
+
+www         IN  AAAA    2001:db8::10
+mail        IN  AAAA    2001:db8::20
+
+web         IN  CNAME   www.lab.test.
+smtp        IN  CNAME   mail.lab.test.
+portal      IN  CNAME   web.lab.test.
+
+_sip._udp   IN  SRV 10 60 5060 mail.lab.test.
+_ldap._tcp  IN  SRV 10 60 389  www.lab.test.
+
+sub         IN  NS  ns100.lab.test.
+
+test1       IN  A   10.20.0.1
+test2       IN  A   10.20.0.2
+test3       IN  A   10.20.0.3
+test4       IN  A   10.20.0.4
+test5       IN  A   10.20.0.5
+test6       IN  A   10.20.0.6
+test7       IN  A   10.20.0.7
+test8       IN  A   10.20.0.8
+test9       IN  A   10.20.0.9
+test10      IN  A   10.20.0.10
+test11      IN  A   10.20.0.11
+test12      IN  A   10.20.0.12
+test13      IN  A   10.20.0.13
+test14      IN  A   10.20.0.14
+test15      IN  A   10.20.0.15
+test16      IN  A   10.20.0.16
+test17      IN  A   10.20.0.17
+test18      IN  A   10.20.0.18
+test19      IN  A   10.20.0.19
+test20      IN  A   10.20.0.20
 LAB_TEST_EOF
 
 cp "${SCRIPT_DIR}/configs/bc-rmaster/zones/db.lab.test" "${SCRIPT_DIR}/configs/cmp-auth/zones/db.lab.test"
+
+# Subzone sub.lab.test (on bc-rmaster and cmp-auth)
+cat << 'SUB_LAB_TEST_EOF' > "${SCRIPT_DIR}/configs/bc-rmaster/zones/db.sub.lab.test"
+$TTL 86400
+$ORIGIN sub.lab.test.
+@   IN  SOA ns100.lab.test. hostmaster.sub.lab.test. (
+        2026081501 ; serial
+        3600       ; refresh
+        1800       ; retry
+        604800     ; expire
+        86400 )    ; minimum
+    IN  NS  ns100.lab.test.
+
+host1       IN  A   10.30.0.1
+host2       IN  A   10.30.0.2
+SUB_LAB_TEST_EOF
+
+cp "${SCRIPT_DIR}/configs/bc-rmaster/zones/db.sub.lab.test" "${SCRIPT_DIR}/configs/cmp-auth/zones/db.sub.lab.test"
+
+# Reverse zone 0.20.10.in-addr.arpa (on bc-rmaster and cmp-auth)
+cat << 'REV_ZONE_EOF' > "${SCRIPT_DIR}/configs/bc-rmaster/zones/db.0.20.10.in-addr.arpa"
+$TTL 86400
+$ORIGIN 0.20.10.in-addr.arpa.
+@   IN  SOA ns100.lab.test. hostmaster.lab.test. (
+        2026081501 ; serial
+        3600       ; refresh
+        1800       ; retry
+        604800     ; expire
+        86400 )    ; minimum
+    IN  NS  ns100.lab.test.
+
+1   IN  PTR test1.lab.test.
+2   IN  PTR test2.lab.test.
+3   IN  PTR test3.lab.test.
+4   IN  PTR test4.lab.test.
+5   IN  PTR test5.lab.test.
+6   IN  PTR test6.lab.test.
+7   IN  PTR test7.lab.test.
+8   IN  PTR test8.lab.test.
+9   IN  PTR test9.lab.test.
+10  IN  PTR test10.lab.test.
+11  IN  PTR test11.lab.test.
+12  IN  PTR test12.lab.test.
+13  IN  PTR test13.lab.test.
+14  IN  PTR test14.lab.test.
+15  IN  PTR test15.lab.test.
+16  IN  PTR test16.lab.test.
+17  IN  PTR test17.lab.test.
+18  IN  PTR test18.lab.test.
+19  IN  PTR test19.lab.test.
+20  IN  PTR test20.lab.test.
+REV_ZONE_EOF
+
+cp "${SCRIPT_DIR}/configs/bc-rmaster/zones/db.0.20.10.in-addr.arpa" "${SCRIPT_DIR}/configs/cmp-auth/zones/db.0.20.10.in-addr.arpa"
 
 # 4. Root named.conf
 cat << 'ROOT_CONF_EOF' > "${SCRIPT_DIR}/configs/root/named.conf"
@@ -117,6 +217,7 @@ options {
     allow-query { any; };
     recursion no;
     dnssec-validation no;
+    empty-zones-enable no;
 };
 
 logging {
@@ -145,6 +246,16 @@ zone "test" {
     type master;
     file "/etc/bind/zones/db.test";
 };
+
+zone "arpa" {
+    type master;
+    file "/etc/bind/zones/db.arpa";
+};
+
+zone "in-addr.arpa" {
+    type master;
+    file "/etc/bind/zones/db.in-addr.arpa";
+};
 ROOT_CONF_EOF
 
 # 5. cmp-auth named.conf
@@ -156,6 +267,7 @@ options {
     allow-query { any; };
     recursion no;
     dnssec-validation no;
+    empty-zones-enable no;
 };
 
 logging {
@@ -178,6 +290,19 @@ controls {
 zone "lab.test" {
     type master;
     file "/etc/bind/zones/db.lab.test";
+    allow-transfer { any; };
+};
+
+zone "sub.lab.test" {
+    type master;
+    file "/etc/bind/zones/db.sub.lab.test";
+    allow-transfer { any; };
+};
+
+zone "0.20.10.in-addr.arpa" {
+    type master;
+    file "/etc/bind/zones/db.0.20.10.in-addr.arpa";
+    allow-transfer { any; };
 };
 CMP_CONF_EOF
 
@@ -192,6 +317,7 @@ options {
     listen-on-v6 { none; };
     server-id hostname;
     dnssec-validation no;
+    empty-zones-enable no;
 };
 
 logging {
@@ -239,6 +365,7 @@ options {
     listen-on { any; };
     listen-on-v6 { none; };
     dnssec-validation no;
+    empty-zones-enable no;
 };
 
 logging {
@@ -283,7 +410,21 @@ view "authoritative" {
     zone "lab.test" {
         type master;
         file "/etc/bind/zones/db.lab.test";
-        allow-transfer { 172.23.23.129; 172.23.23.100; };
+        allow-transfer { any; };
+        also-notify { 172.23.23.129; 172.23.23.100; };
+    };
+
+    zone "sub.lab.test" {
+        type master;
+        file "/etc/bind/zones/db.sub.lab.test";
+        allow-transfer { any; };
+        also-notify { 172.23.23.129; 172.23.23.100; };
+    };
+
+    zone "0.20.10.in-addr.arpa" {
+        type master;
+        file "/etc/bind/zones/db.0.20.10.in-addr.arpa";
+        allow-transfer { any; };
         also-notify { 172.23.23.129; 172.23.23.100; };
     };
 };
@@ -298,6 +439,7 @@ options {
     listen-on-v6 { none; };
     server-id hostname;
     dnssec-validation no;
+    empty-zones-enable no;
 };
 
 logging {
@@ -343,6 +485,21 @@ view "authoritative" {
         type slave;
         file "/var/bind/sec/db.lab.test";
         masters { 172.23.23.97; };
+        allow-transfer { any; };
+    };
+
+    zone "sub.lab.test" {
+        type slave;
+        file "/var/bind/sec/db.sub.lab.test";
+        masters { 172.23.23.97; };
+        allow-transfer { any; };
+    };
+
+    zone "0.20.10.in-addr.arpa" {
+        type slave;
+        file "/var/bind/sec/db.0.20.10.in-addr.arpa";
+        masters { 172.23.23.97; };
+        allow-transfer { any; };
     };
 };
 RSLAVE_LOOP_EOF
@@ -358,6 +515,7 @@ options {
     allow-recursion { any; };
     recursion yes;
     dnssec-validation no;
+    empty-zones-enable no;
 
     forwarders { 172.23.23.97; 172.23.23.129; 172.26.26.53; };
     forward only;
@@ -397,6 +555,7 @@ options {
     listen-on-v6 { none; };
     server-id hostname;
     dnssec-validation no;
+    empty-zones-enable no;
 };
 
 logging {
@@ -444,6 +603,7 @@ options {
     listen-on { any; };
     listen-on-v6 { none; };
     dnssec-validation no;
+    empty-zones-enable no;
 };
 
 logging {
@@ -485,7 +645,21 @@ view "authoritative" {
     zone "lab.test" {
         type master;
         file "/etc/bind/zones/db.lab.test";
-        allow-transfer { 172.23.23.129; 172.23.23.100; };
+        allow-transfer { any; };
+        also-notify { 172.23.23.129; 172.23.23.100; };
+    };
+
+    zone "sub.lab.test" {
+        type master;
+        file "/etc/bind/zones/db.sub.lab.test";
+        allow-transfer { any; };
+        also-notify { 172.23.23.129; 172.23.23.100; };
+    };
+
+    zone "0.20.10.in-addr.arpa" {
+        type master;
+        file "/etc/bind/zones/db.0.20.10.in-addr.arpa";
+        allow-transfer { any; };
         also-notify { 172.23.23.129; 172.23.23.100; };
     };
 };
@@ -500,6 +674,7 @@ options {
     listen-on-v6 { none; };
     server-id hostname;
     dnssec-validation no;
+    empty-zones-enable no;
 };
 
 logging {
@@ -542,6 +717,21 @@ view "authoritative" {
         type slave;
         file "/var/bind/sec/db.lab.test";
         masters { 172.23.23.97; };
+        allow-transfer { any; };
+    };
+
+    zone "sub.lab.test" {
+        type slave;
+        file "/var/bind/sec/db.sub.lab.test";
+        masters { 172.23.23.97; };
+        allow-transfer { any; };
+    };
+
+    zone "0.20.10.in-addr.arpa" {
+        type slave;
+        file "/var/bind/sec/db.0.20.10.in-addr.arpa";
+        masters { 172.23.23.97; };
+        allow-transfer { any; };
     };
 };
 RSLAVE_NORM_EOF
@@ -557,6 +747,7 @@ options {
     allow-recursion { any; };
     recursion yes;
     dnssec-validation no;
+    empty-zones-enable no;
 
     forwarders { 172.23.23.97; 172.23.23.129; 172.23.23.100; };
     forward only;
@@ -624,8 +815,14 @@ echo "    All named-checkconf checks passed."
 echo "==> Running named-checkzone on authoritative nodes..."
 docker exec clab-dns-root named-checkzone . /etc/bind/zones/db.root
 docker exec clab-dns-root named-checkzone test /etc/bind/zones/db.test
+docker exec clab-dns-root named-checkzone arpa /etc/bind/zones/db.arpa
+docker exec clab-dns-root named-checkzone in-addr.arpa /etc/bind/zones/db.in-addr.arpa
 docker exec clab-dns-bc-rmaster named-checkzone lab.test /etc/bind/zones/db.lab.test
+docker exec clab-dns-bc-rmaster named-checkzone sub.lab.test /etc/bind/zones/db.sub.lab.test
+docker exec clab-dns-bc-rmaster named-checkzone 0.20.10.in-addr.arpa /etc/bind/zones/db.0.20.10.in-addr.arpa
 docker exec clab-dns-cmp-auth named-checkzone lab.test /etc/bind/zones/db.lab.test
+docker exec clab-dns-cmp-auth named-checkzone sub.lab.test /etc/bind/zones/db.sub.lab.test
+docker exec clab-dns-cmp-auth named-checkzone 0.20.10.in-addr.arpa /etc/bind/zones/db.0.20.10.in-addr.arpa
 echo "    All named-checkzone checks passed."
 
 echo "==> Starting or reloading named on all BIND nodes..."

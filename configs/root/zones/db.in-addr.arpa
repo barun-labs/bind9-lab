@@ -1,4 +1,5 @@
 $TTL 86400
+$ORIGIN in-addr.arpa.
 @   IN  SOA ns.root. hostmaster.root. (
         2026081501 ; serial
         3600       ; refresh
@@ -6,8 +7,6 @@ $TTL 86400
         604800     ; expire
         86400 )    ; minimum
     IN  NS  ns.root.
-ns.root. IN A  172.26.26.53
 
-; Delegations
-test.       IN  NS  ns.root.
-arpa.       IN  NS  ns.root.
+; Delegation of 0.20.10.in-addr.arpa.
+0.20.10         IN  NS  ns100.lab.test.

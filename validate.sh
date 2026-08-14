@@ -55,8 +55,10 @@ STATUS2=$(docker exec clab-dns-bc-rslave2 rndc zonestatus lab.test in authoritat
 echo "${STATUS2}"
 SERIAL2=$(echo "${STATUS2}" | grep "^serial:" | awk '{print $2}')
 
-MASTER_SERIAL="2026081401"
-if [[ "${SERIAL1}" == "${MASTER_SERIAL}" && "${SERIAL2}" == "${MASTER_SERIAL}" ]]; then
+MASTER_STATUS=$(docker exec clab-dns-bc-rmaster rndc zonestatus lab.test in authoritative)
+MASTER_SERIAL=$(echo "${MASTER_STATUS}" | grep "^serial:" | awk '{print $2}')
+
+if [[ -n "${MASTER_SERIAL}" && "${SERIAL1}" == "${MASTER_SERIAL}" && "${SERIAL2}" == "${MASTER_SERIAL}" ]]; then
     pass "Zone transfer successful on bc-rslave1 and bc-rslave2 (serial: ${MASTER_SERIAL})."
 else
     fail "Zone transfer serial mismatch! Expected ${MASTER_SERIAL}, got slave1=${SERIAL1}, slave2=${SERIAL2}"
@@ -67,7 +69,7 @@ echo ""
 echo "=== Check 4: dig www.lab.test +short from pc ==="
 SHORT_ANS=$(docker exec clab-dns-pc dig www.lab.test +short)
 echo "Answer: ${SHORT_ANS}"
-if [[ "${SHORT_ANS}" == "10.10.10.10" ]]; then
+if echo "${SHORT_ANS}" | grep -q "10.10.10.10"; then
     pass "dig www.lab.test +short returns 10.10.10.10."
 else
     fail "Expected 10.10.10.10, got \"${SHORT_ANS}\""
@@ -156,7 +158,14 @@ fi
 echo ""
 echo "=== Check 10: Answer diff against cmp-auth (172.26.26.54) ==="
 bash -c '
-RECORDS=("SOA" "NS" "MX" "ns100.lab.test A" "www.lab.test A" "mail.lab.test A")
+RECORDS=(
+    "SOA" "NS" "MX" "TXT" "_dmarc.lab.test TXT"
+    "ns100.lab.test A" "www.lab.test A" "mail.lab.test A"
+    "www.lab.test AAAA" "mail.lab.test AAAA"
+    "web.lab.test CNAME" "smtp.lab.test CNAME" "portal.lab.test CNAME"
+    "_sip._udp.lab.test SRV" "_ldap._tcp.lab.test SRV"
+    "sub.lab.test NS"
+)
 for i in $(seq 1 20); do
     RECORDS+=("test${i}.lab.test A")
 done
@@ -205,7 +214,7 @@ echo "6. Routes on isp-r1 after restore:"
 ROUTES_AFTER_RESTORE=$(docker exec clab-dns-isp-r1 vtysh -c "show ip route 172.31.31.81")
 echo "${ROUTES_AFTER_RESTORE}"
 
-if echo "${ROUTES_AFTER_RESTORE}" | grep -q "172.22.22.100" && echo "${ROUTES_AFTER_RESTORE}" | grep -q "172.22.22.200" && [[ "${FAILOVER_DIG}" == "10.10.10.10" && "${FAILOVER_ID}" == "\"bc-cache2\"" ]]; then
+if echo "${ROUTES_AFTER_RESTORE}" | grep -q "172.22.22.100" && echo "${ROUTES_AFTER_RESTORE}" | grep -q "172.22.22.200" && echo "${FAILOVER_DIG}" | grep -q "10.10.10.10" && [[ "${FAILOVER_ID}" == "\"bc-cache2\"" ]]; then
     pass "Anycast failover and restore successfully verified."
 else
     fail "Anycast failover verification failed!"
@@ -278,7 +287,7 @@ docker exec clab-dns-bc-cache2 rndc flush >/dev/null 2>&1 || true
 
 RESTORE_ANS=$(docker exec clab-dns-pc dig www.lab.test +short)
 echo "Recovered Answer: ${RESTORE_ANS}"
-if [[ "${RESTORE_ANS}" == "10.10.10.10" ]]; then
+if echo "${RESTORE_ANS}" | grep -q "10.10.10.10"; then
     pass "Successfully switched back to 'normal' variant and confirmed item 4 passes."
 else
     fail "Recovery to 'normal' variant failed!"

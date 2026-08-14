@@ -1,35 +1,50 @@
 $TTL 86400
 $ORIGIN lab.test.
 @   IN  SOA ns100.lab.test. hostmaster.lab.test. (
-        2026081401 ; serial
+        2026081501 ; serial
         3600       ; refresh
         1800       ; retry
         604800     ; expire
         86400 )    ; minimum
     IN  NS  ns100.lab.test.
     IN  MX  10 mail.lab.test.
+    IN  TXT "v=spf1 mx -all"
 
-ns100   IN  A   172.30.30.85
-www     IN  A   10.10.10.10
-mail    IN  A   10.10.10.20
+_dmarc      IN  TXT "v=DMARC1; p=none; sp=none; aspf=r;"
 
-test1   IN  A   10.20.0.1
-test2   IN  A   10.20.0.2
-test3   IN  A   10.20.0.3
-test4   IN  A   10.20.0.4
-test5   IN  A   10.20.0.5
-test6   IN  A   10.20.0.6
-test7   IN  A   10.20.0.7
-test8   IN  A   10.20.0.8
-test9   IN  A   10.20.0.9
-test10  IN  A   10.20.0.10
-test11  IN  A   10.20.0.11
-test12  IN  A   10.20.0.12
-test13  IN  A   10.20.0.13
-test14  IN  A   10.20.0.14
-test15  IN  A   10.20.0.15
-test16  IN  A   10.20.0.16
-test17  IN  A   10.20.0.17
-test18  IN  A   10.20.0.18
-test19  IN  A   10.20.0.19
-test20  IN  A   10.20.0.20
+ns100       IN  A   172.30.30.85
+www         IN  A   10.10.10.10
+mail        IN  A   10.10.10.20
+
+www         IN  AAAA    2001:db8::10
+mail        IN  AAAA    2001:db8::20
+
+web         IN  CNAME   www.lab.test.
+smtp        IN  CNAME   mail.lab.test.
+portal      IN  CNAME   web.lab.test.
+
+_sip._udp   IN  SRV 10 60 5060 mail.lab.test.
+_ldap._tcp  IN  SRV 10 60 389  www.lab.test.
+
+sub         IN  NS  ns100.lab.test.
+
+test1       IN  A   10.20.0.1
+test2       IN  A   10.20.0.2
+test3       IN  A   10.20.0.3
+test4       IN  A   10.20.0.4
+test5       IN  A   10.20.0.5
+test6       IN  A   10.20.0.6
+test7       IN  A   10.20.0.7
+test8       IN  A   10.20.0.8
+test9       IN  A   10.20.0.9
+test10      IN  A   10.20.0.10
+test11      IN  A   10.20.0.11
+test12      IN  A   10.20.0.12
+test13      IN  A   10.20.0.13
+test14      IN  A   10.20.0.14
+test15      IN  A   10.20.0.15
+test16      IN  A   10.20.0.16
+test17      IN  A   10.20.0.17
+test18      IN  A   10.20.0.18
+test19      IN  A   10.20.0.19
+test20      IN  A   10.20.0.20

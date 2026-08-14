@@ -1,7 +1,7 @@
 $TTL 86400
 $ORIGIN test.
 @   IN  SOA ns.root. hostmaster.test. (
-        2026081401 ; serial
+        2026081501 ; serial
         3600       ; refresh
         1800       ; retry
         604800     ; expire

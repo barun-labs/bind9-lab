@@ -1,0 +1,30 @@
+$TTL 86400
+$ORIGIN 0.20.10.in-addr.arpa.
+@   IN  SOA ns100.lab.test. hostmaster.lab.test. (
+        2026081501 ; serial
+        3600       ; refresh
+        1800       ; retry
+        604800     ; expire
+        86400 )    ; minimum
+    IN  NS  ns100.lab.test.
+
+1   IN  PTR test1.lab.test.
+2   IN  PTR test2.lab.test.
+3   IN  PTR test3.lab.test.
+4   IN  PTR test4.lab.test.
+5   IN  PTR test5.lab.test.
+6   IN  PTR test6.lab.test.
+7   IN  PTR test7.lab.test.
+8   IN  PTR test8.lab.test.
+9   IN  PTR test9.lab.test.
+10  IN  PTR test10.lab.test.
+11  IN  PTR test11.lab.test.
+12  IN  PTR test12.lab.test.
+13  IN  PTR test13.lab.test.
+14  IN  PTR test14.lab.test.
+15  IN  PTR test15.lab.test.
+16  IN  PTR test16.lab.test.
+17  IN  PTR test17.lab.test.
+18  IN  PTR test18.lab.test.
+19  IN  PTR test19.lab.test.
+20  IN  PTR test20.lab.test.
