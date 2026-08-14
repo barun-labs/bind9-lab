@@ -131,3 +131,6 @@ setup_static_node "root" "172.26.26.53/24" "172.26.26.0/24" "172.26.26.1"
 setup_static_node "cmp-auth" "172.26.26.54/24" "172.26.26.0/24" "172.26.26.1"
 
 echo "==> Lab deployment and configuration finished successfully!"
+
+# Deploy BIND9 DNS layer
+"${SCRIPT_DIR}/dns-deploy.sh" "${1:-loop}"

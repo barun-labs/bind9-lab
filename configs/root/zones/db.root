@@ -1,0 +1,12 @@
+$TTL 86400
+@   IN  SOA ns.root. hostmaster.root. (
+        2026081401 ; serial
+        3600       ; refresh
+        1800       ; retry
+        604800     ; expire
+        86400 )    ; minimum
+    IN  NS  ns.root.
+ns.root. IN A  172.26.26.53
+
+; Delegation of test.
+test. IN NS ns.root.

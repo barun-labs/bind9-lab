@@ -23,6 +23,8 @@ topology:
       binds:
         - configs/bc-cache1/frr.conf:/etc/frr/frr.conf
         - configs/bc-cache1/daemons:/etc/frr/daemons
+        - configs/bc-cache1/named.conf:/etc/bind/named.conf
+        - configs/bc-cache1/db.root:/etc/bind/db.root
 
     bc-cache2:
       kind: linux
@@ -31,12 +33,18 @@ topology:
       binds:
         - configs/bc-cache2/frr.conf:/etc/frr/frr.conf
         - configs/bc-cache2/daemons:/etc/frr/daemons
+        - configs/bc-cache2/named.conf:/etc/bind/named.conf
+        - configs/bc-cache2/db.root:/etc/bind/db.root
 
     # Rec Master (no FRR)
     bc-rmaster:
       kind: linux
       image: dnsnode:1.0
       mgmt-ipv4: 10.233.4.30
+      binds:
+        - configs/bc-rmaster/named.conf:/etc/bind/named.conf
+        - configs/bc-rmaster/db.root:/etc/bind/db.root
+        - configs/bc-rmaster/zones/db.lab.test:/etc/bind/zones/db.lab.test
 
     # Rec Slaves (Anycast 172.30.30.85/32)
     bc-rslave1:
@@ -46,6 +54,8 @@ topology:
       binds:
         - configs/bc-rslave1/frr.conf:/etc/frr/frr.conf
         - configs/bc-rslave1/daemons:/etc/frr/daemons
+        - configs/bc-rslave1/named.conf:/etc/bind/named.conf
+        - configs/bc-rslave1/db.root:/etc/bind/db.root
 
     bc-rslave2:
       kind: linux
@@ -54,22 +64,34 @@ topology:
       binds:
         - configs/bc-rslave2/frr.conf:/etc/frr/frr.conf
         - configs/bc-rslave2/daemons:/etc/frr/daemons
+        - configs/bc-rslave2/named.conf:/etc/bind/named.conf
+        - configs/bc-rslave2/db.root:/etc/bind/db.root
 
     # External & Auth DNS (no FRR)
     ex-dns:
       kind: linux
       image: dnsnode:1.0
       mgmt-ipv4: 10.233.4.41
+      binds:
+        - configs/ex-dns/named.conf:/etc/bind/named.conf
+        - configs/ex-dns/db.root:/etc/bind/db.root
 
     root:
       kind: linux
       image: dnsnode:1.0
       mgmt-ipv4: 10.233.4.51
+      binds:
+        - configs/root/named.conf:/etc/bind/named.conf
+        - configs/root/zones/db.root:/etc/bind/zones/db.root
+        - configs/root/zones/db.test:/etc/bind/zones/db.test
 
     cmp-auth:
       kind: linux
       image: dnsnode:1.0
       mgmt-ipv4: 10.233.4.52
+      binds:
+        - configs/cmp-auth/named.conf:/etc/bind/named.conf
+        - configs/cmp-auth/zones/db.lab.test:/etc/bind/zones/db.lab.test
 
     # Client Host (no FRR)
     pc:
