@@ -785,16 +785,21 @@ BIND_NODES=("bc-cache1" "bc-cache2" "bc-rmaster" "bc-rslave1" "bc-rslave2" "ex-d
 for node in "${BIND_NODES[@]}"; do
     c="clab-dns-${node}"
     docker exec "${c}" mkdir -p /etc/bind/zones /var/bind/sec /var/bind/pri /var/bind/dyn /run/named /var/log
-    docker cp "${SCRIPT_DIR}/configs/${node}/named.conf" "${c}:/etc/bind/named.conf"
+    # Skip the cp when the destination is a bind mount: the host file is
+    # already visible in the container, and docker cp onto a mount fails
+    # with "device or resource busy". (mountpoint rejects file mounts, so
+    # test /proc/mounts directly.)
+    docker exec "${c}" sh -c 'grep -q " $1 " /proc/mounts' sh /etc/bind/named.conf || docker cp "${SCRIPT_DIR}/configs/${node}/named.conf" "${c}:/etc/bind/named.conf"
 
     if [[ -f "${SCRIPT_DIR}/configs/${node}/db.root" ]]; then
-        docker cp "${SCRIPT_DIR}/configs/${node}/db.root" "${c}:/etc/bind/db.root"
+        docker exec "${c}" sh -c 'grep -q " $1 " /proc/mounts' sh /etc/bind/db.root || docker cp "${SCRIPT_DIR}/configs/${node}/db.root" "${c}:/etc/bind/db.root"
     fi
 
     if [[ -d "${SCRIPT_DIR}/configs/${node}/zones" ]]; then
         for zf in "${SCRIPT_DIR}/configs/${node}/zones/"*; do
             if [[ -f "$zf" ]]; then
-                docker cp "$zf" "${c}:/etc/bind/zones/$(basename "$zf")"
+                dest="/etc/bind/zones/$(basename "$zf")"
+                docker exec "${c}" sh -c 'grep -q " $1 " /proc/mounts' sh "$dest" || docker cp "$zf" "${c}:${dest}"
             fi
         done
     fi
