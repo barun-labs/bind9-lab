@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useApi } from '../../data/store';
+import { useAuth } from '../../auth/AuthProvider';
+import { seedUsers } from '../../data/users.seed';
 import type { ApiKey } from '../../types/entities';
 import { Button } from '../../components/Button/Button';
 import { Input } from '../../components/Input/Input';
+import { Checkbox } from '../../components/Checkbox/Checkbox';
 import { CopyButton } from '../../components/CopyButton/CopyButton';
 import { Modal } from '../../components/Modal/Modal';
 
@@ -19,10 +22,14 @@ function formatDate(isoString?: string | null): string {
 
 export function ApiKeys() {
   const { listApiKeys, createApiKey, deleteApiKey } = useApi();
+  const { currentUser, can } = useAuth();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [keyName, setKeyName] = useState<string>('');
+  const [scopes, setScopes] = useState<('read' | 'write' | 'deploy')[]>(['read', 'write']);
+  const [readOnly, setReadOnly] = useState<boolean>(false);
+  const [expiresAt, setExpiresAt] = useState<string>('');
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -43,6 +50,9 @@ export function ApiKeys() {
 
   const handleOpenModal = () => {
     setKeyName('');
+    setScopes(['read', 'write']);
+    setReadOnly(false);
+    setExpiresAt('');
     setCreatedToken(null);
     setIsModalOpen(true);
   };
@@ -50,7 +60,16 @@ export function ApiKeys() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setKeyName('');
+    setScopes(['read', 'write']);
+    setReadOnly(false);
+    setExpiresAt('');
     setCreatedToken(null);
+  };
+
+  const handleScopeToggle = (scope: 'read' | 'write' | 'deploy') => {
+    setScopes((prev) =>
+      prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]
+    );
   };
 
   const handleCreate = async (e?: React.FormEvent) => {
@@ -62,7 +81,13 @@ export function ApiKeys() {
 
     setIsSubmitting(true);
     try {
-      const newKey = await createApiKey(trimmed);
+      const newKey = await createApiKey({
+        name: trimmed,
+        ownerUserId: currentUser ? currentUser.id : 'usr-admin',
+        scopes,
+        readOnly,
+        expiresAt: expiresAt.trim() ? expiresAt.trim() : null,
+      });
       setCreatedToken(newKey.token ?? null);
       await fetchKeys();
     } finally {
@@ -78,6 +103,20 @@ export function ApiKeys() {
       // ignore
     }
   };
+
+  const getOwnerDisplayName = (ownerUserId: string): string => {
+    const user = seedUsers.find((u) => u.id === ownerUserId);
+    return user ? user.displayName : ownerUserId;
+  };
+
+  const canDeleteKey = useCallback(
+    (key: ApiKey) => {
+      if (!currentUser) return false;
+      if (key.ownerUserId === currentUser.id) return true;
+      return currentUser.roles?.some((r) => can('admin', r.configurationId)) ?? false;
+    },
+    [currentUser, can]
+  );
 
   return (
     <div
@@ -136,6 +175,12 @@ export function ApiKeys() {
                 Name
               </th>
               <th scope="col" style={{ padding: '10px 16px' }}>
+                Owner
+              </th>
+              <th scope="col" style={{ padding: '10px 16px' }}>
+                Scopes
+              </th>
+              <th scope="col" style={{ padding: '10px 16px' }}>
                 Created
               </th>
               <th scope="col" style={{ padding: '10px 16px' }}>
@@ -150,7 +195,7 @@ export function ApiKeys() {
             {loading ? (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={6}
                   style={{
                     textAlign: 'center',
                     padding: '32px 16px',
@@ -163,7 +208,7 @@ export function ApiKeys() {
             ) : keys.length === 0 ? (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={6}
                   style={{
                     textAlign: 'center',
                     padding: '32px 16px',
@@ -184,6 +229,44 @@ export function ApiKeys() {
                       fontSize: '13px',
                     }}
                   >
+                    {getOwnerDisplayName(key.ownerUserId)}
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: '13px' }}>
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        gap: '4px',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                      }}
+                    >
+                      {key.scopes && key.scopes.length > 0 ? (
+                        key.scopes.map((s) => (
+                          <span key={s} className="tag tag-neutral" style={{ fontSize: '11px' }}>
+                            {s}
+                          </span>
+                        ))
+                      ) : (
+                        <span
+                          style={{ color: 'var(--color-text-secondary)', fontSize: '12px' }}
+                        >
+                          none
+                        </span>
+                      )}
+                      {key.readOnly && (
+                        <span className="tag tag-outline" style={{ fontSize: '11px' }}>
+                          read-only
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td
+                    style={{
+                      padding: '12px 16px',
+                      color: 'var(--color-text-secondary)',
+                      fontSize: '13px',
+                    }}
+                  >
                     {formatDate(key.createdAt)}
                   </td>
                   <td
@@ -196,14 +279,16 @@ export function ApiKeys() {
                     {formatDate(key.lastUsedAt)}
                   </td>
                   <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(key.id)}
-                      aria-label={`Delete API key ${key.name}`}
-                    >
-                      Delete
-                    </Button>
+                    {canDeleteKey(key) && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDelete(key.id)}
+                        aria-label={`Delete API key ${key.name}`}
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))
@@ -279,7 +364,10 @@ export function ApiKeys() {
             </p>
           </div>
         ) : (
-          <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <form
+            onSubmit={handleCreate}
+            style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+          >
             <div className="field">
               <label htmlFor="api-key-name">Name</label>
               <Input
@@ -288,6 +376,58 @@ export function ApiKeys() {
                 value={keyName}
                 onChange={(e) => setKeyName(e.target.value)}
                 autoFocus
+              />
+            </div>
+
+            <div className="field">
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '6px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                }}
+              >
+                Scopes
+              </label>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                <Checkbox
+                  id="scope-read"
+                  label="read"
+                  checked={scopes.includes('read')}
+                  onChange={() => handleScopeToggle('read')}
+                />
+                <Checkbox
+                  id="scope-write"
+                  label="write"
+                  checked={scopes.includes('write')}
+                  onChange={() => handleScopeToggle('write')}
+                />
+                <Checkbox
+                  id="scope-deploy"
+                  label="deploy"
+                  checked={scopes.includes('deploy')}
+                  onChange={() => handleScopeToggle('deploy')}
+                />
+              </div>
+            </div>
+
+            <div className="field">
+              <Checkbox
+                id="api-key-readonly"
+                label="Read-only"
+                checked={readOnly}
+                onChange={(e) => setReadOnly(e.target.checked)}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="api-key-expiry">Expiry date (optional)</label>
+              <Input
+                id="api-key-expiry"
+                type="date"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
               />
             </div>
           </form>

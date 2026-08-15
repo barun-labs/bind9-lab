@@ -2,9 +2,20 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { StoreProvider, makeStore, type StoreData } from '../../data/store';
+import { AuthProvider } from '../../auth/AuthProvider';
+import { seedUsers } from '../../data/users.seed';
+import type { User, ApiKey } from '../../types/entities';
 import { ApiKeys } from './ApiKeys';
 
-function renderApiKeys(initialStore?: Partial<StoreData>) {
+function renderApiKeys(initialStore?: Partial<StoreData>, userToLogin?: User) {
+  const defaultUser = seedUsers.find((u) => u.username === 'admin')!;
+  const user = userToLogin !== undefined ? userToLogin : defaultUser;
+  if (user) {
+    localStorage.setItem('bnd_user', JSON.stringify(user));
+  } else {
+    localStorage.removeItem('bnd_user');
+  }
+
   const router = createMemoryRouter(
     [
       {
@@ -19,12 +30,18 @@ function renderApiKeys(initialStore?: Partial<StoreData>) {
 
   return render(
     <StoreProvider initialStore={makeStore(initialStore)}>
-      <RouterProvider router={router} />
+      <AuthProvider initialUser={user}>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </StoreProvider>
   );
 }
 
 describe('Settings → API Keys', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   test('creating a key shows the token once', async () => {
     const user = userEvent.setup();
     renderApiKeys();
@@ -111,5 +128,87 @@ describe('Settings → API Keys', () => {
     await waitFor(() => {
       expect(screen.queryByText('ci')).not.toBeInTheDocument();
     });
+  });
+
+  test('logged in as a user, create a key with scopes [read] -> the new row shows that user as owner and reflects the scope', async () => {
+    const user = userEvent.setup();
+    const editorUser = seedUsers.find((u) => u.username === 'editor')!;
+    renderApiKeys(undefined, editorUser);
+
+    // Open modal
+    await user.click(screen.getByRole('button', { name: /^new api key$/i }));
+    const dialog = screen.getByRole('dialog');
+
+    // Enter name
+    const nameInput = within(dialog).getByLabelText(/name/i);
+    await user.type(nameInput, 'editor-read-key');
+
+    // Scopes: default is read and write; uncheck write so only read remains
+    const writeCheckbox = within(dialog).getByRole('checkbox', { name: /^write$/i });
+    await user.click(writeCheckbox);
+
+    // Toggle read-only
+    const readOnlyCheckbox = within(dialog).getByRole('checkbox', { name: /read-only/i });
+    await user.click(readOnlyCheckbox);
+
+    // Submit
+    const createButton = within(dialog).getByRole('button', { name: /create key/i });
+    await user.click(createButton);
+
+    // Done on modal
+    const doneButton = await screen.findByRole('button', { name: /done/i });
+    await user.click(doneButton);
+
+    // Row 'editor-read-key' is in table
+    const row = screen.getByText('editor-read-key').closest('tr');
+    expect(row).toBeInTheDocument();
+
+    // Shows Editor User as owner
+    expect(within(row!).getByText('Editor User')).toBeInTheDocument();
+
+    // Shows 'read' and 'read-only' tag, but not 'write' or 'deploy'
+    expect(within(row!).getByText('read')).toBeInTheDocument();
+    expect(within(row!).getByText('read-only')).toBeInTheDocument();
+    expect(within(row!).queryByText('write')).not.toBeInTheDocument();
+    expect(within(row!).queryByText('deploy')).not.toBeInTheDocument();
+  });
+
+  test('delete button renders for owner or admin, but not for non-admin non-owner', async () => {
+    const initialKey: ApiKey = {
+      id: 'key-editor-1',
+      name: 'editor-key',
+      ownerUserId: 'usr-editor',
+      scopes: ['read'],
+      readOnly: true,
+      expiresAt: null,
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null,
+    };
+
+    // 1. Logged in as viewer (not owner, not admin): no delete button
+    const viewerUser = seedUsers.find((u) => u.username === 'viewer')!;
+    const { unmount } = renderApiKeys({ apiKeys: [initialKey] }, viewerUser);
+    expect(await screen.findByText('editor-key')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /delete api key editor-key/i })
+    ).not.toBeInTheDocument();
+    unmount();
+
+    // 2. Logged in as owner (editor): delete button is present
+    const editorUser = seedUsers.find((u) => u.username === 'editor')!;
+    const { unmount: unmount2 } = renderApiKeys({ apiKeys: [initialKey] }, editorUser);
+    expect(await screen.findByText('editor-key')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /delete api key editor-key/i })
+    ).toBeInTheDocument();
+    unmount2();
+
+    // 3. Logged in as admin: delete button is present
+    const adminUser = seedUsers.find((u) => u.username === 'admin')!;
+    renderApiKeys({ apiKeys: [initialKey] }, adminUser);
+    expect(await screen.findByText('editor-key')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /delete api key editor-key/i })
+    ).toBeInTheDocument();
   });
 });

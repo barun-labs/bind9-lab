@@ -8,6 +8,7 @@ import type {
   ListEnvelope,
 } from '../../types/entities';
 import { useStore, useApi } from '../../data/store';
+import { useAuth } from '../../auth/AuthProvider';
 import { parseQuery, toSearch, type TableState } from '../../lib/query';
 import { zoneFileLine, rdataDisplay } from '../../lib/zonefile';
 import { validateRecord, type ValidationResult } from '../../lib/validate';
@@ -153,6 +154,8 @@ export function ZoneRecordsInner() {
   const store = useStore();
   const api = useApi();
   const toast = useToast();
+  const { can } = useAuth();
+  const canEdit = can('edit', configId);
 
   const [activeTab, setActiveTab] = useState<'records' | 'roles' | 'options' | 'settings' | 'history'>('records');
 
@@ -528,8 +531,8 @@ export function ZoneRecordsInner() {
   };
 
   // Table Columns
-  const columns: DataTableColumn<ResourceRecord>[] = useMemo(
-    () => [
+  const columns: DataTableColumn<ResourceRecord>[] = useMemo(() => {
+    const cols: DataTableColumn<ResourceRecord>[] = [
       {
         key: 'name',
         header: 'Name',
@@ -626,7 +629,10 @@ export function ZoneRecordsInner() {
           );
         },
       },
-      {
+    ];
+
+    if (canEdit) {
+      cols.push({
         key: 'actions',
         header: '',
         width: '120px',
@@ -682,10 +688,11 @@ export function ZoneRecordsInner() {
             </button>
           </div>
         ),
-      },
-    ],
-    [openEditPanel]
-  );
+      });
+    }
+
+    return cols;
+  }, [canEdit, openEditPanel]);
 
   // Quick placeholders
   const quickPlaceholders: Record<string, string> = {
@@ -834,9 +841,11 @@ export function ZoneRecordsInner() {
           <span style={{ fontSize: '12px', color: 'color-mix(in srgb, var(--color-text) 55%, transparent)' }}>
             {recordsEnvelope.total} records · 2 of 3 servers synced
           </span>
-          <Button variant="secondary" size="md">
-            Edit SOA
-          </Button>
+          {canEdit && (
+            <Button variant="secondary" size="md">
+              Edit SOA
+            </Button>
+          )}
         </div>
 
         {/* SOA Summary Box */}
@@ -1024,7 +1033,7 @@ export function ZoneRecordsInner() {
 
             <div style={{ flex: 1 }} />
 
-            {selectedIds.length > 0 && (
+            {canEdit && selectedIds.length > 0 && (
               <>
                 <span
                   style={{
@@ -1057,26 +1066,28 @@ export function ZoneRecordsInner() {
             <Button variant="ghost" size="md">
               Export
             </Button>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => openAddPanel()}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+            {canEdit && (
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => openAddPanel()}
               >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              Add record
-            </Button>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Add record
+              </Button>
+            )}
           </div>
 
           {/* Records DataTable */}
@@ -1084,10 +1095,10 @@ export function ZoneRecordsInner() {
             columns={columns}
             rows={recordsEnvelope.data}
             loading={loading}
-            selectable
+            selectable={canEdit}
             selectedIds={selectedIds}
             onSelectionChange={setSelectedIds}
-            topRow={quickAddRow}
+            topRow={canEdit ? quickAddRow : undefined}
             pagination={{
               page: recordsEnvelope.page,
               size: recordsEnvelope.size,

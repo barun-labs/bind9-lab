@@ -2,9 +2,20 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { StoreProvider } from '../../data/store';
+import { AuthProvider } from '../../auth/AuthProvider';
+import { seedUsers } from '../../data/users.seed';
+import type { User } from '../../types/entities';
 import { ZoneRecords } from './ZoneRecords';
 
-function renderZoneRecords() {
+function renderZoneRecords(userToLogin?: User) {
+  const defaultUser = seedUsers.find((u) => u.username === 'editor')!;
+  const user = userToLogin !== undefined ? userToLogin : defaultUser;
+  if (user) {
+    localStorage.setItem('bnd_user', JSON.stringify(user));
+  } else {
+    localStorage.removeItem('bnd_user');
+  }
+
   const router = createMemoryRouter(
     [
       {
@@ -19,12 +30,41 @@ function renderZoneRecords() {
 
   return render(
     <StoreProvider>
-      <RouterProvider router={router} />
+      <AuthProvider initialUser={user}>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </StoreProvider>
   );
 }
 
 describe('ZoneRecords', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  test('logged in as VIEWER seed -> NO Add record control or mutating controls', async () => {
+    const viewer = seedUsers.find((u) => u.username === 'viewer')!;
+    renderZoneRecords(viewer);
+
+    // No Add record button
+    expect(screen.queryByRole('button', { name: /add record/i })).not.toBeInTheDocument();
+    // No quick-add row
+    expect(screen.queryByLabelText(/quick add record name/i)).not.toBeInTheDocument();
+    // No edit or disable action buttons in rows
+    expect(screen.queryByRole('button', { name: /^disable/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^edit /i })).not.toBeInTheDocument();
+    // Still displays records in table
+    expect(await screen.findByText('ns1')).toBeInTheDocument();
+  });
+
+  test('logged in as EDITOR seed -> Add record present', async () => {
+    const editor = seedUsers.find((u) => u.username === 'editor')!;
+    renderZoneRecords(editor);
+
+    expect(await screen.findByRole('button', { name: /add record/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/quick add record name/i)).toBeInTheDocument();
+  });
+
   test('add an A record via the side panel makes a row appear', async () => {
     const user = userEvent.setup();
     renderZoneRecords();
