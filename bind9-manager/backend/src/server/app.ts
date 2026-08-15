@@ -37,7 +37,10 @@ import {
   createLab,
   updateLab,
   deleteLab,
+  reconcileServersRuntime,
 } from './labStore';
+import { parseInspect } from './deployEngine';
+import { snapshot } from './telemetry';
 import {
   generateClabTopology,
   validateTopology,
@@ -51,6 +54,7 @@ import {
   validateConfig,
   type Runner,
 } from '../config-engine';
+import { shellQuote } from '../config-engine/shellQuote';
 import {
   startDeployJob,
   getDeployJob,
@@ -1035,6 +1039,139 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     }
 
     return reply.status(200).send(job);
+  });
+
+  // --- TELEMETRY ROUTES (SECURITY-CRITICAL: see telemetry.ts) ---
+
+  // GET /api/v1/labs/:id/telemetry - Point-in-time runtime snapshot (requires view)
+  app.get('/api/v1/labs/:id/telemetry', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'view', lab.configurationId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+
+    const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
+    return reply.status(200).send(await snapshot(lab, activeRunner, labDir));
+  });
+
+  // GET /api/v1/labs/:id/telemetry/stream - Server-sent events, one snapshot every 2.5s (requires view)
+  app.get('/api/v1/labs/:id/telemetry/stream', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'view', lab.configurationId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+
+    const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
+
+    // Hijack the raw socket so Fastify does not also try to send a reply —
+    // an SSE stream owns the response for the life of the connection.
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+    const send = async () => {
+      try {
+        reply.raw.write(`data: ${JSON.stringify(await snapshot(lab, activeRunner, labDir))}\n\n`);
+      } catch {}
+    };
+    await send(); // first frame immediately
+    const timer = setInterval(send, 2500);
+    req.raw.on('close', () => {
+      clearInterval(timer);
+      try {
+        reply.raw.end();
+      } catch {}
+    });
+    return reply; // already hijacked
+  });
+
+  // GET /api/v1/labs/:id/nodes/:node/logs?tail=N - docker logs for one node (requires view)
+  app.get('/api/v1/labs/:id/nodes/:node/logs', async (req, reply) => {
+    const { id, node } = req.params as { id: string; node: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'view', lab.configurationId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+
+    // Defence 1: charset — a `:node` param that is not a bare identifier
+    // can never become a shell/container argument, no matter what follows.
+    if (!/^[A-Za-z0-9_-]+$/.test(node)) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Invalid node name' },
+      });
+    }
+
+    // Defence 2: membership — the authoritative gate. A syntactically valid
+    // name that is not one of THIS lab's own topology nodes is rejected,
+    // even though it already passed the charset check.
+    const isLabNode = (lab.topology.nodes || []).some((n) => n && n.name === node);
+    if (!isLabNode) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Unknown node' },
+      });
+    }
+
+    const tail = Math.min(1000, Math.max(1, Number((req.query as any).tail) || 200));
+
+    // Defence 3: the container name is derived here, server-side, from the
+    // lab's own topology name + the now-validated node name — never taken
+    // from the raw request param — and shell-quoted before interpolation.
+    const container = 'clab-' + lab.topology.name + '-' + node;
+    const result = await activeRunner(`docker logs --tail ${tail} ${shellQuote(container)}`);
+    return reply.type('text/plain').status(200).send(result.stdout || result.stderr || '');
+  });
+
+  // POST /api/v1/labs/:id/sync - Re-inspect runtime state without deploying (requires view)
+  app.post('/api/v1/labs/:id/sync', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'view', lab.configurationId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+
+    const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
+    const insp = await activeRunner(
+      `containerlab inspect -t ${shellQuote(labDir + '/topo.clab.yml')} --format json`,
+    );
+
+    const result =
+      insp.code === 0
+        ? { validated: [], runtime: parseInspect(insp.stdout) }
+        : { validated: [], runtimeError: 'inspect exited ' + insp.code };
+
+    reconcileServersRuntime(db, lab, result);
+
+    return reply
+      .status(200)
+      .send(listServers(db, lab.configurationId).filter((s) => s.id.startsWith('srv-' + lab.id + '-')));
   });
 
   // Serve the built React frontend (bind9-manager/app/dist) on every other
