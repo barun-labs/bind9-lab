@@ -39,8 +39,9 @@ describe('crypto adversarial', () => {
 
     it('returns false for a valid-length digest with flipped content', () => {
       const { salt, hash } = hashPassword('pw');
-      // Flip a nibble in the middle.
-      const mutated = (hash[32] === '0' ? '1' : '0') + hash.slice(1);
+      // Flip the nibble at index 32 (the middle), keeping every other character intact.
+      const flippedNibble = hash[32] === '0' ? '1' : '0';
+      const mutated = hash.slice(0, 32) + flippedNibble + hash.slice(33);
       expect(mutated).toHaveLength(128);
       expect(verifyPassword('pw', salt, mutated)).toBe(false);
     });

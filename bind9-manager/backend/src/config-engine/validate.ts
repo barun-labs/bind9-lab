@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import { spawn } from 'child_process';
 import path from 'path';
+import { shellQuote } from './shellQuote';
 
 export type Runner = (bashScript: string) => Promise<{ code: number; stdout: string; stderr: string }>;
 
@@ -57,10 +58,10 @@ export async function validateConfig(
   for (const [filePath, content] of Object.entries(allFiles)) {
     const dir = path.posix.dirname(filePath);
     if (dir && dir !== '.') {
-      scriptLines.push(`mkdir -p "$TMPDIR/${dir}"`);
+      scriptLines.push(`mkdir -p "$TMPDIR"/${shellQuote(dir)}`);
     }
     const b64 = Buffer.from(content, 'utf-8').toString('base64');
-    scriptLines.push(`echo '${b64}' | base64 -d > "$TMPDIR/${filePath}"`);
+    scriptLines.push(`echo '${b64}' | base64 -d > "$TMPDIR"/${shellQuote(filePath)}`);
   }
 
   // named-checkconf
@@ -74,7 +75,9 @@ export async function validateConfig(
     const fileSuffix = zf.slice('zones/db.'.length);
     const zoneName = fileSuffix === 'root' ? '.' : fileSuffix;
     scriptLines.push(
-      `docker run --rm -v "$TMPDIR":/etc/bind dnsnode:1.0 named-checkzone "${zoneName}" "/etc/bind/${zf}" || STATUS=1`,
+      `docker run --rm -v "$TMPDIR":/etc/bind dnsnode:1.0 named-checkzone ${shellQuote(
+        zoneName,
+      )} ${shellQuote(`/etc/bind/${zf}`)} || STATUS=1`,
     );
   }
 
