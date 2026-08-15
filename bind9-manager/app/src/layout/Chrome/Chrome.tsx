@@ -3,8 +3,10 @@ import { ConfigurationSwitcher } from '../../components/ConfigurationSwitcher/Co
 import { ViewSwitcher } from '../../components/ViewSwitcher/ViewSwitcher';
 import { PendingChangesPill } from '../../components/PendingChangesPill/PendingChangesPill';
 import { Breadcrumb, type BreadcrumbItem } from '../../components/Breadcrumb/Breadcrumb';
+import { Button } from '../../components/Button/Button';
 import { Sidebar } from '../Sidebar/Sidebar';
 import { useStore } from '../../data/store';
+import { useAuth } from '../../auth/AuthProvider';
 
 export function Chrome() {
   const { configId, zoneId, viewId, serverId, blockId, groupId, aclId, snapshotId } = useParams();
@@ -12,6 +14,7 @@ export function Chrome() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const { currentUser, logout } = useAuth();
   const store = useStore();
   const currentConfigId = configId ?? 'dns-lab';
 
@@ -338,6 +341,59 @@ export function Chrome() {
                 navigate(`/config/${currentConfigId}/review-deploy`);
               }}
             />
+
+            {currentUser && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  paddingLeft: '12px',
+                  borderLeft: '1px solid var(--color-divider)',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      color: 'var(--color-text)',
+                    }}
+                  >
+                    {currentUser.displayName}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--color-text-tertiary)',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {currentUser.roles.find((r) => r.configurationId === currentConfigId)?.role ??
+                      currentUser.username}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    logout();
+                    navigate('/login');
+                  }}
+                  aria-label="Log out"
+                >
+                  Log out
+                </Button>
+              </div>
+            )}
           </header>
 
           {/* Layer 3: Breadcrumb */}

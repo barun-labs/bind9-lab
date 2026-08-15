@@ -7,11 +7,21 @@ import { Chrome } from './layout/Chrome/Chrome';
 import { Placeholder } from './layout/Placeholder/Placeholder';
 import { ZoneRecords } from './routes/ZoneRecords/ZoneRecords';
 import { ApiKeys } from './routes/ApiKeys/ApiKeys';
+import { Login } from './routes/Login/Login';
+import { RequireAuth } from './auth/RequireAuth';
 
 export const routes: RouteObject[] = [
   {
+    path: '/login',
+    element: <Login />,
+  },
+  {
     path: '/',
-    element: <Chrome />,
+    element: (
+      <RequireAuth>
+        <Chrome />
+      </RequireAuth>
+    ),
     children: [
       {
         index: true,
