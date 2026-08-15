@@ -1,4 +1,3 @@
-// NOTE: duplicated from app/src/auth/can.ts — unify in a later cleanup slice.
 import type { User, Permission } from './entities';
 
 export function can(
