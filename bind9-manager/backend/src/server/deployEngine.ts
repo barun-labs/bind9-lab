@@ -10,11 +10,22 @@ export type Runner = (
   bashScript: string,
 ) => Promise<{ code: number; stdout: string; stderr: string }>;
 
+export interface RuntimeNode {
+  name: string; // container name, e.g. "clab-mylab-ns1"
+  containerId: string;
+  image?: string;
+  state?: string; // e.g. "running"
+  status?: string; // e.g. "Up 2 hours"
+  ipv4Address?: string; // e.g. "10.60.99.30/24" (kept verbatim, CIDR and all)
+}
+
 export interface DeployResult {
   validated: { serverId: string; ok: boolean; errors: string[] }[];
   plan?: string[];
   aborted?: string;
   deployed?: { serverId: string; ok: boolean; output: string }[];
+  runtime?: RuntimeNode[]; // present on a successful real deploy when inspect parses
+  runtimeError?: string; // present when the extra inspect failed or did not parse
 }
 
 export interface DeployOptions {
@@ -253,6 +264,45 @@ function parseDeployed(
   });
 }
 
+export function parseInspect(stdout: string): RuntimeNode[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    const start = stdout.indexOf('{');
+    const end = stdout.lastIndexOf('}');
+    if (start === -1 || end === -1 || end < start) return [];
+    try {
+      parsed = JSON.parse(stdout.slice(start, end + 1));
+    } catch {
+      return [];
+    }
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return [];
+
+  const records: unknown[] = [];
+  for (const value of Object.values(parsed as Record<string, unknown>)) {
+    if (Array.isArray(value)) records.push(...value);
+  }
+
+  const nodes: RuntimeNode[] = [];
+  for (const record of records) {
+    if (typeof record !== 'object' || record === null || Array.isArray(record)) continue;
+    const r = record as Record<string, unknown>;
+    if (typeof r.name !== 'string' || r.name.length === 0) continue;
+    nodes.push({
+      name: r.name,
+      containerId: typeof r.container_id === 'string' ? r.container_id : '',
+      image: typeof r.image === 'string' ? r.image : undefined,
+      state: typeof r.state === 'string' ? r.state : undefined,
+      status: typeof r.status === 'string' ? r.status : undefined,
+      ipv4Address: typeof r.ipv4_address === 'string' ? r.ipv4_address : undefined,
+    });
+  }
+  return nodes;
+}
+
 export async function deploy(
   model: ConfigModel,
   topology: TopologyModel,
@@ -289,5 +339,19 @@ export async function deploy(
   const result = await opts.run(script);
   const deployed = parseDeployed(result.stdout, bindServers(model, topology));
 
-  return { validated, deployed };
+  let runtime: RuntimeNode[] | undefined;
+  let runtimeError: string | undefined;
+  try {
+    const inspect = await opts.run(
+      `containerlab inspect -t ${shellQuote(`${opts.labDir}/topo.clab.yml`)} --format json`,
+    );
+    if (inspect.code === 0) {
+      runtime = parseInspect(inspect.stdout);
+    } else {
+      runtimeError = `inspect exited ${inspect.code}: ${inspect.stderr.trim().slice(0, 500)}`;
+    }
+  } catch (err) {
+    runtimeError = `inspect failed: ${(err as Error).message}`;
+  }
+  return { validated, deployed, ...(runtime ? { runtime } : {}), ...(runtimeError ? { runtimeError } : {}) };
 }
