@@ -1,2 +1,5 @@
 node_modules
 dist
+bind9.db
+bind9.db-shm
+bind9.db-wal

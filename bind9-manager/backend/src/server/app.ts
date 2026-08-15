@@ -27,6 +27,7 @@ import {
   type ZoneFilters,
   type RecordFilters,
 } from './entityStore';
+import { registerFrontendStatic } from './static';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -45,6 +46,12 @@ export function buildApp(db: Database.Database, opts: FastifyServerOptions = {})
   app.addHook('onRequest', async (req, reply) => {
     const urlPath = req.url.split('?')[0];
     if (req.method === 'POST' && (urlPath === '/api/v1/sessions' || urlPath === '/api/v1/sessions/')) {
+      return;
+    }
+
+    // Static frontend assets and SPA routes are not part of the API and
+    // must never require auth — the React app itself enforces login.
+    if (!urlPath.startsWith('/api/')) {
       return;
     }
 
@@ -480,6 +487,10 @@ export function buildApp(db: Database.Database, opts: FastifyServerOptions = {})
     const data = items.slice(start, start + size);
     return reply.status(200).send({ data, page, size, total });
   });
+
+  // Serve the built React frontend (bind9-manager/app/dist) on every other
+  // GET, with SPA fallback to index.html. See ./static.ts.
+  registerFrontendStatic(app);
 
   return app;
 }
