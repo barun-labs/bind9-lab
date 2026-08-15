@@ -20,7 +20,7 @@ export interface CreateApiKeyOptions {
   expiresAt?: string | null;
 }
 
-function safeParseJson<T>(text: string | null | undefined, fallback: T): T {
+export function safeParseJson<T>(text: string | null | undefined, fallback: T): T {
   try {
     return text ? (JSON.parse(text) as T) : fallback;
   } catch {

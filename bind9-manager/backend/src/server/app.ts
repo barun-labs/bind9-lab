@@ -8,8 +8,25 @@ import {
   resolveApiKey,
   listApiKeys,
   deleteApiKey,
+  safeParseJson,
 } from './authStore';
 import { authorize, type Actor } from './authorize';
+import {
+  listConfigurations,
+  getConfiguration,
+  listZones,
+  getZone,
+  updateZone,
+  deleteZone,
+  listRecords,
+  getRecord,
+  createRecord,
+  updateRecord,
+  deleteRecord,
+  listExternalHosts,
+  type ZoneFilters,
+  type RecordFilters,
+} from './entityStore';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -87,6 +104,11 @@ export function buildApp(db: Database.Database, opts: FastifyServerOptions = {})
 
   // DELETE /api/v1/sessions/current - Revoke presenting session token
   app.delete('/api/v1/sessions/current', async (req, reply) => {
+    if (req.actor.viaApiKey) {
+      return reply.status(400).send({
+        error: { code: 'NOT_A_SESSION', message: 'API keys cannot be revoked via session logout' },
+      });
+    }
     if (req.token) {
       revokeSession(db, req.token);
     }
@@ -137,7 +159,7 @@ export function buildApp(db: Database.Database, opts: FastifyServerOptions = {})
       name: row.name,
       ownerUserId: row.ownerUserId,
       token,
-      scopes: JSON.parse(row.scopes),
+      scopes: safeParseJson<('read' | 'write' | 'deploy')[]>(row.scopes, []),
       readOnly: Boolean(row.readOnly),
       expiresAt: row.expiresAt,
       lastUsedAt: row.lastUsedAt,
@@ -184,6 +206,279 @@ export function buildApp(db: Database.Database, opts: FastifyServerOptions = {})
 
     deleteApiKey(db, id);
     return reply.status(204).send();
+  });
+
+  // --- CRUD ROUTES (SLICE 2b UNIT B) ---
+
+  // GET /api/v1/configurations - List configurations visible to actor
+  app.get('/api/v1/configurations', async (req, reply) => {
+    const query = (req.query as any) || {};
+    const allConfigs = listConfigurations(db);
+    let items = allConfigs.filter((c) => authorize(req.actor, 'view', c.id));
+    if (query.q) {
+      const q = String(query.q).toLowerCase().trim();
+      items = items.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.id.toLowerCase().includes(q) ||
+          (c.description && c.description.toLowerCase().includes(q))
+      );
+    }
+    const total = items.length;
+    const page = Math.max(1, Number(query.page) || 1);
+    const size = Math.max(1, Number(query.size) || 50);
+    const start = (page - 1) * size;
+    const data = items.slice(start, start + size);
+    return reply.status(200).send({ data, page, size, total });
+  });
+
+  // GET /api/v1/configurations/:configId/zones - List zones with filters
+  app.get('/api/v1/configurations/:configId/zones', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Configuration not found' },
+      });
+    }
+    const query = (req.query as any) || {};
+    const filters: ZoneFilters = {
+      view: query.view,
+      type: query.type,
+      status: query.status,
+      q: query.q,
+      page: query.page ? Number(query.page) : undefined,
+      size: query.size ? Number(query.size) : undefined,
+      sort: query.sort,
+    };
+    const result = listZones(db, configId, filters);
+    return reply.status(200).send(result);
+  });
+
+  // GET /api/v1/zones/:zoneId - Get single zone
+  app.get('/api/v1/zones/:zoneId', async (req, reply) => {
+    const { zoneId } = req.params as { zoneId: string };
+    const zone = getZone(db, zoneId);
+    if (!zone) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Zone not found' },
+      });
+    }
+    if (!authorize(req.actor, 'view', zone.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+    return reply.status(200).send(zone);
+  });
+
+  // PATCH /api/v1/zones/:zoneId - Update zone (requires edit)
+  app.patch('/api/v1/zones/:zoneId', async (req, reply) => {
+    const { zoneId } = req.params as { zoneId: string };
+    const zone = getZone(db, zoneId);
+    if (!zone) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Zone not found' },
+      });
+    }
+    if (!authorize(req.actor, 'edit', zone.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+    const body = req.body as any;
+    if (!body || typeof body !== 'object') {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Invalid request body' },
+      });
+    }
+    if (body.configurationId && body.configurationId !== zone.configurationId) {
+      if (!authorize(req.actor, 'edit', body.configurationId)) {
+        return reply.status(403).send({
+          error: { code: 'FORBIDDEN', message: 'Forbidden' },
+        });
+      }
+    }
+    const updated = updateZone(db, zoneId, body);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/zones/:zoneId - Delete zone (requires edit)
+  app.delete('/api/v1/zones/:zoneId', async (req, reply) => {
+    const { zoneId } = req.params as { zoneId: string };
+    const zone = getZone(db, zoneId);
+    if (!zone) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Zone not found' },
+      });
+    }
+    if (!authorize(req.actor, 'edit', zone.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+    const result = deleteZone(db, zoneId);
+    return reply.status(200).send(result);
+  });
+
+  // GET /api/v1/zones/:zoneId/records - List records in zone with filters
+  app.get('/api/v1/zones/:zoneId/records', async (req, reply) => {
+    const { zoneId } = req.params as { zoneId: string };
+    const zone = getZone(db, zoneId);
+    if (!zone) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Zone not found' },
+      });
+    }
+    if (!authorize(req.actor, 'view', zone.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+    const query = (req.query as any) || {};
+    const filters: RecordFilters = {
+      type: query.type,
+      status: query.status,
+      q: query.q,
+      page: query.page ? Number(query.page) : undefined,
+      size: query.size ? Number(query.size) : undefined,
+      sort: query.sort,
+    };
+    const result = listRecords(db, zoneId, filters);
+    return reply.status(200).send(result);
+  });
+
+  // POST /api/v1/zones/:zoneId/records - Create record in zone (requires edit)
+  app.post('/api/v1/zones/:zoneId/records', async (req, reply) => {
+    const { zoneId } = req.params as { zoneId: string };
+    const zone = getZone(db, zoneId);
+    if (!zone) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Zone not found' },
+      });
+    }
+    if (!authorize(req.actor, 'edit', zone.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+    const body = req.body as any;
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      typeof body.name !== 'string' ||
+      typeof body.type !== 'string' ||
+      !body.rdata ||
+      typeof body.rdata !== 'object'
+    ) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Invalid record data' },
+      });
+    }
+    const record = createRecord(db, zoneId, body);
+    return reply.status(201).send(record);
+  });
+
+  // PATCH /api/v1/records/:id - Update record (requires edit)
+  app.patch('/api/v1/records/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const record = getRecord(db, id);
+    if (!record) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Record not found' },
+      });
+    }
+    const zone = getZone(db, record.zoneId);
+    if (!zone) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Zone not found' },
+      });
+    }
+    if (!authorize(req.actor, 'edit', zone.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+    const body = req.body as any;
+    if (!body || typeof body !== 'object') {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Invalid request body' },
+      });
+    }
+    if (body.zoneId && body.zoneId !== record.zoneId) {
+      const targetZone = getZone(db, body.zoneId);
+      if (!targetZone) {
+        return reply.status(404).send({
+          error: { code: 'NOT_FOUND', message: 'Target zone not found' },
+        });
+      }
+      if (!authorize(req.actor, 'edit', targetZone.configurationId)) {
+        return reply.status(403).send({
+          error: { code: 'FORBIDDEN', message: 'Forbidden' },
+        });
+      }
+    }
+    const updated = updateRecord(db, id, body);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/records/:id - Delete record (requires edit)
+  app.delete('/api/v1/records/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const record = getRecord(db, id);
+    if (!record) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Record not found' },
+      });
+    }
+    const zone = getZone(db, record.zoneId);
+    if (!zone) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Zone not found' },
+      });
+    }
+    if (!authorize(req.actor, 'edit', zone.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+    const result = deleteRecord(db, id);
+    return reply.status(200).send(result);
+  });
+
+  // GET /api/v1/configurations/:configId/external-hosts - List external hosts
+  app.get('/api/v1/configurations/:configId/external-hosts', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Configuration not found' },
+      });
+    }
+    const query = (req.query as any) || {};
+    let items = listExternalHosts(db, configId);
+    if (query.q) {
+      const q = String(query.q).toLowerCase().trim();
+      items = items.filter(
+        (h) => h.fqdn.toLowerCase().includes(q) || h.id.toLowerCase().includes(q)
+      );
+    }
+    const total = items.length;
+    const page = Math.max(1, Number(query.page) || 1);
+    const size = Math.max(1, Number(query.size) || 50);
+    const start = (page - 1) * size;
+    const data = items.slice(start, start + size);
+    return reply.status(200).send({ data, page, size, total });
   });
 
   return app;
