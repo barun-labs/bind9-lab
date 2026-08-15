@@ -1,5 +1,40 @@
 import Database from 'better-sqlite3';
+import fs from 'node:fs';
+import path from 'node:path';
 import { hashPassword } from './crypto';
+
+function loadFixtures(): any {
+  const possibleUrls = [
+    new URL('../../../design/docs/fixtures.json', import.meta.url),
+    new URL('../../design/docs/fixtures.json', import.meta.url),
+  ];
+  for (const u of possibleUrls) {
+    try {
+      if (fs.existsSync(u)) {
+        return JSON.parse(fs.readFileSync(u, 'utf-8'));
+      }
+    } catch {
+      // ignore and try next
+    }
+  }
+
+  const cwdPaths = [
+    path.resolve(process.cwd(), '../design/docs/fixtures.json'),
+    path.resolve(process.cwd(), 'design/docs/fixtures.json'),
+    path.resolve(process.cwd(), 'bind9-manager/design/docs/fixtures.json'),
+  ];
+  for (const p of cwdPaths) {
+    try {
+      if (fs.existsSync(p)) {
+        return JSON.parse(fs.readFileSync(p, 'utf-8'));
+      }
+    } catch {
+      // ignore and try next
+    }
+  }
+
+  return null;
+}
 
 export function openDb(path = ':memory:'): Database.Database {
   const db = new Database(path);
@@ -40,8 +75,48 @@ export function openDb(path = ':memory:'): Database.Database {
       FOREIGN KEY (ownerUserId) REFERENCES users(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS configurations (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS views (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS zones (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      viewId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE,
+      FOREIGN KEY (viewId) REFERENCES views(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS records (
+      id TEXT PRIMARY KEY,
+      zoneId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      FOREIGN KEY (zoneId) REFERENCES zones(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS external_hosts (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sessions_userId ON sessions(userId);
     CREATE INDEX IF NOT EXISTS idx_api_keys_ownerUserId ON api_keys(ownerUserId);
+    CREATE INDEX IF NOT EXISTS idx_views_configId ON views(configurationId);
+    CREATE INDEX IF NOT EXISTS idx_zones_configId ON zones(configurationId);
+    CREATE INDEX IF NOT EXISTS idx_zones_viewId ON zones(viewId);
+    CREATE INDEX IF NOT EXISTS idx_records_zoneId ON records(zoneId);
+    CREATE INDEX IF NOT EXISTS idx_external_hosts_configId ON external_hosts(configurationId);
   `);
 
   const adminCheck = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
@@ -57,5 +132,48 @@ export function openDb(path = ':memory:'): Database.Database {
     `).run('usr-admin', 'admin', 'Administrator', 1, roles, salt, hash, now);
   }
 
+  // Seed fixtures if fresh database
+  const configCount = (db.prepare('SELECT count(*) as cnt FROM configurations').get() as { cnt: number }).cnt;
+  if (configCount === 0) {
+    const fixtures = loadFixtures();
+    if (fixtures) {
+      const seedTransaction = db.transaction(() => {
+        if (Array.isArray(fixtures.configurations)) {
+          const insertConfig = db.prepare('INSERT OR IGNORE INTO configurations (id, data) VALUES (?, ?)');
+          for (const c of fixtures.configurations) {
+            insertConfig.run(c.id, JSON.stringify(c));
+          }
+        }
+        if (Array.isArray(fixtures.views)) {
+          const insertView = db.prepare('INSERT OR IGNORE INTO views (id, configurationId, data) VALUES (?, ?, ?)');
+          for (const v of fixtures.views) {
+            insertView.run(v.id, v.configurationId, JSON.stringify(v));
+          }
+        }
+        if (Array.isArray(fixtures.zones)) {
+          const insertZone = db.prepare('INSERT OR IGNORE INTO zones (id, configurationId, viewId, data) VALUES (?, ?, ?, ?)');
+          for (const z of fixtures.zones) {
+            insertZone.run(z.id, z.configurationId, z.viewId, JSON.stringify(z));
+          }
+        }
+        if (Array.isArray(fixtures.records)) {
+          const insertRecord = db.prepare('INSERT OR IGNORE INTO records (id, zoneId, data) VALUES (?, ?, ?)');
+          for (const r of fixtures.records) {
+            insertRecord.run(r.id, r.zoneId, JSON.stringify(r));
+          }
+        }
+        const externalHosts = fixtures.externalHosts || fixtures.external_hosts;
+        if (Array.isArray(externalHosts)) {
+          const insertHost = db.prepare('INSERT OR IGNORE INTO external_hosts (id, configurationId, data) VALUES (?, ?, ?)');
+          for (const h of externalHosts) {
+            insertHost.run(h.id, h.configurationId, JSON.stringify(h));
+          }
+        }
+      });
+      seedTransaction();
+    }
+  }
+
   return db;
 }
+
