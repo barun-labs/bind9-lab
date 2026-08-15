@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-9c239657-80e2-41e2-8cf9-cf75177173bc/styles.css">
+<script src="_ds/industry-9c239657-80e2-41e2-8cf9-cf75177173bc/_ds_bundle.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+html,body{margin:0;height:100%;overflow:hidden}
+body{--font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;--state-pending:#9c7a3a;--state-pending-bg:#f2e9d3;--state-error:#a83f34;--state-success:#4c7a5c;}
+a{color:var(--color-accent);text-decoration:none}
+a:hover{color:var(--color-accent-700)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--color-neutral-300)}
+</style>
+</helmet>
+<div style="display:flex;flex-direction:column;height:100vh;width:100%;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);font-size:14px">
+  <div style="height:30px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--color-accent-900);color:var(--color-bg);font-size:12px;position:relative">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="opacity:.75"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg>
+    <span style="opacity:.6;text-transform:uppercase;letter-spacing:.06em;font-size:10px">Configuration</span>
+    <span style="font-family:var(--font-heading);font-weight:600;font-size:13px">Managing all configurations</span>
+    <div style="flex:1"></div>
+    <a href="./Zone-Records.dc.html" style="color:var(--color-bg);opacity:.7;font-size:11px">← Back to active configuration</a>
+  </div>
+
+  <div style="display:flex;flex:1;min-height:0;overflow:hidden">
+    <aside style="width:212px;flex:none;background:var(--color-surface);border-right:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden">
+      <div style="height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--color-divider)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><ellipse cx="12" cy="5" rx="8" ry="3"></ellipse><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"></path><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"></path></svg>
+        <span style="font-family:var(--font-heading);font-weight:600;font-size:16px;letter-spacing:-0.01em">Bind9-Manager</span>
+      </div>
+      <nav style="flex:1;overflow-y:auto;padding:10px 0;display:flex;flex-direction:column;gap:2px">
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg><span>Views</span></a>
+        <a href="./Zone-Records.dc.html" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3c2.5 2.7 4 6 4 9s-1.5 6.3-4 9c-2.5-2.7-4-6-4-9s1.5-6.3 4-9z"></path></svg><span>Zones</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><path d="M14 5h5v5"></path><path d="M19 5l-9 9"></path><path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"></path></svg><span>External Hosts</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><circle cx="6" cy="6" r="2"></circle><circle cx="6" cy="18" r="2"></circle><circle cx="18" cy="12" r="2"></circle><path d="M6 8v8"></path><path d="M6 12h8"></path><path d="M16 12h.01"></path></svg><span>Network Blocks</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"></path></svg><span>Deployment Roles</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><path d="M4 7h10"></path><path d="M4 12h16"></path><path d="M4 17h10"></path><circle cx="17" cy="7" r="2"></circle><circle cx="8" cy="17" r="2"></circle></svg><span>Deployment Options</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><rect x="3" y="4" width="18" height="6" rx="1"></rect><rect x="3" y="14" width="18" height="6" rx="1"></rect><path d="M7 7h.01M7 17h.01"></path></svg><span>Servers &amp; Interfaces</span></a>
+        <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"></path><path d="M14 3v5h5"></path></svg><span>Config Review</span></a>
+      </nav>
+    </aside>
+
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
+      <div style="flex:1;overflow-y:auto;padding:24px;max-width:1040px">
+        <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:20px">
+          <div>
+            <h1 style="margin:0 0 4px;font-size:26px">Configurations</h1>
+            <p style="margin:0;font-size:13px;color:color-mix(in srgb, var(--color-text) 60%, transparent);max-width:60ch">Each Configuration is a fully isolated DNS world — views, zones, records, blocks and servers don't cross between them. Exactly one is active at a time.</p>
+          </div>
+          <div style="flex:1"></div>
+          <button type="button" onClick="{{ openCompare }}" disabled="{{ compareDisabled }}" class="btn btn-secondary blueprint" style="flex:none"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3L4 7l4 4"></path><path d="M4 7h16"></path><path d="M16 21l4-4-4-4"></path><path d="M20 17H4"></path></svg>Compare selected</button>
+          <button type="button" onClick="{{ openCreate }}" class="btn btn-primary blueprint" style="flex:none"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"></path></svg>New Configuration</button>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:1px;background:var(--color-divider);border:1px solid var(--color-divider)">
+          <sc-for list="{{ configs }}" as="cfg" hint-placeholder-count="3">
+            <div style="background:var(--color-bg);padding:14px 16px;display:flex;align-items:center;gap:14px">
+              <input type="checkbox" checked="{{ cfg.compareChecked }}" onChange="{{ cfg.onCompareToggle }}" title="Select for comparison" />
+              <div style="width:190px;flex:none">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-family:var(--font-heading);font-weight:600;font-size:15px">{{ cfg.name }}</span>
+                </div>
+                <sc-if value="{{ cfg.active }}" hint-placeholder-val="{{ false }}"><span class="tag tag-accent" style="margin-top:4px">Active</span></sc-if>
+              </div>
+              <p style="margin:0;font-size:12.5px;color:color-mix(in srgb, var(--color-text) 60%, transparent);flex:1;max-width:44ch">{{ cfg.description }}</p>
+              <div style="display:flex;gap:16px;font-family:var(--font-mono);font-size:12px;color:color-mix(in srgb, var(--color-text) 65%, transparent);flex:none">
+                <span>{{ cfg.views }} views</span>
+                <span>{{ cfg.zones }} zones</span>
+                <span>{{ cfg.records }} records</span>
+                <span>{{ cfg.servers }} servers</span>
+              </div>
+              <div style="width:160px;flex:none;font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">
+                <div>Modified {{ cfg.lastModified }}</div>
+                <div>Deployed {{ cfg.lastDeployed }}</div>
+              </div>
+              <div style="display:flex;gap:6px;flex:none">
+                <sc-if value="{{ cfg.canActivate }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ cfg.onActivate }}" class="btn btn-ghost" style="font-size:12px;height:28px">Activate</button></sc-if>
+                <button type="button" onClick="{{ cfg.onClone }}" class="btn btn-secondary blueprint" style="height:28px;padding:0 8px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="11" height="11" rx="1"></rect><path d="M5 15V5a1 1 0 0 1 1-1h10"></path></svg></button>
+                <button type="button" onClick="{{ cfg.onDeleteOpen }}" class="btn btn-ghost btn-icon" style="width:28px;height:28px;color:var(--state-error)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"></path></svg></button>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ createOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:color-mix(in srgb, var(--color-neutral-900) 45%, transparent);display:grid;place-items:center;zIndex:40" onClick="{{ closeCreate }}">
+      <div class="blueprint" onClick="{{ stop }}" style="background:var(--color-bg);border:1px solid var(--color-divider);box-shadow:var(--shadow-lg);width:min(720px,92vw);padding:20px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <h3 style="margin:0;font-size:18px">New Configuration</h3>
+          <button type="button" onClick="{{ closeCreate }}" class="btn btn-ghost btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
+        </div>
+        <p style="margin:0 0 14px;font-size:12.5px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">Start from a template, or blank. Templates only seed objects inside the new Configuration — nothing is deployed.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <sc-for list="{{ templates }}" as="t" hint-placeholder-count="6">
+            <button type="button" onClick="{{ t.onSelect }}" class="card blueprint" style="text-align:left;cursor:pointer;border-color:var(--color-divider)">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div class="card-title" style="font-size:14px">{{ t.name }}</div>
+              <p class="card-body" style="font-size:12px">{{ t.description }}</p>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ deleteOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:color-mix(in srgb, var(--color-neutral-900) 45%, transparent);display:grid;place-items:center;zIndex:40" onClick="{{ closeDelete }}">
+      <div class="dialog blueprint" onClick="{{ stop }}">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="dialog-title">Delete {{ deleteName }}?</div>
+        <div class="dialog-body">This removes {{ deleteCounts }}. A snapshot is taken automatically before the delete, so it can be restored from Backup &amp; Restore. Type the Configuration name to confirm.</div>
+        <input class="input" value="{{ deleteConfirmText }}" onChange="{{ onDeleteConfirmChange }}" placeholder="{{ deleteName }}" style="font-family:var(--font-mono)" />
+        <div class="dialog-actions">
+          <button type="button" onClick="{{ closeDelete }}" class="btn btn-secondary blueprint"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>Cancel</button>
+          <button type="button" onClick="{{ confirmDelete }}" disabled="{{ deleteDisabled }}" class="btn btn-primary blueprint" style="background:var(--state-error);border-color:var(--state-error)"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>Delete Configuration</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ compareOpenReady }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:color-mix(in srgb, var(--color-neutral-900) 45%, transparent);display:grid;place-items:center;zIndex:40" onClick="{{ closeCompare }}">
+      <div class="blueprint" onClick="{{ stop }}" style="background:var(--color-bg);border:1px solid var(--color-divider);box-shadow:var(--shadow-lg);width:min(640px,92vw);padding:20px">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px">Compare Configurations</h3>
+          <button type="button" onClick="{{ closeCompare }}" class="btn btn-ghost btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 90px 1fr;gap:0 12px;font-size:13px">
+          <div style="font-family:var(--font-mono);font-weight:600;padding-bottom:8px;border-bottom:1px solid var(--color-divider)">{{ compareLeftName }}</div>
+          <div></div>
+          <div style="font-family:var(--font-mono);font-weight:600;padding-bottom:8px;border-bottom:1px solid var(--color-divider);text-align:right">{{ compareRightName }}</div>
+          <sc-for list="{{ compareRows }}" as="cr" hint-placeholder-count="4">
+            <div style="padding:8px 0;border-bottom:1px solid color-mix(in srgb, var(--color-text) 6%, transparent)">{{ cr.left }}</div>
+            <div style="padding:8px 0;border-bottom:1px solid color-mix(in srgb, var(--color-text) 6%, transparent);text-align:center;font-size:11px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ cr.label }}</div>
+            <div style="padding:8px 0;border-bottom:1px solid color-mix(in srgb, var(--color-text) 6%, transparent);text-align:right">{{ cr.right }}</div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  TEMPLATES = [
+    { id: 'blank', name: 'Blank', description: 'Nothing pre-built. Start from an empty Configuration.' },
+    { id: 'single', name: 'Single authoritative primary', description: 'One view, one primary zone, one server.' },
+    { id: 'sec', name: 'Primary + secondary with zone transfer', description: 'A primary and a secondary server with AXFR configured between them.' },
+    { id: 'split', name: 'Split-horizon (internal / external)', description: 'Two views serving different answers for the same zone name.' },
+    { id: 'recursive', name: 'Recursive resolver with forwarders', description: 'A caching server with no authoritative zones, forwarding upstream.' },
+    { id: 'reverse', name: 'Authoritative + reverse zones from a /16', description: 'A forward zone plus the matching reverse zone tree for a /16 block.' },
+  ];
+
+  state = {
+    configs: [
+      { id: 'dns-lab', name: 'dns-lab-scenario-1', description: 'Primary lab: split-horizon internal/external, plus a recursive cache node.', views: 3, zones: 8, records: 214, servers: 3, lastModified: '2 hours ago', lastDeployed: '2 hours ago', active: true },
+      { id: 'split-horizon', name: 'split-horizon-test', description: 'Experimental variant testing a stricter internal ACL before promoting to the primary lab.', views: 2, zones: 4, records: 96, servers: 3, lastModified: 'Yesterday', lastDeployed: '3 days ago', active: false },
+      { id: 'clean-fwd', name: 'clean-forwarders', description: 'Bare recursive resolver scenario, forwarders only, no authoritative zones.', views: 1, zones: 0, records: 0, servers: 1, lastModified: '5 days ago', lastDeployed: 'Never', active: false },
+    ],
+    compareSelected: {},
+    createOpen: false,
+    deleteId: null,
+    deleteConfirmText: '',
+    compareOpen: false,
+    nextId: 4,
+  };
+
+  stop = (e) => e.stopPropagation();
+  openCreate = () => this.setState({ createOpen: true });
+  closeCreate = () => this.setState({ createOpen: false });
+
+  createFromTemplate = (t) => () => {
+    const { configs, nextId } = this.state;
+    const seed = {
+      blank: { views: 0, zones: 0, records: 0, servers: 0 },
+      single: { views: 1, zones: 1, records: 8, servers: 1 },
+      sec: { views: 1, zones: 1, records: 8, servers: 2 },
+      split: { views: 2, zones: 2, records: 16, servers: 1 },
+      recursive: { views: 1, zones: 0, records: 0, servers: 1 },
+      reverse: { views: 1, zones: 2, records: 20, servers: 1 },
+    }[t.id] || { views: 0, zones: 0, records: 0, servers: 0 };
+    this.setState({
+      configs: [...configs, { id: 'cfg-' + nextId, name: t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24) + '-' + nextId, description: 'Created from the "' + t.name + '" template.', ...seed, lastModified: 'Just now', lastDeployed: 'Never', active: false }],
+      nextId: nextId + 1, createOpen: false,
+    });
+  };
+
+  cloneConfig = (cfg) => () => {
+    const { configs, nextId } = this.state;
+    this.setState({
+      configs: [...configs, { ...cfg, id: 'cfg-' + nextId, name: cfg.name + '-copy', active: false, lastModified: 'Just now', lastDeployed: 'Never' }],
+      nextId: nextId + 1,
+    });
+  };
+
+  activateConfig = (id) => () => this.setState(s => ({ configs: s.configs.map(c => ({ ...c, active: c.id === id })) }));
+
+  openDelete = (id) => () => this.setState({ deleteId: id, deleteConfirmText: '' });
+  closeDelete = () => this.setState({ deleteId: null });
+  onDeleteConfirmChange = (e) => this.setState({ deleteConfirmText: e.target.value });
+  confirmDelete = () => {
+    const { deleteId, configs, deleteConfirmText } = this.state;
+    const target = configs.find(c => c.id === deleteId);
+    if (!target || deleteConfirmText !== target.name) return;
+    this.setState({ configs: configs.filter(c => c.id !== deleteId), deleteId: null });
+  };
+
+  toggleCompare = (id) => () => this.setState(s => {
+    const sel = { ...s.compareSelected };
+    if (sel[id]) { delete sel[id]; return { compareSelected: sel }; }
+    const count = Object.keys(sel).length;
+    if (count >= 2) return {};
+    sel[id] = true;
+    return { compareSelected: sel };
+  });
+
+  openCompare = () => this.setState({ compareOpen: true });
+  closeCompare = () => this.setState({ compareOpen: false });
+
+  renderVals() {
+    const s = this.state;
+    const selectedIds = Object.keys(s.compareSelected);
+
+    const configs = s.configs.map(c => ({
+      ...c, compareChecked: !!s.compareSelected[c.id], onCompareToggle: this.toggleCompare(c.id),
+      canActivate: !c.active, onActivate: this.activateConfig(c.id),
+      onClone: this.cloneConfig(c), onDeleteOpen: this.openDelete(c.id),
+    }));
+
+    const templates = this.TEMPLATES.map(t => ({ ...t, onSelect: this.createFromTemplate(t) }));
+
+    const deleteTarget = s.deleteId ? s.configs.find(c => c.id === s.deleteId) : null;
+
+    let compareLeftName = '', compareRightName = '', compareRows = [];
+    if (selectedIds.length === 2) {
+      const [a, b] = selectedIds.map(id => s.configs.find(c => c.id === id));
+      compareLeftName = a.name; compareRightName = b.name;
+      const fields = [['views', 'Views'], ['zones', 'Zones'], ['records', 'Records'], ['servers', 'Servers']];
+      compareRows = fields.map(([key, label]) => ({ left: String(a[key]), label, right: String(b[key]) }));
+    }
+
+    return {
+      configs, templates,
+      createOpen: s.createOpen, openCreate: this.openCreate, closeCreate: this.closeCreate, stop: this.stop,
+      deleteOpen: !!s.deleteId, deleteName: deleteTarget ? deleteTarget.name : '',
+      deleteCounts: deleteTarget ? `${deleteTarget.views} views, ${deleteTarget.zones} zones, ${deleteTarget.records} records and ${deleteTarget.servers} servers` : '',
+      deleteConfirmText: s.deleteConfirmText, onDeleteConfirmChange: this.onDeleteConfirmChange,
+      deleteDisabled: !deleteTarget || s.deleteConfirmText !== deleteTarget.name,
+      closeDelete: this.closeDelete, confirmDelete: this.confirmDelete,
+      compareDisabled: selectedIds.length !== 2, openCompare: this.openCompare, closeCompare: this.closeCompare,
+      compareOpenReady: s.compareOpen && selectedIds.length === 2,
+      compareLeftName, compareRightName, compareRows,
+    };
+  }
+}
+</script>
+</body>
+</html>

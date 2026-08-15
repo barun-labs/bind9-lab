@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-9c239657-80e2-41e2-8cf9-cf75177173bc/styles.css">
+<script src="_ds/industry-9c239657-80e2-41e2-8cf9-cf75177173bc/_ds_bundle.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+html,body{margin:0;height:100%;overflow:hidden}
+body{--font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;--state-pending:#9c7a3a;--state-pending-bg:#f2e9d3;--state-drift:#b0603a;--state-drift-bg:#f3e2d8;--state-error:#a83f34;--state-error-bg:#f5ddd9;}
+a{color:var(--color-accent);text-decoration:none}
+a:hover{color:var(--color-accent-700)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--color-neutral-300)}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+<div style="display:flex;flex-direction:column;height:100vh;width:100%;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);font-size:14px">
+  <div style="height:30px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--color-accent-900);color:var(--color-bg);font-size:12px;position:relative">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="opacity:.75"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg>
+    <span style="opacity:.6;text-transform:uppercase;letter-spacing:.06em;font-size:10px">Configuration</span>
+    <button type="button" onClick="{{ toggleConfigMenu }}" style="display:flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--color-bg);font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;padding:0">
+      {{ currentConfig }}
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+    </button>
+    <span style="opacity:.55;font-family:var(--font-mono)">{{ configCounts }}</span>
+    <div style="flex:1"></div>
+    <a href="./Configurations.dc.html" style="color:var(--color-bg);opacity:.7;font-size:11px">Manage configurations</a>
+    <sc-if value="{{ configMenuOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:30px;left:16px;width:260px;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-divider);box-shadow:var(--shadow-md);zIndex:50;padding:4px">
+        <sc-for list="{{ configs }}" as="cfg" hint-placeholder-count="3">
+          <button type="button" onClick="{{ cfg.onSelect }}" style="width:100%;text-align:left;padding:8px 10px;border:0;background:{{ cfg.bg }};cursor:pointer;font-size:12px;color:var(--color-text);display:block">
+            <div style="font-weight:600">{{ cfg.name }}</div>
+            <div style="opacity:.55;font-size:11px">{{ cfg.meta }}</div>
+          </button>
+        </sc-for>
+        <a href="./Configurations.dc.html" style="display:block;padding:8px 10px;font-size:12px;border-top:1px solid var(--color-divider);margin-top:4px">Manage configurations →</a>
+      </div>
+    </sc-if>
+  </div>
+  <div style="display:flex;flex:1;min-height:0;overflow:hidden">
+
+  <aside style="width:{{ sidebarWidth }};flex:none;background:var(--color-surface);border-right:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden;transition:width .18s cubic-bezier(0.32,0.72,0,1)">
+    <div style="height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--color-divider)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><ellipse cx="12" cy="5" rx="8" ry="3"></ellipse><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"></path><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"></path></svg>
+      <sc-if value="{{ sidebarExpanded }}" hint-placeholder-val="{{ true }}"><span style="font-family:var(--font-heading);font-weight:600;font-size:16px;letter-spacing:-0.01em;white-space:nowrap">Bind9-Manager</span></sc-if>
+    </div>
+    <nav style="flex:1;overflow-y:auto;padding:10px 0;display:flex;flex-direction:column;gap:2px">
+      <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg><sc-if value="{{ sidebarExpanded }}" hint-placeholder-val="{{ true }}"><span style="white-space:nowrap">Views</span></sc-if></a>
+      <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);background:color-mix(in srgb, var(--color-accent) 12%, transparent);color:var(--color-accent-800);font-size:13px;font-weight:600"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3c2.5 2.7 4 6 4 9s-1.5 6.3-4 9c-2.5-2.7-4-6-4-9s1.5-6.3 4-9z"></path></svg><sc-if value="{{ sidebarExpanded }}" hint-placeholder-val="{{ true }}"><span style="white-space:nowrap">Zones</span></sc-if></a>
+      <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><path d="M14 5h5v5"></path><path d="M19 5l-9 9"></path><path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"></path></svg><sc-if value="{{ sidebarExpanded }}" hint-placeholder-val="{{ true }}"><span style="white-space:nowrap">External Hosts</span></sc-if></a>
+      <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><circle cx="6" cy="6" r="2"></circle><circle cx="6" cy="18" r="2"></circle><circle cx="18" cy="12" r="2"></circle><path d="M6 8v8"></path><path d="M6 12h8"></path><path d="M16 12h.01"></path></svg><sc-if value="{{ sidebarExpanded }}" hint-placeholder-val="{{ true }}"><span style="white-space:nowrap">Network Blocks</span></sc-if></a>
+      <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"></path></svg><sc-if value="{{ sidebarExpanded }}" hint-placeholder-val="{{ true }}"><span style="white-space:nowrap">Deployment Roles</span></sc-if></a>
+      <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><path d="M4 7h10"></path><path d="M4 12h16"></path><path d="M4 17h10"></path><circle cx="17" cy="7" r="2"></circle><circle cx="8" cy="17" r="2"></circle></svg><sc-if value="{{ sidebarExpanded }}" hint-placeholder-val="{{ true }}"><span style="white-space:nowrap">Deployment Options</span></sc-if></a>
+      <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><rect x="3" y="4" width="18" height="6" rx="1"></rect><rect x="3" y="14" width="18" height="6" rx="1"></rect><path d="M7 7h.01M7 17h.01"></path></svg><sc-if value="{{ sidebarExpanded }}" hint-placeholder-val="{{ true }}"><span style="white-space:nowrap">Servers &amp; Interfaces</span></sc-if></a>
+      <a href="#" style="display:flex;align-items:center;gap:10px;padding:9px 16px;margin:0 8px;border-radius:var(--radius-md);color:var(--color-text);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"></path><path d="M14 3v5h5"></path></svg><sc-if value="{{ sidebarExpanded }}" hint-placeholder-val="{{ true }}"><span style="white-space:nowrap">Config Review</span></sc-if></a>
+    </nav>
+    <button type="button" onClick="{{ toggleSidebar }}" style="flex:none;height:44px;border:0;border-top:1px solid var(--color-divider);background:transparent;color:var(--color-text);opacity:.6;cursor:pointer;display:flex;align-items:center;justify-content:center">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="1"></rect><path d="M9 4v16"></path></svg>
+    </button>
+  </aside>
+
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden">
+
+    <header style="height:56px;flex:none;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid var(--color-divider);position:relative">
+      <div style="position:relative">
+        <button type="button" onClick="{{ toggleViewMenu }}" class="blueprint" style="display:flex;align-items:center;gap:8px;padding:7px 12px;border:1px solid var(--color-accent);background:color-mix(in srgb, var(--color-accent) 10%, transparent);color:var(--color-accent-800);font-family:var(--font-heading);font-weight:600;font-size:14px;cursor:pointer">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--color-accent)"></span>
+          <span style="text-transform:uppercase;letter-spacing:.02em">{{ currentView }}</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+        </button>
+        <sc-if value="{{ viewMenuOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:44px;left:0;width:180px;background:var(--color-bg);border:1px solid var(--color-divider);box-shadow:var(--shadow-md);z-index:30;padding:4px">
+            <button type="button" onClick="{{ selectInternal }}" style="width:100%;text-align:left;padding:8px 10px;border:0;background:transparent;cursor:pointer;font-size:13px;color:var(--color-text);display:flex;align-items:center;gap:8px"><span style="width:6px;height:6px;border-radius:50%;background:var(--color-accent)"></span>internal</button>
+            <button type="button" onClick="{{ selectExternal }}" style="width:100%;text-align:left;padding:8px 10px;border:0;background:transparent;cursor:pointer;font-size:13px;color:var(--color-text);display:flex;align-items:center;gap:8px"><span style="width:6px;height:6px;border-radius:50%;background:var(--color-neutral-400)"></span>external</button>
+            <button type="button" onClick="{{ selectDmz }}" style="width:100%;text-align:left;padding:8px 10px;border:0;background:transparent;cursor:pointer;font-size:13px;color:var(--color-text);display:flex;align-items:center;gap:8px"><span style="width:6px;height:6px;border-radius:50%;background:var(--color-neutral-400)"></span>dmz</button>
+          </div>
+        </sc-if>
+      </div>
+      <div style="flex:1;max-width:440px;position:relative">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.5"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+        <input class="input" placeholder="Search zones, records, servers, IPs…" style="padding-left:30px;padding-right:44px;font-size:13px" />
+        <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-family:var(--font-mono);font-size:11px;color:var(--color-neutral-600);border:1px solid var(--color-divider);padding:2px 6px;border-radius:var(--radius-sm)">⌘K</span>
+      </div>
+      <div style="flex:1"></div>
+      <a href="./Review-Deploy.dc.html" class="blueprint" style="display:flex;align-items:center;gap:8px;padding:7px 14px;border:1px solid var(--state-pending);background:var(--state-pending-bg);color:var(--state-pending);font-family:var(--font-heading);font-weight:600;font-size:14px;text-decoration:none">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--state-pending);flex:none"></span>
+        <span style="white-space:nowrap">{{ pendingTotal }} pending changes</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+      </a>
+    </header>
+
+    <div style="height:34px;flex:none;display:flex;align-items:center;gap:6px;padding:0 20px;border-bottom:1px solid var(--color-divider);font-size:12px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">
+      <a href="#" style="color:inherit">Zones</a>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+      <span style="font-family:var(--font-mono)">lab.lun.net</span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"></path></svg>
+      <span style="color:var(--color-text);font-weight:600">Records</span>
+    </div>
+
+    <div style="flex:1;overflow:auto;position:relative">
+      <div style="position:sticky;top:0;z-index:5;background:var(--color-bg);border-bottom:1px solid var(--color-divider);padding:16px 24px 12px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h1 style="font-family:var(--font-mono);font-weight:500;font-size:22px;letter-spacing:0;margin:0">lab.lun.net</h1>
+          <span class="tag tag-outline">Primary</span>
+          <span class="tag tag-accent" style="text-transform:uppercase">internal</span>
+          <sc-if value="{{ zonePendingCount }}" hint-placeholder-val="{{ false }}"><span class="tag" style="background:var(--state-pending-bg);color:var(--state-pending)">{{ zonePendingCount }} pending</span></sc-if>
+          <div style="flex:1"></div>
+          <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ rowCount }} records · 2 of 3 servers synced</span>
+          <button type="button" class="btn btn-secondary blueprint" style="height:32px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>Edit SOA</button>
+        </div>
+        <div style="display:flex;gap:1px;margin-top:12px;background:var(--color-divider);border:1px solid var(--color-divider);width:fit-content">
+          <div style="background:var(--color-bg);padding:6px 14px"><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Serial</div><div style="font-family:var(--font-mono);font-size:13px">2026081401</div></div>
+          <div style="background:var(--color-bg);padding:6px 14px"><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Refresh</div><div style="font-family:var(--font-mono);font-size:13px">3600</div></div>
+          <div style="background:var(--color-bg);padding:6px 14px"><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Retry</div><div style="font-family:var(--font-mono);font-size:13px">900</div></div>
+          <div style="background:var(--color-bg);padding:6px 14px"><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Expire</div><div style="font-family:var(--font-mono);font-size:13px">604800</div></div>
+          <div style="background:var(--color-bg);padding:6px 14px"><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Min TTL</div><div style="font-family:var(--font-mono);font-size:13px">300</div></div>
+          <div style="background:var(--color-bg);padding:6px 14px;white-space:nowrap"><div style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Allow-transfer</div><div style="font-family:var(--font-mono);font-size:13px">none</div></div>
+        </div>
+        <div style="display:flex;gap:2px;margin-top:12px">
+          <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="5">
+            <button type="button" onClick="{{ tb.onSelect }}" style="padding:7px 14px;border:0;border-bottom:2px solid {{ tb.borderColor }};background:transparent;font-family:var(--font-heading);font-weight:600;font-size:13px;color:{{ tb.color }};cursor:pointer">{{ tb.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <sc-if value="{{ isRecordsTab }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 24px;border-bottom:1px solid var(--color-divider)">
+        <select class="input" style="width:150px;height:32px;font-size:12px">
+          <option>All types</option>
+          <option>A / AAAA</option>
+          <option>CNAME</option>
+          <option>MX / SRV</option>
+          <option>TXT</option>
+        </select>
+        <select class="input" style="width:150px;height:32px;font-size:12px">
+          <option>All statuses</option>
+          <option>Pending only</option>
+          <option>Synced</option>
+          <option>Disabled</option>
+        </select>
+        <div style="flex:1"></div>
+        <sc-if value="{{ selectedCount }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ selectedCount }} selected</span>
+          <button type="button" class="btn btn-secondary blueprint" style="height:32px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>Disable</button>
+          <button type="button" class="btn btn-secondary blueprint" style="height:32px;border-color:var(--state-error);color:var(--state-error)"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>Delete</button>
+        </sc-if>
+        <button type="button" class="btn btn-ghost" style="height:32px">Import</button>
+        <button type="button" class="btn btn-ghost" style="height:32px">Export</button>
+        <button type="button" onClick="{{ openAddPanel }}" class="btn btn-primary blueprint" style="height:32px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"></path></svg>Add record</button>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="position:sticky;top:0;background:var(--color-bg);zIndex:2">
+            <th style="width:34px;padding:8px 8px 8px 24px;border-bottom:1px solid var(--color-divider)"></th>
+            <th style="text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent);padding:8px;border-bottom:1px solid var(--color-divider)">Name</th>
+            <th style="text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent);padding:8px;border-bottom:1px solid var(--color-divider);width:80px">Type</th>
+            <th style="text-align:right;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent);padding:8px;border-bottom:1px solid var(--color-divider);width:70px">TTL</th>
+            <th style="text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent);padding:8px;border-bottom:1px solid var(--color-divider)">RDATA</th>
+            <th style="text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent);padding:8px;border-bottom:1px solid var(--color-divider);width:160px">Status</th>
+            <th style="width:34px;padding:8px 24px 8px 8px;border-bottom:1px solid var(--color-divider)"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:color-mix(in srgb, var(--color-accent) 5%, transparent)">
+            <td style="padding:6px 8px 6px 24px;border-bottom:1px solid var(--color-divider)"></td>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider)"><input class="input" value="{{ quickName }}" onChange="{{ onQuickName }}" placeholder="name" style="font-family:var(--font-mono);font-size:12px;height:30px" /></td>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider)">
+              <select class="input" value="{{ quickType }}" onChange="{{ onQuickTypeChange }}" style="font-size:12px;height:30px;font-family:var(--font-mono)">
+                <sc-for list="{{ recordTypes }}" as="t" hint-placeholder-count="10"><option value="{{ t }}">{{ t }}</option></sc-for>
+              </select>
+            </td>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider)"><input class="input" value="{{ quickTtl }}" onChange="{{ onQuickTtl }}" style="font-family:var(--font-mono);font-size:12px;height:30px;text-align:right" /></td>
+            <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider)"><input class="input" value="{{ quickValue }}" onChange="{{ onQuickValue }}" placeholder="{{ quickPlaceholder }}" style="font-family:var(--font-mono);font-size:12px;height:30px" /></td>
+            <td colSpan="2" style="padding:6px 24px 6px 8px;border-bottom:1px solid var(--color-divider);text-align:right">
+              <button type="button" onClick="{{ quickAdd }}" class="btn btn-primary btn-icon blueprint" style="width:30px;height:30px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"></path></svg></button>
+            </td>
+          </tr>
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="10">
+            <tr style="opacity:{{ r.rowOpacity }}">
+              <td style="padding:6px 8px 6px 24px;border-bottom:1px solid var(--color-divider)"><input type="checkbox" checked="{{ r.selected }}" onChange="{{ r.onToggleSelect }}" /></td>
+              <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider);font-family:var(--font-mono);font-size:13px">{{ r.name }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider)"><span class="tag tag-neutral" style="font-family:var(--font-mono)">{{ r.type }}</span></td>
+              <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider);font-family:var(--font-mono);font-size:13px;text-align:right">{{ r.ttl }}</td>
+              <td onClick="{{ r.onCopyRdata }}" title="Click to copy" style="padding:6px 8px;border-bottom:1px solid var(--color-divider);font-family:var(--font-mono);font-size:13px;cursor:pointer;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.rdata }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider)">
+                <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:{{ r.statusColor }}">
+                  <span style="width:6px;height:6px;border-radius:50%;background:{{ r.statusColor }};flex:none"></span>{{ r.statusLabel }}
+                </span>
+                <sc-if value="{{ r.hasIssue }}" hint-placeholder-val="{{ false }}"><span title="{{ r.issueText }}" style="display:inline-flex;margin-left:6px;color:var(--state-drift)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l9.5 17H2.5L12 3z"></path><path d="M12 10v4"></path><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"></circle></svg></span></sc-if>
+              </td>
+              <td style="padding:6px 24px 6px 8px;border-bottom:1px solid var(--color-divider);text-align:right">
+                <button type="button" onClick="{{ r.onEdit }}" class="btn btn-ghost btn-icon" style="width:28px;height:28px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>
+              </td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 24px;border-top:1px solid var(--color-divider)">
+        <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Showing {{ rowCount }} of {{ rowCount }} records</span>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="btn btn-secondary blueprint" disabled style="height:28px;padding:0 10px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>Prev</button>
+          <span style="font-size:12px;padding:0 6px;display:flex;align-items:center;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Page 1 of 1</span>
+          <button type="button" class="btn btn-secondary blueprint" disabled style="height:28px;padding:0 10px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>Next</button>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isRolesTab }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:20px 24px;max-width:820px">
+        <h3 style="margin:0 0 12px;font-size:15px">Servers serving this zone</h3>
+        <div style="border:1px solid var(--color-divider)">
+          <div style="display:grid;grid-template-columns:170px 130px 1fr 150px;gap:0;padding:8px 16px;border-bottom:1px solid var(--color-divider);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 55%, transparent)">
+            <div>Server</div><div>Role</div><div>Lab · mgmt</div><div>Sync (this zone)</div>
+          </div>
+          <sc-for list="{{ zoneRoles }}" as="zr" hint-placeholder-count="3">
+            <div style="display:grid;grid-template-columns:170px 130px 1fr 150px;gap:0;padding:10px 16px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 6%, transparent);align-items:center">
+              <div style="font-family:var(--font-mono);font-size:13px">{{ zr.server }}</div>
+              <div><span class="tag tag-neutral">{{ zr.role }}</span></div>
+              <div style="font-family:var(--font-mono);font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ zr.meta }}</div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:{{ zr.color }}"><span style="width:6px;height:6px;border-radius:50%;background:{{ zr.color }}"></span>{{ zr.status }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+          <select class="input" style="width:240px;height:32px;font-size:12px"><option>Add server or group to this zone…</option></select>
+          <button type="button" class="btn btn-secondary blueprint" style="height:32px"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>Add</button>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isOptionsTab }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:20px 24px;max-width:820px">
+        <p style="margin:0 0 14px;font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent);max-width:68ch">Effective value, then where it came from. The scope chip is the management scope that set it; the small tag beside it is where it lands in BIND syntax — they can differ.</p>
+        <div style="border:1px solid var(--color-divider)">
+          <sc-for list="{{ zoneOptions }}" as="op" hint-placeholder-count="4">
+            <div style="border-bottom:1px solid var(--color-divider)">
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 16px">
+                <button type="button" onClick="{{ op.onToggle }}" style="border:0;background:transparent;cursor:pointer;padding:0;display:flex;color:var(--color-text)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="{{ op.chevronStyle }}"><path d="M9 18l6-6-6-6"></path></svg></button>
+                <span style="font-family:var(--font-mono);font-size:13px;width:120px;flex:none">{{ op.key }}</span>
+                <span style="font-family:var(--font-mono);font-size:13px;flex:1">{{ op.value }}</span>
+                <span class="tag {{ op.scopeTagClass }}">{{ op.scopeLabel }}</span>
+                <span style="font-family:var(--font-mono);font-size:10.5px;color:color-mix(in srgb, var(--color-text) 50%, transparent);border:1px solid var(--color-divider);padding:2px 6px;flex:none">{{ op.placement }}</span>
+                <button type="button" onClick="{{ op.onAction }}" class="btn btn-ghost" style="font-size:11px;height:26px;flex:none">{{ op.actionLabel }}</button>
+              </div>
+              <sc-if value="{{ op.expanded }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:0 16px 14px 55px;display:flex;flex-direction:column;gap:4px">
+                  <sc-for list="{{ op.chain }}" as="ch" hint-placeholder-count="3">
+                    <div style="font-family:var(--font-mono);font-size:12px;color:{{ ch.color }};text-decoration:{{ ch.strike }}">{{ ch.label }}</div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isSettingsTab }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:20px 24px;font-size:13px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Zone settings (transfer/update ACLs, DNSSEC status placeholder) — queued for a follow-up pass.</div>
+      </sc-if>
+      <sc-if value="{{ isHistoryTab }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:20px 24px;font-size:13px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Per-zone change history — queued for a follow-up pass. See Deployment History for the configuration-wide log.</div>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ panelOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:color-mix(in srgb, var(--color-neutral-900) 45%, transparent);zIndex:40" onClick="{{ closePanel }}"></div>
+    <div style="position:fixed;top:0;right:0;bottom:0;width:440px;background:var(--color-bg);border-left:1px solid var(--color-divider);box-shadow:var(--shadow-lg);zIndex:41;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--color-divider)">
+        <h3 style="margin:0;font-size:18px">{{ panelTitle }}</h3>
+        <button type="button" onClick="{{ closePanel }}" class="btn btn-ghost btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px">
+        <div class="field"><label>Name</label><input class="input" value="{{ form.name }}" onChange="{{ onName }}" placeholder="@ for zone apex" style="font-family:var(--font-mono)" /></div>
+        <div style="display:flex;gap:12px">
+          <div class="field" style="flex:1"><label>Type</label>
+            <select class="input" value="{{ form.type }}" onChange="{{ onTypeChange }}" style="font-family:var(--font-mono)">
+              <sc-for list="{{ recordTypes }}" as="t2" hint-placeholder-count="10"><option value="{{ t2 }}">{{ t2 }}</option></sc-for>
+            </select>
+          </div>
+          <div class="field" style="width:110px"><label>TTL</label><input class="input" value="{{ form.ttl }}" onChange="{{ onTtl }}" style="font-family:var(--font-mono)" /></div>
+        </div>
+        <sc-if value="{{ isAddr }}" hint-placeholder-val="{{ true }}"><div class="field"><label>Address</label><input class="input" value="{{ form.address }}" onChange="{{ onAddress }}" placeholder="10.20.30.x" style="font-family:var(--font-mono)" /></div></sc-if>
+        <sc-if value="{{ isSimpleTarget }}" hint-placeholder-val="{{ false }}"><div class="field"><label>Target</label><input class="input" value="{{ form.target }}" onChange="{{ onTarget }}" placeholder="target.lab.lun.net" style="font-family:var(--font-mono)" /></div></sc-if>
+        <sc-if value="{{ isMX }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:12px">
+            <div class="field" style="width:90px"><label>Priority</label><input class="input" value="{{ form.priority }}" onChange="{{ onPriority }}" style="font-family:var(--font-mono)" /></div>
+            <div class="field" style="flex:1"><label>Mail server</label><input class="input" value="{{ form.target }}" onChange="{{ onTarget }}" placeholder="mx1.lab.lun.net" style="font-family:var(--font-mono)" /></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isSRV }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:12px">
+            <div class="field" style="width:80px"><label>Priority</label><input class="input" value="{{ form.priority }}" onChange="{{ onPriority }}" style="font-family:var(--font-mono)" /></div>
+            <div class="field" style="width:80px"><label>Weight</label><input class="input" value="{{ form.weight }}" onChange="{{ onWeight }}" style="font-family:var(--font-mono)" /></div>
+            <div class="field" style="width:80px"><label>Port</label><input class="input" value="{{ form.port }}" onChange="{{ onPort }}" style="font-family:var(--font-mono)" /></div>
+          </div>
+          <div class="field"><label>Target</label><input class="input" value="{{ form.target }}" onChange="{{ onTarget }}" placeholder="sip1.lab.lun.net" style="font-family:var(--font-mono)" /></div>
+        </sc-if>
+        <sc-if value="{{ isTXT }}" hint-placeholder-val="{{ false }}"><div class="field"><label>Text value</label><textarea class="input" value="{{ form.text }}" onChange="{{ onText }}" rows="3" style="font-family:var(--font-mono)"></textarea></div></sc-if>
+        <sc-if value="{{ isCAA }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:12px">
+            <div class="field" style="width:70px"><label>Flags</label><input class="input" value="{{ form.flags }}" onChange="{{ onFlags }}" style="font-family:var(--font-mono)" /></div>
+            <div class="field" style="width:120px"><label>Tag</label><input class="input" value="{{ form.tag }}" onChange="{{ onTag }}" style="font-family:var(--font-mono)" /></div>
+            <div class="field" style="flex:1"><label>Value</label><input class="input" value="{{ form.caaValue }}" onChange="{{ onCaaValue }}" style="font-family:var(--font-mono)" /></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showDangling }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;padding:10px 12px;border:1px solid var(--state-drift);background:var(--state-drift-bg);color:var(--state-drift);font-size:12px;line-height:1.4">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style="flex:none;marginTop:1px"><path d="M12 3l9.5 17H2.5L12 3z"></path><path d="M12 10v4"></path><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"></circle></svg>
+            <span>Target not found in this zone or in External Hosts. Deploying will create a dangling reference.</span>
+          </div>
+        </sc-if>
+
+        <div>
+          <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent)">Preview — what will be written</label>
+          <div style="background:var(--color-surface);border:1px solid var(--color-divider);padding:10px 12px;font-family:var(--font-mono);font-size:12px;white-space:pre-wrap;word-break:break-all">{{ preview }}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;padding:16px 20px;border-top:1px solid var(--color-divider)">
+        <button type="button" onClick="{{ closePanel }}" class="btn btn-secondary blueprint"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>Cancel</button>
+        <button type="button" onClick="{{ save }}" class="btn btn-primary blueprint"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>Save (stages change)</button>
+      </div>
+    </div>
+  </sc-if>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  ZONE = 'lab.lun.net';
+  EXTERNAL_PENDING = 1;
+  KNOWN_TARGETS = ['edge.lab.lun.net', 'mx1.lab.lun.net', 'sip1.lab.lun.net', 'ns1.lab.lun.net', 'ns2.lab.lun.net'];
+  RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'NS', 'PTR', 'CAA', 'ALIAS'];
+  CONFIGS = [
+    { id: 'dns-lab', name: 'dns-lab-scenario-1', meta: '3 views \u00b7 8 zones \u00b7 3 servers \u00b7 active' },
+    { id: 'split-horizon', name: 'split-horizon-test', meta: '2 views \u00b7 4 zones \u00b7 3 servers' },
+    { id: 'clean-fwd', name: 'clean-forwarders', meta: '1 view \u00b7 0 zones \u00b7 1 server' },
+  ];
+
+  TABS = [
+    { id: 'records', label: 'Records' },
+    { id: 'roles', label: 'Deployment Roles' },
+    { id: 'options', label: 'Deployment Options' },
+    { id: 'settings', label: 'Settings' },
+    { id: 'history', label: 'History' },
+  ];
+
+  ROLE_DATA = [
+    { server: 'bind-pri-01', role: 'Primary', meta: 'lab dns-lab \u00b7 mgmt 172.20.20.11', status: 'Synced', color: 'var(--color-neutral-600)' },
+    { server: 'bind-sec-01', role: 'Secondary', meta: 'lab dns-lab \u00b7 mgmt 172.20.20.12', status: 'Pending deploy', color: 'var(--state-pending)' },
+    { server: 'bind-cache-01', role: 'Recursive', meta: 'lab dns-lab \u00b7 mgmt 172.20.20.13', status: 'Synced', color: 'var(--color-neutral-600)' },
+  ];
+
+  OPTIONS_DATA = [
+    { key: 'recursion', value: 'no', scopeLabel: 'Inherited \u00b7 View: internal', scopeTagClass: 'tag-neutral', placement: 'view{}', setHere: false,
+      chain: [ { label: 'Configuration default \u2014 recursion yes', color: 'color-mix(in srgb, var(--color-text) 55%, transparent)', strike: 'line-through' },
+               { label: 'View internal \u2014 recursion no \u2190 effective', color: 'var(--color-accent-700)', strike: 'none' } ] },
+    { key: 'allow-transfer', value: '{ 10.20.30.11; }', scopeLabel: 'Set on this zone', scopeTagClass: 'tag-accent', placement: 'zone{}', setHere: true,
+      chain: [ { label: 'Configuration default \u2014 allow-transfer none', color: 'color-mix(in srgb, var(--color-text) 55%, transparent)', strike: 'line-through' },
+               { label: 'This zone \u2014 allow-transfer 10.20.30.11 \u2190 effective', color: 'var(--color-accent-700)', strike: 'none' } ] },
+    { key: 'notify', value: 'yes', scopeLabel: 'Inherited \u00b7 Configuration default', scopeTagClass: 'tag-neutral', placement: 'options{}', setHere: false,
+      chain: [ { label: 'Configuration default \u2014 notify yes \u2190 effective', color: 'var(--color-accent-700)', strike: 'none' } ] },
+    { key: 'default-ttl', value: '3600', scopeLabel: 'Inherited \u00b7 Configuration default', scopeTagClass: 'tag-neutral', placement: 'options{}', setHere: false,
+      chain: [ { label: 'Configuration default \u2014 default-ttl 3600 \u2190 effective', color: 'var(--color-accent-700)', strike: 'none' } ] },
+  ];
+
+  state = {
+    activeTab: 'records',
+    expandedOptions: {},
+    configMenuOpen: false,
+    currentConfigId: 'dns-lab',
+    sidebarExpanded: true,
+    viewMenuOpen: false,
+    currentView: 'internal',
+    panelOpen: false,
+    panelMode: 'add',
+    editingId: null,
+    form: { type: 'A', name: '', ttl: '3600', address: '', target: '', priority: '10', weight: '10', port: '', text: '', flags: '0', tag: 'issue', caaValue: '' },
+    records: [
+      { id: 1, name: '@', type: 'NS', ttl: 3600, rdata: 'ns1.lab.lun.net.', status: 'synced' },
+      { id: 2, name: '@', type: 'NS', ttl: 3600, rdata: 'ns2.lab.lun.net.', status: 'synced' },
+      { id: 3, name: 'ns1', type: 'A', ttl: 3600, rdata: '10.20.30.10', status: 'synced' },
+      { id: 4, name: 'ns2', type: 'A', ttl: 3600, rdata: '10.20.30.11', status: 'synced' },
+      { id: 5, name: 'bind-pri-01', type: 'A', ttl: 300, rdata: '10.20.30.10', status: 'synced' },
+      { id: 6, name: 'bind-sec-01', type: 'A', ttl: 300, rdata: '10.20.30.11', status: 'synced' },
+      { id: 7, name: 'bind-cache-01', type: 'A', ttl: 300, rdata: '10.20.30.20', status: 'synced' },
+      { id: 8, name: 'edge', type: 'A', ttl: 300, rdata: '10.20.30.50', status: 'synced' },
+      { id: 9, name: 'www', type: 'CNAME', ttl: 300, rdata: 'edge.lab.lun.net.', status: 'pending-new' },
+      { id: 10, name: 'mail', type: 'A', ttl: 3600, rdata: '10.20.30.30', status: 'synced' },
+      { id: 11, name: '@', type: 'MX', ttl: 3600, rdata: '10 mx1.lab.lun.net.', status: 'synced' },
+      { id: 12, name: 'mx1', type: 'A', ttl: 3600, rdata: '10.20.30.31', status: 'synced' },
+      { id: 13, name: '_sip._tcp', type: 'SRV', ttl: 3600, rdata: '10 20 5060 sip1.lab.lun.net.', status: 'pending-edit' },
+      { id: 14, name: 'sip1', type: 'A', ttl: 3600, rdata: '10.20.30.40', status: 'synced' },
+      { id: 15, name: '@', type: 'TXT', ttl: 3600, rdata: '"v=spf1 include:_spf.lun.net ~all"', status: 'synced' },
+      { id: 16, name: 'monitor', type: 'CNAME', ttl: 300, rdata: 'grafana.corp.lun.net.', status: 'pending-new', issue: 'Target not declared in this zone or in External Hosts \u2014 will create a dangling reference.' },
+      { id: 17, name: 'git', type: 'AAAA', ttl: 3600, rdata: '2001:db8:20:30::15', status: 'synced' },
+      { id: 18, name: 'vpn', type: 'CAA', ttl: 3600, rdata: '0 issue "letsencrypt.org"', status: 'synced' },
+      { id: 19, name: 'old-app', type: 'A', ttl: 300, rdata: '10.20.30.99', status: 'pending-edit', disabled: true },
+    ],
+    selected: {},
+    nextId: 20,
+    quickName: '', quickType: 'A', quickTtl: '3600', quickValue: '',
+  };
+
+  setTab = (id) => () => this.setState({ activeTab: id });
+  toggleOption = (key) => () => this.setState(s => ({ expandedOptions: { ...s.expandedOptions, [key]: !s.expandedOptions[key] } }));
+  toggleSidebar = () => this.setState(s => ({ sidebarExpanded: !s.sidebarExpanded }));
+  toggleViewMenu = () => this.setState(s => ({ viewMenuOpen: !s.viewMenuOpen }));
+  toggleConfigMenu = () => this.setState(s => ({ configMenuOpen: !s.configMenuOpen }));
+  selectConfig = (id) => () => this.setState({ currentConfigId: id, configMenuOpen: false });
+  selectView = (v) => () => this.setState({ currentView: v, viewMenuOpen: false });
+
+  openAddPanel = (prefill) => this.setState(s => ({
+    panelOpen: true, panelMode: 'add', editingId: null,
+    form: { type: 'A', name: '', ttl: '3600', address: '', target: '', priority: '10', weight: '10', port: '', text: '', flags: '0', tag: 'issue', caaValue: '', ...(prefill || {}) },
+  }));
+
+  parseRdata(rec) {
+    switch (rec.type) {
+      case 'A': case 'AAAA': return { address: rec.rdata };
+      case 'CNAME': case 'NS': case 'ALIAS': return { target: rec.rdata.replace(/\.$/, '') };
+      case 'MX': { const parts = rec.rdata.split(' '); return { priority: parts[0], target: parts.slice(1).join(' ').replace(/\.$/, '') }; }
+      case 'SRV': { const parts = rec.rdata.split(' '); return { priority: parts[0], weight: parts[1], port: parts[2], target: parts.slice(3).join(' ').replace(/\.$/, '') }; }
+      case 'TXT': return { text: rec.rdata.replace(/^"|"$/g, '') };
+      case 'CAA': { const m = rec.rdata.match(/^(\d+)\s+(\w+)\s+"(.*)"$/); return m ? { flags: m[1], tag: m[2], caaValue: m[3] } : {}; }
+      default: return {};
+    }
+  }
+
+  openEditPanel = (rec) => () => {
+    this.setState({
+      panelOpen: true, panelMode: 'edit', editingId: rec.id,
+      form: { type: rec.type, name: rec.name, ttl: String(rec.ttl), address: '', target: '', priority: '10', weight: '10', port: '', text: '', flags: '0', tag: 'issue', caaValue: '', ...this.parseRdata(rec) },
+    });
+  };
+
+  closePanel = () => this.setState({ panelOpen: false });
+
+  setField = (key) => (e) => {
+    const val = e.target.value;
+    this.setState(s => ({ form: { ...s.form, [key]: val } }));
+  };
+
+  buildRdata(form) {
+    switch (form.type) {
+      case 'A': case 'AAAA': return form.address;
+      case 'CNAME': case 'NS': case 'ALIAS': return (form.target || '') + '.';
+      case 'MX': return `${form.priority} ${form.target || ''}.`;
+      case 'SRV': return `${form.priority} ${form.weight} ${form.port} ${form.target || ''}.`;
+      case 'TXT': return `"${form.text || ''}"`;
+      case 'CAA': return `${form.flags} ${form.tag} "${form.caaValue || ''}"`;
+      default: return '';
+    }
+  }
+
+  save = () => {
+    const { form, editingId, records, nextId } = this.state;
+    const rdata = this.buildRdata(form);
+    if (editingId) {
+      this.setState({
+        records: records.map(r => r.id === editingId ? { ...r, name: form.name, type: form.type, ttl: Number(form.ttl) || 0, rdata, status: 'pending-edit' } : r),
+        panelOpen: false,
+      });
+    } else {
+      this.setState({
+        records: [...records, { id: nextId, name: form.name || '@', type: form.type, ttl: Number(form.ttl) || 3600, rdata, status: 'pending-new' }],
+        nextId: nextId + 1, panelOpen: false,
+      });
+    }
+  };
+
+  setQuick = (key) => (e) => this.setState({ [key]: e.target.value });
+
+  onQuickTypeChange = (e) => {
+    const type = e.target.value;
+    if (['MX', 'SRV', 'CAA'].includes(type)) {
+      const prefill = { type, name: this.state.quickName, ttl: this.state.quickTtl };
+      this.setState({ quickName: '', quickValue: '', quickType: 'A' });
+      this.openAddPanel(prefill);
+    } else {
+      this.setState({ quickType: type });
+    }
+  };
+
+  quickAdd = () => {
+    const { quickName, quickType, quickTtl, quickValue, records, nextId } = this.state;
+    if (!quickName || !quickValue) return;
+    const rdata = ['CNAME', 'NS', 'ALIAS', 'PTR'].includes(quickType) ? quickValue.replace(/\.$/, '') + '.' : quickValue;
+    this.setState({
+      records: [...records, { id: nextId, name: quickName, type: quickType, ttl: Number(quickTtl) || 3600, rdata, status: 'pending-new' }],
+      nextId: nextId + 1, quickName: '', quickValue: '', quickTtl: '3600', quickType: 'A',
+    });
+  };
+
+  toggleSelect = (id) => () => this.setState(s => ({ selected: { ...s.selected, [id]: !s.selected[id] } }));
+
+  copy = (text) => () => { try { navigator.clipboard.writeText(text); } catch (e) {} };
+
+  renderVals() {
+    const s = this.state;
+    const activeConfig = this.CONFIGS.find(c => c.id === s.currentConfigId) || this.CONFIGS[0];
+    const pendingZoneCount = s.records.filter(r => r.status && r.status.indexOf('pending') === 0).length;
+    const pendingTotal = pendingZoneCount + this.EXTERNAL_PENDING;
+
+    const tabs = this.TABS.map(t => ({
+      id: t.id, label: t.label, onSelect: this.setTab(t.id),
+      color: s.activeTab === t.id ? 'var(--color-text)' : 'color-mix(in srgb, var(--color-text) 55%, transparent)',
+      borderColor: s.activeTab === t.id ? 'var(--color-accent)' : 'transparent',
+    }));
+
+    const zoneOptions = this.OPTIONS_DATA.map(op => ({
+      ...op, expanded: !!s.expandedOptions[op.key], onToggle: this.toggleOption(op.key),
+      chevronStyle: s.expandedOptions[op.key] ? 'transform:rotate(90deg)' : 'transform:rotate(0deg)',
+      actionLabel: op.setHere ? 'Revert to inherited' : 'Override here',
+      onAction: () => {},
+    }));
+
+    const rows = s.records.map(r => {
+      let statusLabel, statusColor;
+      if (r.status === 'synced') { statusLabel = 'Synced'; statusColor = 'var(--color-neutral-600)'; }
+      else if (r.status === 'pending-new') { statusLabel = r.disabled ? 'Disabled \u00b7 pending' : 'New \u00b7 pending'; statusColor = 'var(--state-pending)'; }
+      else if (r.status === 'pending-edit') { statusLabel = r.disabled ? 'Disabled \u00b7 pending' : 'Edited \u00b7 pending'; statusColor = 'var(--state-pending)'; }
+      else { statusLabel = r.status; statusColor = 'var(--color-neutral-600)'; }
+      return {
+        id: r.id, name: r.name || '@', type: r.type, ttl: r.ttl, rdata: r.rdata,
+        statusLabel, statusColor, rowOpacity: r.disabled ? '0.55' : '1',
+        hasIssue: !!r.issue, issueText: r.issue || '',
+        selected: !!s.selected[r.id], onToggleSelect: this.toggleSelect(r.id),
+        onEdit: this.openEditPanel(r), onCopyRdata: this.copy(r.rdata),
+      };
+    });
+
+    const selectedCount = Object.values(s.selected).filter(Boolean).length;
+
+    const form = s.form;
+    const isAddr = form.type === 'A' || form.type === 'AAAA';
+    const isSimpleTarget = form.type === 'CNAME' || form.type === 'NS' || form.type === 'ALIAS' || form.type === 'PTR';
+    const isMX = form.type === 'MX';
+    const isSRV = form.type === 'SRV';
+    const isTXT = form.type === 'TXT';
+    const isCAA = form.type === 'CAA';
+    const previewName = form.name || '@';
+    const preview = `${previewName}\t${form.ttl || '3600'}\tIN\t${form.type}\t${this.buildRdata(form) || '\u2026'}`;
+
+    const targetVal = form.target || '';
+    const showDangling = (isSimpleTarget || isMX || isSRV) && !!targetVal && this.KNOWN_TARGETS.indexOf(targetVal) === -1 && targetVal.indexOf(this.ZONE) === -1;
+
+    const placeholders = { A: '10.20.30.x', AAAA: '2001:db8::x', CNAME: 'target.fqdn.', NS: 'ns.fqdn.', ALIAS: 'target.fqdn.', TXT: 'text value', PTR: 'target.fqdn.' };
+    const quickPlaceholder = placeholders[s.quickType] || 'value';
+
+    return {
+      sidebarExpanded: s.sidebarExpanded, sidebarWidth: s.sidebarExpanded ? '212px' : '60px',
+      currentView: s.currentView, viewMenuOpen: s.viewMenuOpen,
+      toggleViewMenu: this.toggleViewMenu, toggleSidebar: this.toggleSidebar,
+      configMenuOpen: s.configMenuOpen, toggleConfigMenu: this.toggleConfigMenu,
+      currentConfig: activeConfig.name, configCounts: activeConfig.meta,
+      configs: this.CONFIGS.map(c => ({ ...c, onSelect: this.selectConfig(c.id), bg: c.id === s.currentConfigId ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)' : 'transparent' })),
+      selectInternal: this.selectView('internal'), selectExternal: this.selectView('external'), selectDmz: this.selectView('dmz'),
+      pendingTotal, zonePendingCount: pendingZoneCount,
+      tabs, isRecordsTab: s.activeTab === 'records', isRolesTab: s.activeTab === 'roles',
+      isOptionsTab: s.activeTab === 'options', isSettingsTab: s.activeTab === 'settings', isHistoryTab: s.activeTab === 'history',
+      zoneRoles: this.ROLE_DATA, zoneOptions,
+      rows, rowCount: rows.length, selectedCount,
+      quickName: s.quickName, quickType: s.quickType, quickTtl: s.quickTtl, quickValue: s.quickValue, quickPlaceholder,
+      onQuickName: this.setQuick('quickName'), onQuickTtl: this.setQuick('quickTtl'), onQuickValue: this.setQuick('quickValue'),
+      onQuickTypeChange: this.onQuickTypeChange, quickAdd: this.quickAdd,
+      recordTypes: this.RECORD_TYPES,
+      openAddPanel: () => this.openAddPanel(), closePanel: this.closePanel,
+      panelOpen: s.panelOpen, panelTitle: s.panelMode === 'add' ? 'Add record' : 'Edit record',
+      form,
+      isAddr, isSimpleTarget, isMX, isSRV, isTXT, isCAA,
+      onTypeChange: this.setField('type'), onName: this.setField('name'), onTtl: this.setField('ttl'),
+      onAddress: this.setField('address'), onTarget: this.setField('target'),
+      onPriority: this.setField('priority'), onWeight: this.setField('weight'), onPort: this.setField('port'),
+      onText: this.setField('text'), onFlags: this.setField('flags'), onTag: this.setField('tag'), onCaaValue: this.setField('caaValue'),
+      preview, showDangling, save: this.save,
+    };
+  }
+}
+</script>
+</body>
+</html>
