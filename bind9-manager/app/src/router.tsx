@@ -9,6 +9,8 @@ import { ZoneRecords } from './routes/ZoneRecords/ZoneRecords';
 import { ApiKeys } from './routes/ApiKeys/ApiKeys';
 import { Users } from './routes/Users/Users';
 import { Login } from './routes/Login/Login';
+import { Labs } from './routes/Labs/Labs';
+import { LabEditor } from './routes/Labs/LabEditor';
 import { RequireAuth } from './auth/RequireAuth';
 
 export const routes: RouteObject[] = [
@@ -143,6 +145,14 @@ export const routes: RouteObject[] = [
             description="Server status, interfaces, deployment roles, and live configs."
           />
         ),
+      },
+      {
+        path: 'config/:configId/labs',
+        element: <Labs />,
+      },
+      {
+        path: 'config/:configId/labs/:labId',
+        element: <LabEditor />,
       },
       {
         path: 'config/:configId/groups',

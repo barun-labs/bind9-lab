@@ -46,3 +46,79 @@ export interface ApiKey {
 
 export interface ListEnvelope<T> { data: T[]; page: number; size: number; total: number; }
 export interface ApiError { error: { code: string; message: string; field?: string; details?: unknown }; }
+
+export interface NodeInterface {
+  name: string;
+  address: string;
+}
+
+export interface NodeRoute {
+  to: string;
+  via: string;
+}
+
+export interface NodeSpec {
+  name: string;
+  kind: 'linux' | 'bridge';
+  intent?: 'bind' | 'router' | 'bridge';
+  image?: string;
+  mgmtIpv4?: string;
+  binds?: string[];
+  interfaces?: NodeInterface[];
+  ipForward?: boolean;
+  routes?: NodeRoute[];
+  defaultVia?: string;
+}
+
+export interface LinkSpec {
+  endpoints: [string, string];
+}
+
+export interface TopologyModel {
+  name: string;
+  mgmtNetwork?: string;
+  mgmtSubnet?: string;
+  nodes: NodeSpec[];
+  links: LinkSpec[];
+}
+
+export interface Lab {
+  id: string;
+  name: string;
+  configurationId: string;
+  topology: TopologyModel;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLabInput {
+  id?: string;
+  name: string;
+  configurationId: string;
+  topology: TopologyModel;
+}
+
+export interface UpdateLabPatch {
+  name?: string;
+  configurationId?: string;
+  topology?: TopologyModel;
+}
+
+export interface ImportLabInput {
+  name?: string;
+  configurationId: string;
+  yaml: string;
+}
+
+export interface ServerValidationResult {
+  serverId: string;
+  ok: boolean;
+  warnings?: string[];
+  errors: string[];
+}
+
+export interface ValidateLabResult {
+  topology: string[];
+  perServer: ServerValidationResult[];
+}
+

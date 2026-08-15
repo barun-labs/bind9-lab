@@ -114,6 +114,18 @@ export function Sidebar({
       ),
     },
     {
+      id: 'labs',
+      label: 'Labs',
+      subpath: 'labs',
+      icon: (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }} aria-hidden="true">
+          <path d="M10 2v7.31L4.15 19.3A2 2 0 0 0 5.86 22h12.28a2 2 0 0 0 1.71-2.7L14 9.31V2" />
+          <path d="M8.5 2h7" />
+          <path d="M7 16h10" />
+        </svg>
+      ),
+    },
+    {
       id: 'config-review',
       label: 'Config Review',
       subpath: 'config-review',

@@ -8,10 +8,59 @@ import type {
   ApiKey,
   User,
   RoleAssignment,
+  Lab,
 } from '../types/entities';
 import { seedUsers } from './users.seed';
 import fixtures from '../../public/fixtures.json';
 import * as api from './apiAdapter';
+
+export const seedLabs: Lab[] = [
+  {
+    id: 'lab-dns-1',
+    name: 'dns-lab-topo',
+    configurationId: 'dns-lab',
+    topology: {
+      name: 'dns-lab-topo',
+      mgmtNetwork: 'clab-mgmt',
+      mgmtSubnet: '10.70.0.0/24',
+      nodes: [
+        {
+          name: 'ns1',
+          kind: 'linux',
+          intent: 'bind',
+          image: 'dnsnode:1.0',
+          mgmtIpv4: '10.70.0.11',
+          interfaces: [{ name: 'eth1', address: '10.70.0.11/24' }],
+        },
+        {
+          name: 'ns2',
+          kind: 'linux',
+          intent: 'bind',
+          image: 'dnsnode:1.0',
+          mgmtIpv4: '10.70.0.12',
+          interfaces: [{ name: 'eth1', address: '10.70.0.12/24' }],
+        },
+        {
+          name: 'r1',
+          kind: 'linux',
+          intent: 'router',
+          image: 'dnsnode:1.0',
+          mgmtIpv4: '10.70.0.1',
+          interfaces: [
+            { name: 'eth1', address: '10.70.0.1/24' },
+            { name: 'eth2', address: '10.70.0.2/24' },
+          ],
+        },
+      ],
+      links: [
+        { endpoints: ['ns1:eth1', 'r1:eth1'] },
+        { endpoints: ['ns2:eth1', 'r1:eth2'] },
+      ],
+    },
+    createdAt: '2026-08-15T10:00:00Z',
+    updatedAt: '2026-08-15T10:00:00Z',
+  },
+];
 
 export interface StoreData {
   configurations: Configuration[];
@@ -28,6 +77,7 @@ export interface StoreData {
   snapshots: any[];
   apiKeys: ApiKey[];
   users: User[];
+  labs: Lab[];
 }
 
 export type Store = StoreData;
@@ -49,6 +99,7 @@ export function makeStore(initialData?: Partial<StoreData>): StoreData {
     snapshots: cloned.snapshots ?? [],
     apiKeys: cloned.apiKeys ?? [],
     users: cloned.users ?? structuredClone(seedUsers),
+    labs: cloned.labs ?? structuredClone(seedLabs),
     ...initialData,
   };
 }
@@ -96,7 +147,16 @@ export function useApi() {
       setUserRole: (userId: string, assignment: RoleAssignment) => api.setUserRole(store, userId, assignment),
       setUserActive: (userId: string, isActive: boolean) => api.setUserActive(store, userId, isActive),
       search: (q: string) => api.search(store, q),
+      listLabs: (configId: string, params?: api.ListParams) => api.listLabs(store, configId, params),
+      getLab: (id: string) => api.getLab(store, id),
+      createLab: (input: api.CreateLabInput) => api.createLab(store, input),
+      updateLab: (id: string, patch: api.UpdateLabPatch) => api.updateLab(store, id, patch),
+      deleteLab: (id: string) => api.deleteLab(store, id),
+      renderLab: (id: string) => api.renderLab(store, id),
+      importLab: (input: api.ImportLabInput) => api.importLab(store, input),
+      validateLab: (id: string) => api.validateLab(store, id),
     }),
     [store]
   );
 }
+

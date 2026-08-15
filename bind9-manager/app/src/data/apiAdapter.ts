@@ -11,9 +11,28 @@ import type {
   User,
   RoleAssignment,
   ListEnvelope,
+  Lab,
+  CreateLabInput,
+  UpdateLabPatch,
+  ImportLabInput,
+  ValidateLabResult,
+} from '../types/entities';
+export type {
+  Lab,
+  CreateLabInput,
+  UpdateLabPatch,
+  ImportLabInput,
+  ValidateLabResult,
+  ServerValidationResult,
+  TopologyModel,
+  NodeSpec,
+  LinkSpec,
+  NodeInterface,
 } from '../types/entities';
 import type { StoreData } from './store';
 import { apiFetch, isApiEnabled } from './http';
+import { generateClabYaml, parseClabYaml, validateClientTopology } from '../lib/clabYaml';
+
 
 export interface ListParams {
   q?: string;
@@ -662,3 +681,202 @@ export async function setUserActive(
   user.isActive = isActive;
   return user;
 }
+
+export async function listLabs(
+  store: StoreData,
+  configId: string,
+  params?: ListParams
+): Promise<ListEnvelope<Lab>> {
+  if (isApiEnabled()) {
+    const qs = buildQueryString({
+      configurationId: configId,
+      q: params?.q,
+      page: params?.page,
+      size: params?.size,
+      sort: params?.sort,
+    });
+    const resp = await apiFetch<Lab[] | ListEnvelope<Lab>>(`/api/v1/labs${qs}`);
+    if (Array.isArray(resp)) {
+      let items = resp;
+      if (params?.q && params.q.trim()) {
+        const qLower = params.q.trim().toLowerCase();
+        items = items.filter(
+          (l) => l.name.toLowerCase().includes(qLower) || l.id.toLowerCase().includes(qLower)
+        );
+      }
+      items = applySort(items, params?.sort);
+      return paginate(items, params?.page, params?.size);
+    }
+    return resp;
+  }
+
+  let items = (store.labs || []).filter((l) => l.configurationId === configId);
+  if (params?.q && params.q.trim()) {
+    const qLower = params.q.trim().toLowerCase();
+    items = items.filter(
+      (l) => l.name.toLowerCase().includes(qLower) || l.id.toLowerCase().includes(qLower)
+    );
+  }
+  items = applySort(items, params?.sort);
+  return paginate(items, params?.page, params?.size);
+}
+
+export async function getLab(
+  store: StoreData,
+  id: string
+): Promise<Lab | null> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<Lab>(`/api/v1/labs/${id}`);
+    } catch (err: any) {
+      if (err?.status === 404) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  const lab = (store.labs || []).find((l) => l.id === id);
+  return lab ?? null;
+}
+
+export async function createLab(
+  store: StoreData,
+  input: CreateLabInput
+): Promise<Lab> {
+  if (isApiEnabled()) {
+    return apiFetch<Lab>('/api/v1/labs', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const id = input.id || 'lab-' + Math.random().toString(36).substring(2, 10);
+  const now = new Date().toISOString();
+  const newLab: Lab = {
+    id,
+    name: input.name,
+    configurationId: input.configurationId,
+    topology: input.topology,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  if (!store.labs) {
+    store.labs = [];
+  }
+  store.labs.push(newLab);
+  return newLab;
+}
+
+export async function updateLab(
+  store: StoreData,
+  id: string,
+  patch: UpdateLabPatch
+): Promise<Lab> {
+  if (isApiEnabled()) {
+    return apiFetch<Lab>(`/api/v1/labs/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  const lab = (store.labs || []).find((l) => l.id === id);
+  if (!lab) {
+    throw new Error(`Lab with id ${id} not found`);
+  }
+
+  if (patch.name !== undefined) lab.name = patch.name;
+  if (patch.configurationId !== undefined) lab.configurationId = patch.configurationId;
+  if (patch.topology !== undefined) lab.topology = patch.topology;
+  lab.updatedAt = new Date().toISOString();
+
+  return lab;
+}
+
+export async function deleteLab(
+  store: StoreData,
+  id: string
+): Promise<{ deleted: true }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: true }>(`/api/v1/labs/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  if (store.labs) {
+    const index = store.labs.findIndex((l) => l.id === id);
+    if (index !== -1) {
+      store.labs.splice(index, 1);
+    }
+  }
+  return { deleted: true };
+}
+
+export async function renderLab(
+  store: StoreData,
+  id: string
+): Promise<{ yaml: string }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ yaml: string }>(`/api/v1/labs/${id}/render`, {
+      method: 'POST',
+    });
+  }
+
+  const lab = (store.labs || []).find((l) => l.id === id);
+  if (!lab) {
+    throw new Error(`Lab with id ${id} not found`);
+  }
+  return { yaml: generateClabYaml(lab.topology) };
+}
+
+export async function importLab(
+  store: StoreData,
+  input: ImportLabInput
+): Promise<Lab> {
+  if (isApiEnabled()) {
+    return apiFetch<Lab>('/api/v1/labs/import', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const topology = parseClabYaml(input.yaml, input.name);
+  const labName = input.name || topology.name || 'imported-lab';
+  return createLab(store, {
+    name: labName,
+    configurationId: input.configurationId,
+    topology,
+  });
+}
+
+export async function validateLab(
+  store: StoreData,
+  id: string
+): Promise<ValidateLabResult> {
+  if (isApiEnabled()) {
+    return apiFetch<ValidateLabResult>(`/api/v1/labs/${id}/validate`, {
+      method: 'POST',
+    });
+  }
+
+  const lab = (store.labs || []).find((l) => l.id === id);
+  if (!lab) {
+    throw new Error(`Lab with id ${id} not found`);
+  }
+
+  const topologyProblems = validateClientTopology(lab.topology);
+  const bindNodes = (lab.topology?.nodes || []).filter((n) => n.intent === 'bind');
+  const perServer = bindNodes.map((n) => ({
+    serverId: `srv-${lab.id}-${n.name}`,
+    ok: true,
+    warnings: [],
+    errors: [],
+  }));
+
+  return {
+    topology: topologyProblems,
+    perServer,
+  };
+}
+

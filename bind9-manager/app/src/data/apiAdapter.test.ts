@@ -39,3 +39,59 @@ test('createApiKey stamps ownerUserId and scopes', async () => {
   expect(listed.scopes).toEqual(['read', 'deploy']);
 });
 
+test('labs CRUD, render, import, validate operations', async () => {
+  const s = makeStore();
+  const list1 = await api.listLabs(s, 'dns-lab');
+  expect(list1.total).toBeGreaterThan(0);
+
+  const lab = await api.createLab(s, {
+    name: 'custom-lab',
+    configurationId: 'dns-lab',
+    topology: {
+      name: 'custom-lab',
+      nodes: [
+        { name: 'ns1', kind: 'linux', intent: 'bind', image: 'dnsnode:1.0', mgmtIpv4: '10.70.0.11' },
+      ],
+      links: [],
+    },
+  });
+  expect(lab.id).toBeTruthy();
+  expect(lab.name).toBe('custom-lab');
+
+  const fetched = await api.getLab(s, lab.id);
+  expect(fetched).not.toBeNull();
+  expect(fetched?.name).toBe('custom-lab');
+
+  const rendered = await api.renderLab(s, lab.id);
+  expect(rendered.yaml).toContain('custom-lab');
+  expect(rendered.yaml).toContain('ns1');
+
+  const validation = await api.validateLab(s, lab.id);
+  expect(validation.topology).toEqual([]);
+  expect(validation.perServer.length).toBe(1);
+
+  const updated = await api.updateLab(s, lab.id, { name: 'renamed-lab' });
+  expect(updated.name).toBe('renamed-lab');
+
+  const imported = await api.importLab(s, {
+    name: 'imported-test',
+    configurationId: 'dns-lab',
+    yaml: `
+name: imported-test
+topology:
+  nodes:
+    nsA:
+      kind: linux
+      image: dnsnode:1.0
+  links: []
+`,
+  });
+  expect(imported.name).toBe('imported-test');
+  expect(imported.topology.nodes[0].name).toBe('nsA');
+
+  await api.deleteLab(s, lab.id);
+  const afterDelete = await api.getLab(s, lab.id);
+  expect(afterDelete).toBeNull();
+});
+
+
