@@ -13,6 +13,7 @@ import type {
   ListEnvelope,
 } from '../types/entities';
 import type { StoreData } from './store';
+import { apiFetch, isApiEnabled } from './http';
 
 export interface ListParams {
   q?: string;
@@ -60,6 +61,26 @@ export interface SearchResults {
   blocks: any[];
 }
 
+export interface CreateApiKeyInput {
+  name: string;
+  ownerUserId?: string;
+  scopes?: ('read' | 'write' | 'deploy')[];
+  readOnly?: boolean;
+  expiresAt?: string | null;
+}
+
+function buildQueryString(params?: Record<string, any>): string {
+  if (!params) return '';
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.set(key, String(value));
+    }
+  }
+  const qs = searchParams.toString();
+  return qs ? `?${qs}` : '';
+}
+
 function applySort<T>(items: T[], sort?: string): T[] {
   if (!sort) return items;
   const [field, direction] = sort.split(':');
@@ -95,6 +116,16 @@ export async function listConfigurations(
   store: StoreData,
   params?: ListParams
 ): Promise<ListEnvelope<Configuration>> {
+  if (isApiEnabled()) {
+    const qs = buildQueryString({
+      q: params?.q,
+      page: params?.page,
+      size: params?.size,
+      sort: params?.sort,
+    });
+    return apiFetch<ListEnvelope<Configuration>>(`/api/v1/configurations${qs}`);
+  }
+
   let items = store.configurations;
   if (params?.q && params.q.trim()) {
     const qLower = params.q.trim().toLowerCase();
@@ -114,6 +145,23 @@ export async function listViews(
   configId: string,
   params?: ListParams
 ): Promise<ListEnvelope<View>> {
+  if (isApiEnabled()) {
+    try {
+      const qs = buildQueryString({
+        q: params?.q,
+        page: params?.page,
+        size: params?.size,
+        sort: params?.sort,
+      });
+      return await apiFetch<ListEnvelope<View>>(`/api/v1/configurations/${configId}/views${qs}`);
+    } catch (err: any) {
+      if (err?.status !== 404) {
+        throw err;
+      }
+      // Fall back to fixture store if views endpoint is not present
+    }
+  }
+
   let items = store.views.filter((v) => v.configurationId === configId);
   if (params?.q && params.q.trim()) {
     const qLower = params.q.trim().toLowerCase();
@@ -130,6 +178,19 @@ export async function listZones(
   configId: string,
   filters?: ZoneFilters
 ): Promise<ListEnvelope<Zone>> {
+  if (isApiEnabled()) {
+    const qs = buildQueryString({
+      view: filters?.view || filters?.viewId,
+      type: filters?.type,
+      status: filters?.status,
+      q: filters?.q,
+      page: filters?.page,
+      size: filters?.size,
+      sort: filters?.sort,
+    });
+    return apiFetch<ListEnvelope<Zone>>(`/api/v1/configurations/${configId}/zones${qs}`);
+  }
+
   let items = store.zones.filter((z) => z.configurationId === configId);
 
   if (filters?.viewId) {
@@ -161,6 +222,17 @@ export async function getZone(
   store: StoreData,
   zoneId: string
 ): Promise<Zone | null> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<Zone>(`/api/v1/zones/${zoneId}`);
+    } catch (err: any) {
+      if (err?.status === 404) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
   const zone = store.zones.find((z) => z.id === zoneId);
   return zone ?? null;
 }
@@ -170,6 +242,18 @@ export async function listRecords(
   zoneId: string,
   filters?: RecordFilters
 ): Promise<ListEnvelope<ResourceRecord>> {
+  if (isApiEnabled()) {
+    const qs = buildQueryString({
+      type: filters?.type,
+      status: filters?.status,
+      q: filters?.q,
+      page: filters?.page,
+      size: filters?.size,
+      sort: filters?.sort,
+    });
+    return apiFetch<ListEnvelope<ResourceRecord>>(`/api/v1/zones/${zoneId}/records${qs}`);
+  }
+
   let records = store.records.filter((r) => r.zoneId === zoneId);
 
   if (filters?.type) {
@@ -206,6 +290,13 @@ export async function createRecord(
   zoneId: string,
   input: CreateRecordInput
 ): Promise<ResourceRecord> {
+  if (isApiEnabled()) {
+    return apiFetch<ResourceRecord>(`/api/v1/zones/${zoneId}/records`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
   const id = 'rec-' + Math.random().toString(36).substring(2, 10);
   const newRecord: ResourceRecord = {
     id,
@@ -238,6 +329,13 @@ export async function updateRecord(
   id: string,
   patch: UpdateRecordPatch
 ): Promise<ResourceRecord> {
+  if (isApiEnabled()) {
+    return apiFetch<ResourceRecord>(`/api/v1/records/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
   const record = store.records.find((r) => r.id === id);
   if (!record) {
     throw new Error(`Record with id ${id} not found`);
@@ -262,6 +360,13 @@ export async function deleteRecord(
   store: StoreData,
   id: string
 ): Promise<ResourceRecord | null> {
+  if (isApiEnabled()) {
+    const res = await apiFetch<any>(`/api/v1/records/${id}`, {
+      method: 'DELETE',
+    });
+    return res;
+  }
+
   const index = store.records.findIndex((r) => r.id === id);
   if (index === -1) {
     return null;
@@ -285,6 +390,13 @@ export async function setRecordDisabled(
   id: string,
   disabled: boolean
 ): Promise<ResourceRecord> {
+  if (isApiEnabled()) {
+    return apiFetch<ResourceRecord>(`/api/v1/records/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ disabled }),
+    });
+  }
+
   const record = store.records.find((r) => r.id === id);
   if (!record) {
     throw new Error(`Record with id ${id} not found`);
@@ -301,6 +413,16 @@ export async function listExternalHosts(
   configId: string,
   params?: ListParams
 ): Promise<ListEnvelope<ExternalHost>> {
+  if (isApiEnabled()) {
+    const qs = buildQueryString({
+      q: params?.q,
+      page: params?.page,
+      size: params?.size,
+      sort: params?.sort,
+    });
+    return apiFetch<ListEnvelope<ExternalHost>>(`/api/v1/configurations/${configId}/external-hosts${qs}`);
+  }
+
   let items = store.externalHosts.filter((h) => h.configurationId === configId);
   if (params?.q && params.q.trim()) {
     const qLower = params.q.trim().toLowerCase();
@@ -316,6 +438,22 @@ export async function listApiKeys(
   store: StoreData,
   params?: ListParams
 ): Promise<ListEnvelope<ApiKey>> {
+  if (isApiEnabled()) {
+    const resp = await apiFetch<ApiKey[] | ListEnvelope<ApiKey>>('/api/v1/api-keys');
+    if (Array.isArray(resp)) {
+      let items = resp;
+      if (params?.q && params.q.trim()) {
+        const qLower = params.q.trim().toLowerCase();
+        items = items.filter(
+          (k) => k.name.toLowerCase().includes(qLower) || k.id.toLowerCase().includes(qLower)
+        );
+      }
+      items = applySort(items, params?.sort);
+      return paginate(items, params?.page, params?.size);
+    }
+    return resp;
+  }
+
   let items = store.apiKeys.map(({ token: _token, ...rest }) => rest);
   if (params?.q && params.q.trim()) {
     const qLower = params.q.trim().toLowerCase();
@@ -327,18 +465,26 @@ export async function listApiKeys(
   return paginate(items, params?.page, params?.size);
 }
 
-export interface CreateApiKeyInput {
-  name: string;
-  ownerUserId?: string;
-  scopes?: ('read' | 'write' | 'deploy')[];
-  readOnly?: boolean;
-  expiresAt?: string | null;
-}
-
 export async function createApiKey(
   store: StoreData,
   input: string | CreateApiKeyInput
 ): Promise<ApiKey> {
+  if (isApiEnabled()) {
+    const payload =
+      typeof input === 'string'
+        ? { name: input, scopes: ['read', 'write'], readOnly: false }
+        : {
+            name: input.name,
+            scopes: input.scopes ?? ['read', 'write'],
+            readOnly: input.readOnly ?? false,
+            expiresAt: input.expiresAt ?? null,
+          };
+    return apiFetch<ApiKey>('/api/v1/api-keys', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   const params: CreateApiKeyInput = typeof input === 'string' ? { name: input } : input;
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -372,6 +518,13 @@ export async function deleteApiKey(
   store: StoreData,
   id: string
 ): Promise<ApiKey | null> {
+  if (isApiEnabled()) {
+    await apiFetch<void>(`/api/v1/api-keys/${id}`, {
+      method: 'DELETE',
+    });
+    return { id } as any;
+  }
+
   const index = store.apiKeys.findIndex((k) => k.id === id);
   if (index === -1) {
     return null;
@@ -384,6 +537,18 @@ export async function search(
   store: StoreData,
   q: string
 ): Promise<SearchResults> {
+  if (isApiEnabled()) {
+    try {
+      const qs = buildQueryString({ q });
+      return await apiFetch<SearchResults>(`/api/v1/search${qs}`);
+    } catch (err: any) {
+      if (err?.status !== 404) {
+        throw err;
+      }
+      // Fall back to fixture store search if search endpoint is not present
+    }
+  }
+
   if (!q || !q.trim()) {
     return {
       zones: [],
