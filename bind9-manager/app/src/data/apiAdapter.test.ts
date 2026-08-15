@@ -21,3 +21,21 @@ test('createApiKey returns token once, list hides it', async () => {
   const listed = (await api.listApiKeys(s)).data.find(x=>x.id===k.id)!;
   expect(listed.token).toBeUndefined();
 });
+test('createApiKey stamps ownerUserId and scopes', async () => {
+  const s = makeStore();
+  const k = await api.createApiKey(s, {
+    name: 'deployer',
+    ownerUserId: 'usr-editor',
+    scopes: ['read', 'deploy'],
+    readOnly: false,
+    expiresAt: '2026-12-31T23:59:59Z',
+  });
+  expect(k.ownerUserId).toBe('usr-editor');
+  expect(k.scopes).toEqual(['read', 'deploy']);
+  expect(k.readOnly).toBe(false);
+  expect(k.expiresAt).toBe('2026-12-31T23:59:59Z');
+  const listed = (await api.listApiKeys(s)).data.find((x) => x.id === k.id)!;
+  expect(listed.ownerUserId).toBe('usr-editor');
+  expect(listed.scopes).toEqual(['read', 'deploy']);
+});
+

@@ -85,7 +85,7 @@ export function useApi() {
       setRecordDisabled: (id: string, disabled: boolean) => api.setRecordDisabled(store, id, disabled),
       listExternalHosts: (configId: string, params?: api.ListParams) => api.listExternalHosts(store, configId, params),
       listApiKeys: (params?: api.ListParams) => api.listApiKeys(store, params),
-      createApiKey: (name: string) => api.createApiKey(store, name),
+      createApiKey: (input: string | api.CreateApiKeyInput) => api.createApiKey(store, input),
       deleteApiKey: (id: string) => api.deleteApiKey(store, id),
       search: (q: string) => api.search(store, q),
     }),

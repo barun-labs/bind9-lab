@@ -325,10 +325,19 @@ export async function listApiKeys(
   return paginate(items, params?.page, params?.size);
 }
 
+export interface CreateApiKeyInput {
+  name: string;
+  ownerUserId?: string;
+  scopes?: ('read' | 'write' | 'deploy')[];
+  readOnly?: boolean;
+  expiresAt?: string | null;
+}
+
 export async function createApiKey(
   store: StoreData,
-  name: string
+  input: string | CreateApiKeyInput
 ): Promise<ApiKey> {
+  const params: CreateApiKeyInput = typeof input === 'string' ? { name: input } : input;
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
@@ -340,7 +349,11 @@ export async function createApiKey(
   // Store the key WITHOUT the token
   const storedKey: ApiKey = {
     id,
-    name,
+    name: params.name,
+    ownerUserId: params.ownerUserId ?? 'usr-admin',
+    scopes: params.scopes ?? ['read', 'write'],
+    readOnly: params.readOnly ?? false,
+    expiresAt: params.expiresAt ?? null,
     createdAt,
     lastUsedAt: null,
   };
