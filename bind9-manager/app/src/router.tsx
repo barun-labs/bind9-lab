@@ -5,6 +5,8 @@ import {
 } from 'react-router-dom';
 import { Chrome } from './layout/Chrome/Chrome';
 import { Placeholder } from './layout/Placeholder/Placeholder';
+import { ZoneRecords } from './routes/ZoneRecords/ZoneRecords';
+import { ApiKeys } from './routes/ApiKeys/ApiKeys';
 
 export const routes: RouteObject[] = [
   {
@@ -66,12 +68,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/zones/:zoneId/records',
-        element: (
-          <Placeholder
-            title="Zone Detail / Records"
-            description="DNS resource records for this zone."
-          />
-        ),
+        element: <ZoneRecords />,
       },
       {
         path: 'config/:configId/external-hosts',
@@ -282,12 +279,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'settings/api-keys',
-        element: (
-          <Placeholder
-            title="API Keys"
-            description="Manage API tokens for CI/CD and automation."
-          />
-        ),
+        element: <ApiKeys />,
       },
       {
         path: '*',
