@@ -25,6 +25,8 @@ import {
   updateRecord,
   deleteRecord,
   listExternalHosts,
+  listServers,
+  getServer,
   buildConfigModel,
   type ZoneFilters,
   type RecordFilters,
@@ -627,6 +629,28 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     }
 
     return reply.status(200).send(lab);
+  });
+
+  // GET /api/v1/configurations/:configId/servers - List servers for a configuration
+  app.get('/api/v1/configurations/:configId/servers', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    return reply.status(200).send(listServers(db, configId));
+  });
+
+  // GET /api/v1/configurations/:configId/servers/:serverId - Get single server (scope-checked)
+  app.get('/api/v1/configurations/:configId/servers/:serverId', async (req, reply) => {
+    const { configId, serverId } = req.params as { configId: string; serverId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const server = getServer(db, serverId);
+    if (!server || server.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Server not found' } });
+    }
+    return reply.status(200).send(server);
   });
 
   // PATCH /api/v1/labs/:id - Update a lab (requires edit)
