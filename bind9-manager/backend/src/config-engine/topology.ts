@@ -68,9 +68,11 @@ export function generateClabTopology(topo: TopologyModel): string {
     }
   }
 
-  const links = topo.links.map((link) => ({
-    endpoints: link.endpoints,
-  }));
+  const links = (topo.links || [])
+    .filter((link) => link && typeof link === 'object' && Array.isArray(link.endpoints))
+    .map((link) => ({
+      endpoints: link.endpoints,
+    }));
 
   const doc = {
     name: topo.name,
@@ -92,7 +94,8 @@ export function validateTopology(topo: TopologyModel): string[] {
   const seenIps = new Set<string>();
   const duplicateIps = new Set<string>();
 
-  for (const node of topo.nodes) {
+  for (const node of topo.nodes || []) {
+    if (!node || typeof node !== 'object') continue;
     if (seenNodeNames.has(node.name)) {
       duplicateNodeNames.add(node.name);
     } else {
@@ -120,8 +123,15 @@ export function validateTopology(topo: TopologyModel): string[] {
     problems.push(`Duplicate mgmt-ipv4 '${ip}'`);
   }
 
-  for (const link of topo.links) {
-    if (!link.endpoints || link.endpoints.length !== 2) {
+  const rawLinks = topo.links || [];
+  for (let i = 0; i < rawLinks.length; i += 1) {
+    const link = rawLinks[i];
+    if (!link || typeof link !== 'object' || !Array.isArray(link.endpoints)) {
+      problems.push(`link ${i}: malformed`);
+      continue;
+    }
+
+    if (link.endpoints.length !== 2) {
       problems.push(`Link has invalid endpoints definition: ${JSON.stringify(link.endpoints)}`);
       continue;
     }

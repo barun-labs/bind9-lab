@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { randomBytes } from 'node:crypto';
-import type { TopologyModel } from '../config-engine/topology';
+import type { TopologyModel, NodeInterface } from '../config-engine/topology';
 import { listServers, upsertServer, deleteServerById } from './entityStore';
 import type { Server } from '../config-engine/model';
 
@@ -46,14 +46,14 @@ export function reconcileServers(
   lab: Lab,
   previousLab?: Lab | null
 ): void {
-  const bindNodes = (lab.topology?.nodes || []).filter((n) => n.intent === 'bind');
+  const bindNodes = (lab.topology?.nodes || []).filter((n) => n && n.intent === 'bind');
   const currentBindNodeNames = new Set(bindNodes.map((n) => n.name));
 
   // Collect previous bind node names from previousLab or existing servers
   const previousBindNodeNames = new Set<string>();
   if (previousLab?.topology?.nodes) {
     for (const n of previousLab.topology.nodes) {
-      if (n.intent === 'bind') {
+      if (n && n.intent === 'bind') {
         previousBindNodeNames.add(n.name);
       }
     }
@@ -93,10 +93,13 @@ export function reconcileServers(
   // Upsert servers for current bind nodes
   for (const node of bindNodes) {
     const mgmtAddress = (node as any).mgmtIvp4 ?? node.mgmtIpv4;
-    const serviceInterfaces = (node.interfaces || []).map((i) => ({
-      address: String(i.address).split('/')[0],
-      port: 53,
-    }));
+    const rawInterfaces = Array.isArray(node.interfaces) ? node.interfaces : [];
+    const serviceInterfaces = rawInterfaces
+      .filter((i): i is NodeInterface => i != null && typeof i === 'object' && typeof (i as any).address === 'string')
+      .map((i) => ({
+        address: i.address.split('/')[0],
+        port: 53,
+      }));
 
     const server: Server & Record<string, any> = {
       id: 'srv-' + lab.id + '-' + node.name,
@@ -208,7 +211,7 @@ export function deleteLab(db: Database.Database, id: string): { deleted: true } 
   const existing = getLab(db, id);
   if (existing) {
     for (const node of existing.topology?.nodes || []) {
-      if (node.intent === 'bind') {
+      if (node && node.intent === 'bind') {
         deleteServerById(db, 'srv-' + existing.id + '-' + node.name);
       }
     }

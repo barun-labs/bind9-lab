@@ -1,5 +1,6 @@
 import fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type Database from 'better-sqlite3';
+import { load } from 'js-yaml';
 import {
   login,
   resolveSession,
@@ -24,6 +25,7 @@ import {
   updateRecord,
   deleteRecord,
   listExternalHosts,
+  buildConfigModel,
   type ZoneFilters,
   type RecordFilters,
 } from './entityStore';
@@ -34,6 +36,18 @@ import {
   updateLab,
   deleteLab,
 } from './labStore';
+import {
+  generateClabTopology,
+  validateTopology,
+  type NodeSpec,
+  type LinkSpec,
+  type TopologyModel,
+} from '../config-engine/topology';
+import {
+  generateServerConfig,
+  validateConfig,
+  type Runner,
+} from '../config-engine';
 import { registerFrontendStatic } from './static';
 
 declare module 'fastify' {
@@ -43,7 +57,18 @@ declare module 'fastify' {
   }
 }
 
-export function buildApp(db: Database.Database, opts: FastifyServerOptions = {}): FastifyInstance {
+export interface AppOptions extends FastifyServerOptions {
+  runner?: Runner;
+}
+
+let defaultAppRunner: Runner | undefined = undefined;
+
+export function setDefaultAppRunner(runner: Runner | undefined): void {
+  defaultAppRunner = runner;
+}
+
+export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyInstance {
+  const activeRunner = opts.runner ?? defaultAppRunner;
   const app = fastify(opts);
 
   app.decorateRequest('actor', null as unknown as Actor);
@@ -614,6 +639,252 @@ export function buildApp(db: Database.Database, opts: FastifyServerOptions = {})
 
     const result = deleteLab(db, id);
     return reply.status(200).send(result);
+  });
+
+  // --- DECLARATIVE-LAB TASK 2 ROUTES (RENDER, YAML, IMPORT, VALIDATE) ---
+
+  // POST /api/v1/labs/import - Import a containerlab YAML into a Lab (requires edit)
+  app.post('/api/v1/labs/import', async (req, reply) => {
+    const body = req.body as any;
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      typeof body.configurationId !== 'string' ||
+      typeof body.yaml !== 'string'
+    ) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Missing configurationId or yaml in request body' },
+      });
+    }
+
+    if (!authorize(req.actor, 'edit', body.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+
+    let doc: any;
+    try {
+      doc = load(body.yaml);
+    } catch (err: any) {
+      return reply.status(422).send({
+        error: { code: 'BAD_YAML', message: err?.message || 'Invalid YAML' },
+      });
+    }
+
+    if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+      return reply.status(422).send({
+        error: { code: 'BAD_YAML', message: 'Parsed YAML must be a containerlab configuration object' },
+      });
+    }
+
+    if (
+      !doc.topology ||
+      typeof doc.topology !== 'object' ||
+      Array.isArray(doc.topology) ||
+      !doc.topology.nodes ||
+      typeof doc.topology.nodes !== 'object' ||
+      Array.isArray(doc.topology.nodes)
+    ) {
+      return reply.status(422).send({
+        error: { code: 'INVALID_TOPOLOGY', message: 'missing topology.nodes' },
+      });
+    }
+
+    try {
+      const topoName = (doc.name && String(doc.name).trim()) || (body.name && String(body.name).trim()) || 'imported-lab';
+      const labName = (body.name && String(body.name).trim()) || (doc.name && String(doc.name).trim()) || 'imported-lab';
+
+      const mgmtNetwork = doc.mgmt?.network;
+      const mgmtSubnet = doc.mgmt?.['ipv4-subnet'] ?? doc.mgmt?.ipv4Subnet ?? doc.mgmt?.mgmtSubnet;
+
+      const rawNodes = doc.topology.nodes;
+      const nodes: NodeSpec[] = [];
+
+      for (const [key, rawNodeVal] of Object.entries(rawNodes)) {
+        const node = (rawNodeVal && typeof rawNodeVal === 'object' ? rawNodeVal : {}) as any;
+        const nodeName = key;
+        const rawKind = node.kind;
+        const kind: 'linux' | 'bridge' = rawKind === 'bridge' ? 'bridge' : (rawKind || 'linux');
+
+        // Router heuristic:
+        // In containerlab topologies, nodes of kind 'bridge' represent L2 bridges (intent 'bridge').
+        // Linux nodes are inferred as 'router' if they have IP forwarding enabled ('ip-forward' / ipForward
+        // or sysctl net.ipv4.ip_forward) or if their name follows standard router naming (/router|^r\d/).
+        // All other Linux nodes default to intent 'bind' (DNS server nodes).
+        let intent: 'bind' | 'router' | 'bridge';
+        if (kind === 'bridge') {
+          intent = 'bridge';
+        } else if (
+          node['ip-forward'] ||
+          node.ipForward ||
+          (node.sysctls && node.sysctls['net.ipv4.ip_forward']) ||
+          /router|^r\d/.test(nodeName)
+        ) {
+          intent = 'router';
+        } else {
+          intent = 'bind';
+        }
+
+        const nodeSpec: NodeSpec = {
+          name: nodeName,
+          kind,
+          intent,
+        };
+
+        if (node.image !== undefined) {
+          nodeSpec.image = String(node.image);
+        }
+        if (node['mgmt-ipv4'] !== undefined || node.mgmtIpv4 !== undefined) {
+          nodeSpec.mgmtIpv4 = String(node['mgmt-ipv4'] ?? node.mgmtIpv4);
+        }
+        if (Array.isArray(node.binds)) {
+          nodeSpec.binds = node.binds.map(String);
+        }
+        if (Array.isArray(node.interfaces)) {
+          nodeSpec.interfaces = node.interfaces;
+        }
+
+        nodes.push(nodeSpec);
+      }
+
+      const rawLinks = doc.topology?.links;
+      const links: LinkSpec[] = [];
+
+      if (Array.isArray(rawLinks)) {
+        for (const rawLink of rawLinks) {
+          if (rawLink && typeof rawLink === 'object' && Array.isArray(rawLink.endpoints)) {
+            links.push({
+              endpoints: [rawLink.endpoints[0], rawLink.endpoints[1]],
+            });
+          } else {
+            links.push(rawLink as any);
+          }
+        }
+      }
+
+      const topology: TopologyModel = {
+        name: topoName,
+        mgmtNetwork,
+        mgmtSubnet,
+        nodes,
+        links,
+      };
+
+      const problems = validateTopology(topology);
+      if (problems.length > 0) {
+        return reply.status(422).send({
+          error: { code: 'INVALID_TOPOLOGY', details: problems, message: 'Topology validation failed' },
+        });
+      }
+
+      const lab = createLab(db, {
+        name: labName,
+        configurationId: body.configurationId,
+        topology,
+      });
+
+      return reply.status(201).send(lab);
+    } catch (err: any) {
+      return reply.status(422).send({
+        error: { code: 'INVALID_TOPOLOGY', message: err?.message || 'Topology processing failed' },
+      });
+    }
+  });
+
+  // POST /api/v1/labs/:id/render - Render containerlab YAML for a lab (requires view)
+  app.post('/api/v1/labs/:id/render', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'view', lab.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+
+    const yaml = generateClabTopology(lab.topology);
+    return reply.status(200).send({ yaml });
+  });
+
+  // GET /api/v1/labs/:id/yaml - Get containerlab YAML as text/yaml (requires view)
+  app.get('/api/v1/labs/:id/yaml', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'view', lab.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+
+    const yaml = generateClabTopology(lab.topology);
+    return reply.status(200).type('text/yaml').send(yaml);
+  });
+
+  // POST /api/v1/labs/:id/validate - Validate topology and BIND server configs (requires view)
+  app.post('/api/v1/labs/:id/validate', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'view', lab.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+
+    const topology = validateTopology(lab.topology);
+
+    const configModel = buildConfigModel(db, lab.configurationId);
+
+    const bindNodes = (lab.topology?.nodes || []).filter((n) => n.intent === 'bind');
+    const perServer: Array<{
+      serverId: string;
+      ok: boolean;
+      warnings?: string[];
+      errors: string[];
+    }> = [];
+
+    for (const node of bindNodes) {
+      const serverId = `srv-${lab.id}-${node.name}`;
+      try {
+        const serverConfig = generateServerConfig(configModel, serverId);
+        const result = await validateConfig(serverConfig, activeRunner);
+        perServer.push({
+          serverId,
+          ok: result.ok,
+          warnings: result.warnings,
+          errors: result.errors,
+        });
+      } catch (err: any) {
+        perServer.push({
+          serverId,
+          ok: false,
+          warnings: [],
+          errors: [err?.message || String(err)],
+        });
+      }
+    }
+
+    return reply.status(200).send({
+      topology,
+      perServer,
+    });
   });
 
   // Serve the built React frontend (bind9-manager/app/dist) on every other

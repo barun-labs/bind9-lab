@@ -9,7 +9,7 @@ import type {
   RecordType,
   SyncState,
 } from '../../../shared/entities';
-import type { Server } from '../config-engine/model';
+import type { Server, ConfigModel } from '../config-engine/model';
 
 export interface ZoneFilters {
   view?: string;
@@ -465,4 +465,41 @@ export function deleteServerByNode(db: Database.Database, configId: string, node
     }
   }
 }
+
+/**
+ * Assemble a ConfigModel from the entity store for a configuration.
+ */
+export function buildConfigModel(db: Database.Database, configId: string): ConfigModel {
+  const configuration = getConfiguration(db, configId);
+  if (!configuration) {
+    throw new Error(`Configuration ${configId} not found`);
+  }
+
+  const views = listViews(db, configId);
+
+  const zoneRows = db.prepare('SELECT data FROM zones WHERE configurationId = ?').all(configId) as { data: string }[];
+  const zones = zoneRows.map((r) => JSON.parse(r.data) as Zone);
+
+  const recordRows = db.prepare(`
+    SELECT r.data FROM records r
+    JOIN zones z ON r.zoneId = z.id
+    WHERE z.configurationId = ?
+  `).all(configId) as { data: string }[];
+  const records = recordRows.map((r) => JSON.parse(r.data) as ResourceRecord);
+
+  const servers = listServers(db, configId);
+  const externalHosts = listExternalHosts(db, configId);
+
+  return {
+    configuration,
+    views,
+    zones,
+    records,
+    servers,
+    roles: [],
+    options: [],
+    externalHosts,
+  };
+}
+
 
