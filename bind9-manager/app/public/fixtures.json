@@ -1,0 +1,3676 @@
+{
+  "configurations": [
+    {
+      "id": "dns-lab",
+      "name": "dns-lab-scenario-1",
+      "description": "Primary lab: split-horizon internal/external, plus a recursive cache node.",
+      "isActive": true,
+      "createdFromTemplateId": null,
+      "createdAt": "2026-08-01T09:00:00Z",
+      "updatedAt": "2026-08-15T10:04:00Z",
+      "lastDeployedAt": "2026-08-15T08:00:00Z",
+      "counts": {
+        "views": 3,
+        "zones": 8,
+        "records": 200,
+        "servers": 3
+      }
+    },
+    {
+      "id": "split-horizon",
+      "name": "split-horizon-test",
+      "description": "Experimental variant testing a stricter internal ACL before promoting to the primary lab.",
+      "isActive": false,
+      "createdFromTemplateId": "split",
+      "createdAt": "2026-08-10T12:00:00Z",
+      "updatedAt": "2026-08-14T16:00:00Z",
+      "lastDeployedAt": "2026-08-12T09:00:00Z",
+      "counts": {
+        "views": 2,
+        "zones": 4,
+        "records": 96,
+        "servers": 3
+      }
+    },
+    {
+      "id": "clean-fwd",
+      "name": "clean-forwarders",
+      "description": "Bare recursive resolver scenario, forwarders only, no authoritative zones.",
+      "isActive": false,
+      "createdFromTemplateId": "recursive",
+      "createdAt": "2026-08-05T08:00:00Z",
+      "updatedAt": "2026-08-10T08:00:00Z",
+      "lastDeployedAt": null,
+      "counts": {
+        "views": 1,
+        "zones": 0,
+        "records": 0,
+        "servers": 1
+      }
+    }
+  ],
+  "views": [
+    {
+      "id": "view-internal",
+      "configurationId": "dns-lab",
+      "name": "internal",
+      "order": 1,
+      "matchClients": [
+        "10.0.0.0/8",
+        "172.20.0.0/16"
+      ],
+      "zoneCount": 6
+    },
+    {
+      "id": "view-external",
+      "configurationId": "dns-lab",
+      "name": "external",
+      "order": 2,
+      "matchClients": [
+        "any"
+      ],
+      "zoneCount": 1
+    },
+    {
+      "id": "view-dmz",
+      "configurationId": "dns-lab",
+      "name": "dmz",
+      "order": 3,
+      "matchClients": [
+        "10.20.40.0/24"
+      ],
+      "zoneCount": 1
+    }
+  ],
+  "zones": [
+    {
+      "id": "zone-lab",
+      "configurationId": "dns-lab",
+      "viewId": "view-internal",
+      "name": "lab.lun.net",
+      "type": "PRIMARY",
+      "soa": {
+        "primaryNs": "ns1.lab.lun.net.",
+        "adminEmail": "hostmaster.lab.lun.net.",
+        "serial": 2026081401,
+        "refresh": 3600,
+        "retry": 900,
+        "expire": 604800,
+        "minimum": 300
+      },
+      "allowTransfer": [
+        "10.20.30.11"
+      ],
+      "allowUpdate": [],
+      "dnssecStatus": "NOT_CONFIGURED",
+      "recordCount": 40,
+      "syncState": "PENDING"
+    },
+    {
+      "id": "zone-corp",
+      "configurationId": "dns-lab",
+      "viewId": "view-internal",
+      "name": "corp.lun.net",
+      "type": "PRIMARY",
+      "soa": {
+        "primaryNs": "ns1.corp.lun.net.",
+        "adminEmail": "hostmaster.corp.lun.net.",
+        "serial": 2026081401,
+        "refresh": 3600,
+        "retry": 900,
+        "expire": 604800,
+        "minimum": 300
+      },
+      "allowTransfer": [
+        "10.20.30.11"
+      ],
+      "allowUpdate": [],
+      "dnssecStatus": "NOT_CONFIGURED",
+      "recordCount": 50,
+      "syncState": "PENDING"
+    },
+    {
+      "id": "zone-lun",
+      "configurationId": "dns-lab",
+      "viewId": "view-external",
+      "name": "lun.net",
+      "type": "PRIMARY",
+      "soa": {
+        "primaryNs": "ns1.lun.net.",
+        "adminEmail": "hostmaster.lun.net.",
+        "serial": 2026081401,
+        "refresh": 3600,
+        "retry": 900,
+        "expire": 604800,
+        "minimum": 300
+      },
+      "allowTransfer": [
+        "10.20.30.11"
+      ],
+      "allowUpdate": [],
+      "dnssecStatus": "NOT_CONFIGURED",
+      "recordCount": 45,
+      "syncState": "SYNCED"
+    },
+    {
+      "id": "zone-dmz",
+      "configurationId": "dns-lab",
+      "viewId": "view-dmz",
+      "name": "dmz.lun.net",
+      "type": "PRIMARY",
+      "soa": {
+        "primaryNs": "ns1.dmz.lun.net.",
+        "adminEmail": "hostmaster.dmz.lun.net.",
+        "serial": 2026081401,
+        "refresh": 3600,
+        "retry": 900,
+        "expire": 604800,
+        "minimum": 300
+      },
+      "allowTransfer": [
+        "10.20.30.11"
+      ],
+      "allowUpdate": [],
+      "dnssecStatus": "NOT_CONFIGURED",
+      "recordCount": 25,
+      "syncState": "SYNCED"
+    },
+    {
+      "id": "zone-rev10",
+      "configurationId": "dns-lab",
+      "viewId": "view-internal",
+      "name": "10.in-addr.arpa",
+      "type": "PRIMARY",
+      "soa": {
+        "primaryNs": "ns1.10.in-addr.arpa.",
+        "adminEmail": "hostmaster.10.in-addr.arpa.",
+        "serial": 2026081401,
+        "refresh": 3600,
+        "retry": 900,
+        "expire": 604800,
+        "minimum": 300
+      },
+      "allowTransfer": [
+        "10.20.30.11"
+      ],
+      "allowUpdate": [],
+      "dnssecStatus": "NOT_CONFIGURED",
+      "recordCount": 20,
+      "syncState": "SYNCED"
+    },
+    {
+      "id": "zone-rev30-20-10",
+      "configurationId": "dns-lab",
+      "viewId": "view-internal",
+      "name": "30.20.10.in-addr.arpa",
+      "type": "PRIMARY",
+      "soa": {
+        "primaryNs": "ns1.30.20.10.in-addr.arpa.",
+        "adminEmail": "hostmaster.30.20.10.in-addr.arpa.",
+        "serial": 2026081401,
+        "refresh": 3600,
+        "retry": 900,
+        "expire": 604800,
+        "minimum": 300
+      },
+      "allowTransfer": [
+        "10.20.30.11"
+      ],
+      "allowUpdate": [],
+      "dnssecStatus": "NOT_CONFIGURED",
+      "recordCount": 20,
+      "syncState": "SYNCED"
+    },
+    {
+      "id": "zone-legacy",
+      "configurationId": "dns-lab",
+      "viewId": "view-internal",
+      "name": "legacy.lun.net",
+      "type": "STUB",
+      "soa": null,
+      "allowTransfer": [],
+      "allowUpdate": [],
+      "dnssecStatus": "NOT_CONFIGURED",
+      "recordCount": 0,
+      "syncState": "SYNCED"
+    },
+    {
+      "id": "zone-partner",
+      "configurationId": "dns-lab",
+      "viewId": "view-internal",
+      "name": "partner.example.com",
+      "type": "FORWARD",
+      "soa": null,
+      "allowTransfer": [],
+      "allowUpdate": [],
+      "dnssecStatus": "NOT_CONFIGURED",
+      "recordCount": 0,
+      "syncState": "SYNCED"
+    }
+  ],
+  "records": [
+    {
+      "id": "rec-1",
+      "zoneId": "zone-lab",
+      "name": "@",
+      "type": "NS",
+      "ttl": 3600,
+      "rdata": {
+        "target": "ns1.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-2",
+      "zoneId": "zone-lab",
+      "name": "@",
+      "type": "NS",
+      "ttl": 3600,
+      "rdata": {
+        "target": "ns2.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-3",
+      "zoneId": "zone-lab",
+      "name": "ns1",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.10"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-4",
+      "zoneId": "zone-lab",
+      "name": "ns2",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.11"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-5",
+      "zoneId": "zone-lab",
+      "name": "bind-pri-01",
+      "type": "A",
+      "ttl": 300,
+      "rdata": {
+        "address": "10.20.30.10"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-6",
+      "zoneId": "zone-lab",
+      "name": "bind-sec-01",
+      "type": "A",
+      "ttl": 300,
+      "rdata": {
+        "address": "10.20.30.11"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-7",
+      "zoneId": "zone-lab",
+      "name": "bind-cache-01",
+      "type": "A",
+      "ttl": 300,
+      "rdata": {
+        "address": "10.20.30.20"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-8",
+      "zoneId": "zone-lab",
+      "name": "edge",
+      "type": "A",
+      "ttl": 300,
+      "rdata": {
+        "address": "10.20.30.50"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-9",
+      "zoneId": "zone-lab",
+      "name": "www",
+      "type": "CNAME",
+      "ttl": 300,
+      "rdata": {
+        "target": "edge.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "PENDING",
+      "issue": null
+    },
+    {
+      "id": "rec-10",
+      "zoneId": "zone-lab",
+      "name": "mail",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.30"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-11",
+      "zoneId": "zone-lab",
+      "name": "@",
+      "type": "MX",
+      "ttl": 3600,
+      "rdata": {
+        "priority": 10,
+        "target": "mx1.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-12",
+      "zoneId": "zone-lab",
+      "name": "mx1",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.31"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-13",
+      "zoneId": "zone-lab",
+      "name": "_sip._tcp",
+      "type": "SRV",
+      "ttl": 3600,
+      "rdata": {
+        "priority": 10,
+        "weight": 20,
+        "port": 5060,
+        "target": "sip1.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "PENDING",
+      "issue": null
+    },
+    {
+      "id": "rec-14",
+      "zoneId": "zone-lab",
+      "name": "sip1",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.40"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-15",
+      "zoneId": "zone-lab",
+      "name": "@",
+      "type": "TXT",
+      "ttl": 3600,
+      "rdata": {
+        "text": "v=spf1 include:_spf.lun.net ~all"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-16",
+      "zoneId": "zone-lab",
+      "name": "monitor",
+      "type": "CNAME",
+      "ttl": 300,
+      "rdata": {
+        "target": "grafana.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "PENDING",
+      "issue": "Target not declared in this zone or in External Hosts — will create a dangling reference."
+    },
+    {
+      "id": "rec-17",
+      "zoneId": "zone-lab",
+      "name": "git",
+      "type": "AAAA",
+      "ttl": 3600,
+      "rdata": {
+        "address": "2001:db8:20:30::15"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-18",
+      "zoneId": "zone-lab",
+      "name": "vpn",
+      "type": "CAA",
+      "ttl": 3600,
+      "rdata": {
+        "flags": 0,
+        "tag": "issue",
+        "value": "letsencrypt.org"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-19",
+      "zoneId": "zone-lab",
+      "name": "old-app",
+      "type": "A",
+      "ttl": 300,
+      "rdata": {
+        "address": "10.20.30.99"
+      },
+      "disabled": true,
+      "syncState": "PENDING",
+      "issue": null
+    },
+    {
+      "id": "rec-20",
+      "zoneId": "zone-lab",
+      "name": "host19",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.119"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-21",
+      "zoneId": "zone-lab",
+      "name": "host20",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.120"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-22",
+      "zoneId": "zone-lab",
+      "name": "host21",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.121"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-23",
+      "zoneId": "zone-lab",
+      "name": "host22",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.122"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-24",
+      "zoneId": "zone-lab",
+      "name": "host23",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.123"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-25",
+      "zoneId": "zone-lab",
+      "name": "host24",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.124"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-26",
+      "zoneId": "zone-lab",
+      "name": "host25",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.125"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-27",
+      "zoneId": "zone-lab",
+      "name": "host26",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.126"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-28",
+      "zoneId": "zone-lab",
+      "name": "host27",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.127"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-29",
+      "zoneId": "zone-lab",
+      "name": "host28",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.128"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-30",
+      "zoneId": "zone-lab",
+      "name": "host29",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.129"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-31",
+      "zoneId": "zone-lab",
+      "name": "host30",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.130"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-32",
+      "zoneId": "zone-lab",
+      "name": "host31",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.131"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-33",
+      "zoneId": "zone-lab",
+      "name": "host32",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.132"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-34",
+      "zoneId": "zone-lab",
+      "name": "host33",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.133"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-35",
+      "zoneId": "zone-lab",
+      "name": "host34",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.134"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-36",
+      "zoneId": "zone-lab",
+      "name": "host35",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.135"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-37",
+      "zoneId": "zone-lab",
+      "name": "host36",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.136"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-38",
+      "zoneId": "zone-lab",
+      "name": "host37",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.137"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-39",
+      "zoneId": "zone-lab",
+      "name": "host38",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.138"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-40",
+      "zoneId": "zone-lab",
+      "name": "host39",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.30.139"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-41",
+      "zoneId": "zone-corp",
+      "name": "@",
+      "type": "NS",
+      "ttl": 3600,
+      "rdata": {
+        "target": "ns1.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-42",
+      "zoneId": "zone-corp",
+      "name": "@",
+      "type": "NS",
+      "ttl": 3600,
+      "rdata": {
+        "target": "ns2.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-43",
+      "zoneId": "zone-corp",
+      "name": "ns1",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.10"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-44",
+      "zoneId": "zone-corp",
+      "name": "ns2",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.11"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-45",
+      "zoneId": "zone-corp",
+      "name": "grafana",
+      "type": "A",
+      "ttl": 300,
+      "rdata": {
+        "address": "10.20.31.50"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-46",
+      "zoneId": "zone-corp",
+      "name": "jira",
+      "type": "A",
+      "ttl": 300,
+      "rdata": {
+        "address": "10.20.31.51"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-47",
+      "zoneId": "zone-corp",
+      "name": "@",
+      "type": "TXT",
+      "ttl": 3600,
+      "rdata": {
+        "text": "v=spf1 include:_spf.lun.net ~all"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-48",
+      "zoneId": "zone-corp",
+      "name": "host07",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.67"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-49",
+      "zoneId": "zone-corp",
+      "name": "host08",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.68"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-50",
+      "zoneId": "zone-corp",
+      "name": "host09",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.69"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-51",
+      "zoneId": "zone-corp",
+      "name": "host10",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.70"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-52",
+      "zoneId": "zone-corp",
+      "name": "host11",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.71"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-53",
+      "zoneId": "zone-corp",
+      "name": "host12",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.72"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-54",
+      "zoneId": "zone-corp",
+      "name": "host13",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.73"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-55",
+      "zoneId": "zone-corp",
+      "name": "host14",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.74"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-56",
+      "zoneId": "zone-corp",
+      "name": "host15",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.75"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-57",
+      "zoneId": "zone-corp",
+      "name": "host16",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.76"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-58",
+      "zoneId": "zone-corp",
+      "name": "host17",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.77"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-59",
+      "zoneId": "zone-corp",
+      "name": "host18",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.78"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-60",
+      "zoneId": "zone-corp",
+      "name": "host19",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.79"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-61",
+      "zoneId": "zone-corp",
+      "name": "host20",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.80"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-62",
+      "zoneId": "zone-corp",
+      "name": "host21",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.81"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-63",
+      "zoneId": "zone-corp",
+      "name": "host22",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.82"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-64",
+      "zoneId": "zone-corp",
+      "name": "host23",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.83"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-65",
+      "zoneId": "zone-corp",
+      "name": "host24",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.84"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-66",
+      "zoneId": "zone-corp",
+      "name": "host25",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.85"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-67",
+      "zoneId": "zone-corp",
+      "name": "host26",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.86"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-68",
+      "zoneId": "zone-corp",
+      "name": "host27",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.87"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-69",
+      "zoneId": "zone-corp",
+      "name": "host28",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.88"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-70",
+      "zoneId": "zone-corp",
+      "name": "host29",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.89"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-71",
+      "zoneId": "zone-corp",
+      "name": "host30",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.90"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-72",
+      "zoneId": "zone-corp",
+      "name": "host31",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.91"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-73",
+      "zoneId": "zone-corp",
+      "name": "host32",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.92"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-74",
+      "zoneId": "zone-corp",
+      "name": "host33",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.93"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-75",
+      "zoneId": "zone-corp",
+      "name": "host34",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.94"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-76",
+      "zoneId": "zone-corp",
+      "name": "host35",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.95"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-77",
+      "zoneId": "zone-corp",
+      "name": "host36",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.96"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-78",
+      "zoneId": "zone-corp",
+      "name": "host37",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.97"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-79",
+      "zoneId": "zone-corp",
+      "name": "host38",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.98"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-80",
+      "zoneId": "zone-corp",
+      "name": "host39",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.99"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-81",
+      "zoneId": "zone-corp",
+      "name": "host40",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.100"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-82",
+      "zoneId": "zone-corp",
+      "name": "host41",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.101"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-83",
+      "zoneId": "zone-corp",
+      "name": "host42",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.102"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-84",
+      "zoneId": "zone-corp",
+      "name": "host43",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.103"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-85",
+      "zoneId": "zone-corp",
+      "name": "host44",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.104"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-86",
+      "zoneId": "zone-corp",
+      "name": "host45",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.105"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-87",
+      "zoneId": "zone-corp",
+      "name": "host46",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.106"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-88",
+      "zoneId": "zone-corp",
+      "name": "host47",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.107"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-89",
+      "zoneId": "zone-corp",
+      "name": "host48",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.108"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-90",
+      "zoneId": "zone-corp",
+      "name": "host49",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.31.109"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-91",
+      "zoneId": "zone-lun",
+      "name": "@",
+      "type": "NS",
+      "ttl": 3600,
+      "rdata": {
+        "target": "ns1.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-92",
+      "zoneId": "zone-lun",
+      "name": "@",
+      "type": "NS",
+      "ttl": 3600,
+      "rdata": {
+        "target": "ns2.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-93",
+      "zoneId": "zone-lun",
+      "name": "www",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.10"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-94",
+      "zoneId": "zone-lun",
+      "name": "@",
+      "type": "MX",
+      "ttl": 3600,
+      "rdata": {
+        "priority": 10,
+        "target": "mx1.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-95",
+      "zoneId": "zone-lun",
+      "name": "mx1",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.11"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-96",
+      "zoneId": "zone-lun",
+      "name": "@",
+      "type": "TXT",
+      "ttl": 3600,
+      "rdata": {
+        "text": "v=spf1 include:_spf.lun.net ~all"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-97",
+      "zoneId": "zone-lun",
+      "name": "host06",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.26"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-98",
+      "zoneId": "zone-lun",
+      "name": "host07",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.27"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-99",
+      "zoneId": "zone-lun",
+      "name": "host08",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.28"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-100",
+      "zoneId": "zone-lun",
+      "name": "host09",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.29"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-101",
+      "zoneId": "zone-lun",
+      "name": "host10",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.30"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-102",
+      "zoneId": "zone-lun",
+      "name": "host11",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.31"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-103",
+      "zoneId": "zone-lun",
+      "name": "host12",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.32"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-104",
+      "zoneId": "zone-lun",
+      "name": "host13",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.33"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-105",
+      "zoneId": "zone-lun",
+      "name": "host14",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.34"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-106",
+      "zoneId": "zone-lun",
+      "name": "host15",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.35"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-107",
+      "zoneId": "zone-lun",
+      "name": "host16",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.36"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-108",
+      "zoneId": "zone-lun",
+      "name": "host17",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.37"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-109",
+      "zoneId": "zone-lun",
+      "name": "host18",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.38"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-110",
+      "zoneId": "zone-lun",
+      "name": "host19",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.39"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-111",
+      "zoneId": "zone-lun",
+      "name": "host20",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.40"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-112",
+      "zoneId": "zone-lun",
+      "name": "host21",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.41"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-113",
+      "zoneId": "zone-lun",
+      "name": "host22",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.42"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-114",
+      "zoneId": "zone-lun",
+      "name": "host23",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.43"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-115",
+      "zoneId": "zone-lun",
+      "name": "host24",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.44"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-116",
+      "zoneId": "zone-lun",
+      "name": "host25",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.45"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-117",
+      "zoneId": "zone-lun",
+      "name": "host26",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.46"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-118",
+      "zoneId": "zone-lun",
+      "name": "host27",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.47"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-119",
+      "zoneId": "zone-lun",
+      "name": "host28",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.48"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-120",
+      "zoneId": "zone-lun",
+      "name": "host29",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.49"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-121",
+      "zoneId": "zone-lun",
+      "name": "host30",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.50"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-122",
+      "zoneId": "zone-lun",
+      "name": "host31",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.51"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-123",
+      "zoneId": "zone-lun",
+      "name": "host32",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.52"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-124",
+      "zoneId": "zone-lun",
+      "name": "host33",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.53"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-125",
+      "zoneId": "zone-lun",
+      "name": "host34",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.54"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-126",
+      "zoneId": "zone-lun",
+      "name": "host35",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.55"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-127",
+      "zoneId": "zone-lun",
+      "name": "host36",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.56"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-128",
+      "zoneId": "zone-lun",
+      "name": "host37",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.57"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-129",
+      "zoneId": "zone-lun",
+      "name": "host38",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.58"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-130",
+      "zoneId": "zone-lun",
+      "name": "host39",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.59"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-131",
+      "zoneId": "zone-lun",
+      "name": "host40",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.60"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-132",
+      "zoneId": "zone-lun",
+      "name": "host41",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.61"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-133",
+      "zoneId": "zone-lun",
+      "name": "host42",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.62"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-134",
+      "zoneId": "zone-lun",
+      "name": "host43",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.63"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-135",
+      "zoneId": "zone-lun",
+      "name": "host44",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "203.0.113.64"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-136",
+      "zoneId": "zone-dmz",
+      "name": "@",
+      "type": "NS",
+      "ttl": 3600,
+      "rdata": {
+        "target": "ns1.dmz.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-137",
+      "zoneId": "zone-dmz",
+      "name": "proxy",
+      "type": "A",
+      "ttl": 300,
+      "rdata": {
+        "address": "10.20.40.10"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-138",
+      "zoneId": "zone-dmz",
+      "name": "host02",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.22"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-139",
+      "zoneId": "zone-dmz",
+      "name": "host03",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.23"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-140",
+      "zoneId": "zone-dmz",
+      "name": "host04",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.24"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-141",
+      "zoneId": "zone-dmz",
+      "name": "host05",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.25"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-142",
+      "zoneId": "zone-dmz",
+      "name": "host06",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.26"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-143",
+      "zoneId": "zone-dmz",
+      "name": "host07",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.27"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-144",
+      "zoneId": "zone-dmz",
+      "name": "host08",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.28"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-145",
+      "zoneId": "zone-dmz",
+      "name": "host09",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.29"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-146",
+      "zoneId": "zone-dmz",
+      "name": "host10",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.30"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-147",
+      "zoneId": "zone-dmz",
+      "name": "host11",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.31"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-148",
+      "zoneId": "zone-dmz",
+      "name": "host12",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.32"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-149",
+      "zoneId": "zone-dmz",
+      "name": "host13",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.33"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-150",
+      "zoneId": "zone-dmz",
+      "name": "host14",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.34"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-151",
+      "zoneId": "zone-dmz",
+      "name": "host15",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.35"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-152",
+      "zoneId": "zone-dmz",
+      "name": "host16",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.36"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-153",
+      "zoneId": "zone-dmz",
+      "name": "host17",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.37"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-154",
+      "zoneId": "zone-dmz",
+      "name": "host18",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.38"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-155",
+      "zoneId": "zone-dmz",
+      "name": "host19",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.39"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-156",
+      "zoneId": "zone-dmz",
+      "name": "host20",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.40"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-157",
+      "zoneId": "zone-dmz",
+      "name": "host21",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.41"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-158",
+      "zoneId": "zone-dmz",
+      "name": "host22",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.42"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-159",
+      "zoneId": "zone-dmz",
+      "name": "host23",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.43"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-160",
+      "zoneId": "zone-dmz",
+      "name": "host24",
+      "type": "A",
+      "ttl": 3600,
+      "rdata": {
+        "address": "10.20.40.44"
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-161",
+      "zoneId": "zone-rev10",
+      "name": "1",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host00.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-162",
+      "zoneId": "zone-rev10",
+      "name": "2",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host01.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-163",
+      "zoneId": "zone-rev10",
+      "name": "3",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host02.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-164",
+      "zoneId": "zone-rev10",
+      "name": "4",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host03.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-165",
+      "zoneId": "zone-rev10",
+      "name": "5",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host04.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-166",
+      "zoneId": "zone-rev10",
+      "name": "6",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host05.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-167",
+      "zoneId": "zone-rev10",
+      "name": "7",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host06.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-168",
+      "zoneId": "zone-rev10",
+      "name": "8",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host07.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-169",
+      "zoneId": "zone-rev10",
+      "name": "9",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host08.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-170",
+      "zoneId": "zone-rev10",
+      "name": "10",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host09.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-171",
+      "zoneId": "zone-rev10",
+      "name": "11",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host10.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-172",
+      "zoneId": "zone-rev10",
+      "name": "12",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host11.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-173",
+      "zoneId": "zone-rev10",
+      "name": "13",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host12.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-174",
+      "zoneId": "zone-rev10",
+      "name": "14",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host13.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-175",
+      "zoneId": "zone-rev10",
+      "name": "15",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host14.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-176",
+      "zoneId": "zone-rev10",
+      "name": "16",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host15.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-177",
+      "zoneId": "zone-rev10",
+      "name": "17",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host16.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-178",
+      "zoneId": "zone-rev10",
+      "name": "18",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host17.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-179",
+      "zoneId": "zone-rev10",
+      "name": "19",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host18.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-180",
+      "zoneId": "zone-rev10",
+      "name": "20",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host19.lab.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-181",
+      "zoneId": "zone-rev30-20-10",
+      "name": "1",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host00.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-182",
+      "zoneId": "zone-rev30-20-10",
+      "name": "2",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host01.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-183",
+      "zoneId": "zone-rev30-20-10",
+      "name": "3",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host02.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-184",
+      "zoneId": "zone-rev30-20-10",
+      "name": "4",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host03.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-185",
+      "zoneId": "zone-rev30-20-10",
+      "name": "5",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host04.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-186",
+      "zoneId": "zone-rev30-20-10",
+      "name": "6",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host05.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-187",
+      "zoneId": "zone-rev30-20-10",
+      "name": "7",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host06.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-188",
+      "zoneId": "zone-rev30-20-10",
+      "name": "8",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host07.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-189",
+      "zoneId": "zone-rev30-20-10",
+      "name": "9",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host08.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-190",
+      "zoneId": "zone-rev30-20-10",
+      "name": "10",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host09.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-191",
+      "zoneId": "zone-rev30-20-10",
+      "name": "11",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host10.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-192",
+      "zoneId": "zone-rev30-20-10",
+      "name": "12",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host11.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-193",
+      "zoneId": "zone-rev30-20-10",
+      "name": "13",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host12.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-194",
+      "zoneId": "zone-rev30-20-10",
+      "name": "14",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host13.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-195",
+      "zoneId": "zone-rev30-20-10",
+      "name": "15",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host14.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-196",
+      "zoneId": "zone-rev30-20-10",
+      "name": "16",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host15.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-197",
+      "zoneId": "zone-rev30-20-10",
+      "name": "17",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host16.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-198",
+      "zoneId": "zone-rev30-20-10",
+      "name": "18",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host17.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-199",
+      "zoneId": "zone-rev30-20-10",
+      "name": "19",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host18.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    },
+    {
+      "id": "rec-200",
+      "zoneId": "zone-rev30-20-10",
+      "name": "20",
+      "type": "PTR",
+      "ttl": 3600,
+      "rdata": {
+        "target": "host19.corp.lun.net."
+      },
+      "disabled": false,
+      "syncState": "SYNCED",
+      "issue": null
+    }
+  ],
+  "externalHosts": [
+    {
+      "id": "eh-1",
+      "configurationId": "dns-lab",
+      "fqdn": "edge.lab.lun.net",
+      "referenceCount": 1
+    },
+    {
+      "id": "eh-2",
+      "configurationId": "dns-lab",
+      "fqdn": "mx1.lab.lun.net",
+      "referenceCount": 1
+    },
+    {
+      "id": "eh-3",
+      "configurationId": "dns-lab",
+      "fqdn": "sip1.lab.lun.net",
+      "referenceCount": 1
+    },
+    {
+      "id": "eh-4",
+      "configurationId": "dns-lab",
+      "fqdn": "grafana.corp.lun.net",
+      "referenceCount": 0
+    }
+  ],
+  "networkBlocks": [
+    {
+      "id": "blk-8",
+      "configurationId": "dns-lab",
+      "parentBlockId": null,
+      "cidr": "10.0.0.0/8",
+      "isOctetAligned": true,
+      "reverseZoneId": null,
+      "utilization": 0.02
+    },
+    {
+      "id": "blk-16",
+      "configurationId": "dns-lab",
+      "parentBlockId": "blk-8",
+      "cidr": "10.20.0.0/16",
+      "isOctetAligned": true,
+      "reverseZoneId": null,
+      "utilization": 0.08
+    },
+    {
+      "id": "blk-24",
+      "configurationId": "dns-lab",
+      "parentBlockId": "blk-16",
+      "cidr": "10.20.30.0/24",
+      "isOctetAligned": true,
+      "reverseZoneId": "zone-rev30-20-10",
+      "utilization": 0.35
+    },
+    {
+      "id": "blk-24b",
+      "configurationId": "dns-lab",
+      "parentBlockId": "blk-16",
+      "cidr": "10.20.31.0/24",
+      "isOctetAligned": true,
+      "reverseZoneId": null,
+      "utilization": 0.22
+    },
+    {
+      "id": "blk-27",
+      "configurationId": "dns-lab",
+      "parentBlockId": "blk-24",
+      "cidr": "10.20.30.0/27",
+      "isOctetAligned": false,
+      "reverseZoneId": null,
+      "utilization": 0.6
+    }
+  ],
+  "servers": [
+    {
+      "id": "srv-pri",
+      "configurationId": "dns-lab",
+      "hostname": "bind-pri-01",
+      "labName": "dns-lab",
+      "nodeName": "clab-dns-lab-bind-pri-01",
+      "mgmtAddress": "172.20.20.11",
+      "serviceInterfaces": [
+        {
+          "address": "10.20.30.10",
+          "port": 53
+        }
+      ],
+      "adminState": "ENABLED",
+      "syncState": "PENDING",
+      "bindVersion": "9.18.24",
+      "debianVersion": "12 (bookworm)",
+      "lastDeployedAt": "2026-08-15T08:00:00Z",
+      "services": {
+        "dns": {
+          "listenOn": [
+            {
+              "address": "0.0.0.0",
+              "port": 53
+            },
+            {
+              "address": "::",
+              "port": 53
+            }
+          ],
+          "recursion": {
+            "value": false,
+            "inheritedFrom": null
+          },
+          "allowQuery": [
+            "any"
+          ],
+          "allowRecursion": [
+            "none"
+          ],
+          "allowTransfer": [
+            "10.20.30.11"
+          ],
+          "forwarders": [],
+          "forwardPolicy": "first",
+          "dnssecValidation": {
+            "value": false,
+            "inheritedFrom": null
+          },
+          "maxCacheSize": "256m",
+          "ednsBufferSize": 1232,
+          "rrl": {
+            "responsesPerSecond": 10,
+            "window": 5
+          },
+          "statisticsChannels": [
+            {
+              "address": "127.0.0.1",
+              "port": 8053
+            }
+          ]
+        },
+        "logging": {
+          "channels": [
+            {
+              "name": "default_log",
+              "destination": "file",
+              "severity": "INFO",
+              "path": "/var/log/named/default.log",
+              "versions": 3,
+              "size": "50m"
+            }
+          ],
+          "categoryMap": [
+            {
+              "category": "default",
+              "channelNames": [
+                "default_log"
+              ]
+            }
+          ],
+          "queryLoggingEnabled": false
+        },
+        "syslog": {
+          "enabled": false,
+          "host": "",
+          "port": 514,
+          "protocol": "UDP",
+          "facility": "daemon",
+          "minSeverity": "NOTICE",
+          "tag": "named"
+        },
+        "snmp": {
+          "version": "V2C",
+          "v2c": {
+            "community": "<redacted>",
+            "allowedManagers": [
+              "10.20.20.1"
+            ]
+          },
+          "v3": {
+            "user": "",
+            "authProtocol": "",
+            "authPassphrase": "<redacted>",
+            "privProtocol": "",
+            "privPassphrase": "<redacted>"
+          },
+          "sysLocation": "dns-lab",
+          "sysContact": "operator@lun.net",
+          "trapDestinations": []
+        }
+      }
+    },
+    {
+      "id": "srv-sec",
+      "configurationId": "dns-lab",
+      "hostname": "bind-sec-01",
+      "labName": "dns-lab",
+      "nodeName": "clab-dns-lab-bind-sec-01",
+      "mgmtAddress": "172.20.20.12",
+      "serviceInterfaces": [
+        {
+          "address": "10.20.30.11",
+          "port": 53
+        }
+      ],
+      "adminState": "ENABLED",
+      "syncState": "UNREACHABLE",
+      "bindVersion": "9.18.24",
+      "debianVersion": "12 (bookworm)",
+      "lastDeployedAt": "2026-08-13T08:00:00Z",
+      "services": {
+        "dns": {
+          "listenOn": [
+            {
+              "address": "0.0.0.0",
+              "port": 53
+            },
+            {
+              "address": "::",
+              "port": 53
+            }
+          ],
+          "recursion": {
+            "value": false,
+            "inheritedFrom": null
+          },
+          "allowQuery": [
+            "any"
+          ],
+          "allowRecursion": [
+            "none"
+          ],
+          "allowTransfer": [
+            "10.20.30.11"
+          ],
+          "forwarders": [],
+          "forwardPolicy": "first",
+          "dnssecValidation": {
+            "value": false,
+            "inheritedFrom": null
+          },
+          "maxCacheSize": "256m",
+          "ednsBufferSize": 1232,
+          "rrl": {
+            "responsesPerSecond": 10,
+            "window": 5
+          },
+          "statisticsChannels": [
+            {
+              "address": "127.0.0.1",
+              "port": 8053
+            }
+          ]
+        },
+        "logging": {
+          "channels": [
+            {
+              "name": "default_log",
+              "destination": "file",
+              "severity": "INFO",
+              "path": "/var/log/named/default.log",
+              "versions": 3,
+              "size": "50m"
+            }
+          ],
+          "categoryMap": [
+            {
+              "category": "default",
+              "channelNames": [
+                "default_log"
+              ]
+            }
+          ],
+          "queryLoggingEnabled": false
+        },
+        "syslog": {
+          "enabled": false,
+          "host": "",
+          "port": 514,
+          "protocol": "UDP",
+          "facility": "daemon",
+          "minSeverity": "NOTICE",
+          "tag": "named"
+        },
+        "snmp": {
+          "version": "V2C",
+          "v2c": {
+            "community": "<redacted>",
+            "allowedManagers": [
+              "10.20.20.1"
+            ]
+          },
+          "v3": {
+            "user": "",
+            "authProtocol": "",
+            "authPassphrase": "<redacted>",
+            "privProtocol": "",
+            "privPassphrase": "<redacted>"
+          },
+          "sysLocation": "dns-lab",
+          "sysContact": "operator@lun.net",
+          "trapDestinations": []
+        }
+      }
+    },
+    {
+      "id": "srv-cache",
+      "configurationId": "dns-lab",
+      "hostname": "bind-cache-01",
+      "labName": "dns-lab",
+      "nodeName": "clab-dns-lab-bind-cache-01",
+      "mgmtAddress": "172.20.20.13",
+      "serviceInterfaces": [
+        {
+          "address": "10.20.30.20",
+          "port": 53
+        }
+      ],
+      "adminState": "ENABLED",
+      "syncState": "SYNCED",
+      "bindVersion": "9.18.24",
+      "debianVersion": "12 (bookworm)",
+      "lastDeployedAt": "2026-08-14T08:00:00Z",
+      "services": {
+        "dns": {
+          "listenOn": [
+            {
+              "address": "0.0.0.0",
+              "port": 53
+            },
+            {
+              "address": "::",
+              "port": 53
+            }
+          ],
+          "recursion": {
+            "value": true,
+            "inheritedFrom": null
+          },
+          "allowQuery": [
+            "any"
+          ],
+          "allowRecursion": [
+            "none"
+          ],
+          "allowTransfer": [
+            "10.20.30.11"
+          ],
+          "forwarders": [
+            "1.1.1.1",
+            "9.9.9.9"
+          ],
+          "forwardPolicy": "first",
+          "dnssecValidation": {
+            "value": false,
+            "inheritedFrom": null
+          },
+          "maxCacheSize": "256m",
+          "ednsBufferSize": 1232,
+          "rrl": {
+            "responsesPerSecond": 10,
+            "window": 5
+          },
+          "statisticsChannels": [
+            {
+              "address": "127.0.0.1",
+              "port": 8053
+            }
+          ]
+        },
+        "logging": {
+          "channels": [
+            {
+              "name": "default_log",
+              "destination": "file",
+              "severity": "INFO",
+              "path": "/var/log/named/default.log",
+              "versions": 3,
+              "size": "50m"
+            }
+          ],
+          "categoryMap": [
+            {
+              "category": "default",
+              "channelNames": [
+                "default_log"
+              ]
+            }
+          ],
+          "queryLoggingEnabled": false
+        },
+        "syslog": {
+          "enabled": false,
+          "host": "",
+          "port": 514,
+          "protocol": "UDP",
+          "facility": "daemon",
+          "minSeverity": "NOTICE",
+          "tag": "named"
+        },
+        "snmp": {
+          "version": "V2C",
+          "v2c": {
+            "community": "<redacted>",
+            "allowedManagers": [
+              "10.20.20.1"
+            ]
+          },
+          "v3": {
+            "user": "",
+            "authProtocol": "",
+            "authPassphrase": "<redacted>",
+            "privProtocol": "",
+            "privPassphrase": "<redacted>"
+          },
+          "sysLocation": "dns-lab",
+          "sysContact": "operator@lun.net",
+          "trapDestinations": []
+        }
+      }
+    }
+  ],
+  "deploymentRoles": [
+    {
+      "id": "role-1",
+      "configurationId": "dns-lab",
+      "serverId": "srv-pri",
+      "zoneId": "zone-lab",
+      "role": "PRIMARY"
+    },
+    {
+      "id": "role-2",
+      "configurationId": "dns-lab",
+      "serverId": "srv-sec",
+      "zoneId": "zone-lab",
+      "role": "SECONDARY"
+    },
+    {
+      "id": "role-3",
+      "configurationId": "dns-lab",
+      "serverId": "srv-pri",
+      "zoneId": "zone-corp",
+      "role": "PRIMARY"
+    },
+    {
+      "id": "role-4",
+      "configurationId": "dns-lab",
+      "serverId": "srv-cache",
+      "zoneId": "zone-lab",
+      "role": "RECURSIVE"
+    }
+  ],
+  "deploymentOptions": [
+    {
+      "id": "opt-1",
+      "configurationId": "dns-lab",
+      "scopeType": "SERVER",
+      "scopeId": "srv-cache",
+      "key": "recursion",
+      "value": true,
+      "inheritedFrom": null
+    },
+    {
+      "id": "opt-2",
+      "configurationId": "dns-lab",
+      "scopeType": "VIEW",
+      "scopeId": "view-internal",
+      "key": "recursion",
+      "value": false,
+      "inheritedFrom": null
+    },
+    {
+      "id": "opt-3",
+      "configurationId": "dns-lab",
+      "scopeType": "ZONE",
+      "scopeId": "zone-lab",
+      "key": "recursion",
+      "value": false,
+      "inheritedFrom": {
+        "scopeType": "VIEW",
+        "scopeId": "view-internal",
+        "value": false
+      }
+    }
+  ],
+  "changeSet": [
+    {
+      "id": "cs-1",
+      "configurationId": "dns-lab",
+      "objectType": "ResourceRecord",
+      "objectId": "rec-9",
+      "action": "CREATE",
+      "diff": {
+        "before": null,
+        "after": {
+          "name": "www",
+          "type": "CNAME",
+          "rdata": {
+            "target": "edge.lab.lun.net."
+          }
+        }
+      },
+      "createdAt": "2026-08-15T09:40:00Z",
+      "createdBy": "user"
+    },
+    {
+      "id": "cs-2",
+      "configurationId": "dns-lab",
+      "objectType": "ResourceRecord",
+      "objectId": "rec-13",
+      "action": "UPDATE",
+      "diff": {
+        "before": {
+          "rdata": {
+            "priority": 10,
+            "weight": 10,
+            "port": 5060,
+            "target": "sip1.lab.lun.net."
+          }
+        },
+        "after": {
+          "rdata": {
+            "priority": 10,
+            "weight": 20,
+            "port": 5060,
+            "target": "sip1.lab.lun.net."
+          }
+        }
+      },
+      "createdAt": "2026-08-15T09:42:00Z",
+      "createdBy": "user"
+    },
+    {
+      "id": "cs-3",
+      "configurationId": "dns-lab",
+      "objectType": "ResourceRecord",
+      "objectId": "rec-16",
+      "action": "CREATE",
+      "diff": {
+        "before": null,
+        "after": {
+          "name": "monitor",
+          "type": "CNAME",
+          "rdata": {
+            "target": "grafana.corp.lun.net."
+          }
+        }
+      },
+      "createdAt": "2026-08-15T09:44:00Z",
+      "createdBy": "user"
+    },
+    {
+      "id": "cs-4",
+      "configurationId": "dns-lab",
+      "objectType": "ResourceRecord",
+      "objectId": "rec-19",
+      "action": "DISABLE",
+      "diff": {
+        "before": {
+          "disabled": false
+        },
+        "after": {
+          "disabled": true
+        }
+      },
+      "createdAt": "2026-08-15T09:46:00Z",
+      "createdBy": "user"
+    },
+    {
+      "id": "cs-5",
+      "configurationId": "dns-lab",
+      "objectType": "Zone",
+      "objectId": "zone-corp",
+      "action": "UPDATE",
+      "diff": {
+        "before": {
+          "allowTransfer": [
+            "10.20.30.11"
+          ]
+        },
+        "after": {
+          "allowTransfer": [
+            "10.20.30.11",
+            "10.20.30.20"
+          ]
+        }
+      },
+      "createdAt": "2026-08-15T09:48:00Z",
+      "createdBy": "user"
+    }
+  ],
+  "deployJobs": [
+    {
+      "id": "job-3",
+      "configurationId": "dns-lab",
+      "changeSetItemIds": [
+        "cs-1",
+        "cs-2",
+        "cs-3",
+        "cs-4",
+        "cs-5"
+      ],
+      "targetServerIds": [
+        "srv-pri",
+        "srv-sec"
+      ],
+      "status": "PARTIAL",
+      "preflight": {
+        "checkconf": [
+          {
+            "serverId": "srv-pri",
+            "result": "PASS",
+            "detail": "named-checkconf: OK"
+          },
+          {
+            "serverId": "srv-sec",
+            "result": "PASS",
+            "detail": "named-checkconf: OK"
+          }
+        ],
+        "checkzone": [
+          {
+            "zoneId": "zone-lab",
+            "result": "WARN",
+            "detail": "dns_master_load: 'monitor' CNAME target grafana.corp.lun.net is not declared in this zone or in External Hosts — dangling reference (non-fatal)"
+          },
+          {
+            "zoneId": "zone-corp",
+            "result": "PASS",
+            "detail": "OK — serial 2026080905 → 2026081402"
+          }
+        ]
+      },
+      "serverResults": [
+        {
+          "serverId": "srv-pri",
+          "outcome": "SUCCEEDED",
+          "startedAt": "2026-08-15T10:00:00Z",
+          "finishedAt": "2026-08-15T10:00:04Z"
+        },
+        {
+          "serverId": "srv-sec",
+          "outcome": "FAILED",
+          "startedAt": "2026-08-15T10:00:00Z",
+          "finishedAt": "2026-08-15T10:00:08Z",
+          "stderr": "connect: dial tcp 172.20.20.12:22: connection refused — node clab-dns-lab-bind-sec-01 not responding on the containerlab mgmt network. The lab may be mid-redeploy."
+        }
+      ],
+      "createdAt": "2026-08-15T10:00:00Z"
+    },
+    {
+      "id": "job-2",
+      "configurationId": "dns-lab",
+      "changeSetItemIds": [],
+      "targetServerIds": [
+        "srv-pri",
+        "srv-sec",
+        "srv-cache"
+      ],
+      "status": "SUCCEEDED",
+      "preflight": {
+        "checkconf": [
+          {
+            "serverId": "srv-pri",
+            "result": "PASS",
+            "detail": "OK"
+          },
+          {
+            "serverId": "srv-sec",
+            "result": "PASS",
+            "detail": "OK"
+          },
+          {
+            "serverId": "srv-cache",
+            "result": "PASS",
+            "detail": "OK"
+          }
+        ],
+        "checkzone": [
+          {
+            "zoneId": "zone-lab",
+            "result": "PASS",
+            "detail": "OK"
+          }
+        ]
+      },
+      "serverResults": [
+        {
+          "serverId": "srv-pri",
+          "outcome": "SUCCEEDED",
+          "startedAt": "2026-08-14T08:00:00Z",
+          "finishedAt": "2026-08-14T08:00:03Z"
+        },
+        {
+          "serverId": "srv-sec",
+          "outcome": "SUCCEEDED",
+          "startedAt": "2026-08-14T08:00:00Z",
+          "finishedAt": "2026-08-14T08:00:03Z"
+        },
+        {
+          "serverId": "srv-cache",
+          "outcome": "SUCCEEDED",
+          "startedAt": "2026-08-14T08:00:00Z",
+          "finishedAt": "2026-08-14T08:00:03Z"
+        }
+      ],
+      "createdAt": "2026-08-14T08:00:00Z"
+    },
+    {
+      "id": "job-1",
+      "configurationId": "dns-lab",
+      "changeSetItemIds": [],
+      "targetServerIds": [
+        "srv-pri"
+      ],
+      "status": "SUCCEEDED",
+      "preflight": {
+        "checkconf": [
+          {
+            "serverId": "srv-pri",
+            "result": "PASS",
+            "detail": "OK"
+          }
+        ],
+        "checkzone": [
+          {
+            "zoneId": "zone-lab",
+            "result": "PASS",
+            "detail": "OK"
+          }
+        ]
+      },
+      "serverResults": [
+        {
+          "serverId": "srv-pri",
+          "outcome": "SUCCEEDED",
+          "startedAt": "2026-08-01T09:05:00Z",
+          "finishedAt": "2026-08-01T09:05:03Z"
+        }
+      ],
+      "createdAt": "2026-08-01T09:05:00Z"
+    }
+  ],
+  "snapshots": [
+    {
+      "id": "snap-4",
+      "configurationId": "dns-lab",
+      "label": "Pre-deploy snapshot",
+      "trigger": "AUTO_PRE_DEPLOY",
+      "scope": "CONFIGURATION",
+      "scopeRef": "dns-lab",
+      "sizeBytes": 184320,
+      "createdAt": "2026-08-15T09:59:00Z",
+      "createdBy": "system",
+      "containedObjectSummary": {
+        "views": 3,
+        "zones": 8,
+        "records": 200,
+        "blocks": 5,
+        "servers": 3
+      },
+      "referencesMissingServers": false
+    },
+    {
+      "id": "snap-3",
+      "configurationId": "dns-lab",
+      "label": "before breaking split-horizon ACL",
+      "trigger": "MANUAL",
+      "scope": "CONFIGURATION",
+      "scopeRef": "dns-lab",
+      "sizeBytes": 181200,
+      "createdAt": "2026-08-13T14:20:00Z",
+      "createdBy": "user",
+      "containedObjectSummary": {
+        "views": 3,
+        "zones": 8,
+        "records": 196,
+        "blocks": 5,
+        "servers": 3
+      },
+      "referencesMissingServers": false
+    },
+    {
+      "id": "snap-2",
+      "configurationId": "dns-lab",
+      "label": "Nightly scheduled snapshot",
+      "trigger": "SCHEDULED",
+      "scope": "CONFIGURATION",
+      "scopeRef": "dns-lab",
+      "sizeBytes": 179000,
+      "createdAt": "2026-08-13T02:00:00Z",
+      "createdBy": "system",
+      "containedObjectSummary": {
+        "views": 3,
+        "zones": 8,
+        "records": 194,
+        "blocks": 5,
+        "servers": 3
+      },
+      "referencesMissingServers": false
+    },
+    {
+      "id": "snap-1",
+      "configurationId": "dns-lab",
+      "label": "Pre-destructive snapshot (bulk delete on legacy.lun.net)",
+      "trigger": "AUTO_PRE_DESTRUCTIVE",
+      "scope": "ZONE",
+      "scopeRef": "zone-legacy",
+      "sizeBytes": 4200,
+      "createdAt": "2026-08-10T11:00:00Z",
+      "createdBy": "system",
+      "containedObjectSummary": {
+        "views": 0,
+        "zones": 1,
+        "records": 6,
+        "blocks": 0,
+        "servers": 0
+      },
+      "referencesMissingServers": true
+    }
+  ]
+}
