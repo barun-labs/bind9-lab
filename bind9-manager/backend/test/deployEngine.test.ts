@@ -68,7 +68,9 @@ describe('deployEngine', () => {
 
     const reloadSteps = plan.filter((step) => step.includes('rndc reload'));
     expect(reloadSteps.length).toBeGreaterThan(0);
-    expect(reloadSteps.every((step) => step.startsWith('docker exec lab-anycast-'))).toBe(true);
+    expect(reloadSteps.every((step) => step.startsWith('docker exec clab-lab-anycast-'))).toBe(
+      true,
+    );
 
     expect(scripts.some((script) => script.includes('containerlab deploy'))).toBe(false);
   });
@@ -88,7 +90,7 @@ describe('deployEngine', () => {
     const deployScript = scripts.find((script) => script.includes('containerlab deploy'));
     expect(deployScript).toBeDefined();
     expect(deployScript).toContain('docker exec');
-    expect(deployScript).toContain(`'bind9mgr-demo-`);
+    expect(deployScript).toContain(`'clab-bind9mgr-demo-`);
 
     // Never reference the production `dns` lab as a container prefix.
     for (const script of scripts) {

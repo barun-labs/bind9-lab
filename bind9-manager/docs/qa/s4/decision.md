@@ -11,3 +11,13 @@ real bugs (cross-model win).
 
 **Fixed round 1 (deepseek partial + Sonnet completion):** all 5 defects closed; also fixed a template-literal bug (JS `${NODE_ID}` vs bash `$NODE_ID`) and an unrelated 1/16 flaky crypto test. Full suite 337/337, tsc+build clean.
 **Escalation:** agy down → deepseek (aborted mid-run twice) → Sonnet (sonnet-worker) completed it. Ladder walked to the top rung as designed.
+
+## Real end-to-end (the mock tests could not catch these — value of actually deploying)
+The first real deploy against clab-mini exposed 3 bugs the mock-runner unit tests structurally could not:
+1. container name `${name}-${node}` → containerlab uses `clab-${name}-${node}`.
+2. no cold-start: `dnsnode` starts only dropbear; `named` must be STARTED, not just `rndc reload`ed.
+3. `/var/log/named.log` must be touched+chowned before first `named` start (entrypoint doesn't).
+Fixed by mirroring `anycast-dns/dns-deploy.sh`'s proven bring-up. RE-PROVED engine-only:
+`deploy()` → ns1 ok:true (no manual step); `dig www.demo.test` → 10.99.99.99; genuine cold start
+(boot time == deploy time). Throwaway lab `bind9mgr-demo` on 172.100.100.0/24, torn down clean;
+production `dns` lab (10 containers) untouched. Slices 4 (deploy) + 5 (verify) proven end-to-end.

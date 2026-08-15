@@ -68,7 +68,9 @@ function buildPlan(
   plan.push(`containerlab deploy -t ${labDir}/topo.clab.yml --reconfigure`);
 
   for (const { serverId } of bindServers(model, topology)) {
-    plan.push(`docker exec ${topology.name}-${serverId} rndc reload`);
+    plan.push(
+      `docker exec clab-${topology.name}-${serverId} rndc reload (or start named if not running)`,
+    );
   }
 
   return plan;
@@ -113,10 +115,27 @@ function buildDeployScript(
   );
 
   for (const { serverId } of bindServers(model, topology)) {
-    const container = `${topology.name}-${serverId}`;
+    // containerlab prefixes every container it creates with `clab-`, so the
+    // real container name is `clab-<topology.name>-<serverId>`, not
+    // `<topology.name>-<serverId>`.
+    const container = `clab-${topology.name}-${serverId}`;
+    const c = shellQuote(container);
     lines.push(`NODE_ID=${shellQuote(serverId)}`);
     lines.push(`echo "${NODE_BEGIN} $NODE_ID"`);
-    lines.push(`docker exec ${shellQuote(container)} rndc reload 2>&1`);
+    // The dnsnode:1.0 entrypoint only starts dropbear, not named, and never
+    // prepares /var/log for it. Prime the directories named needs before
+    // touching it, then either reload an already-running named or cold
+    // start it, mirroring the proven bring-up in anycast-dns/dns-deploy.sh.
+    lines.push(`docker exec ${c} mkdir -p /var/log /run/named /var/bind 2>&1`);
+    lines.push(`docker exec ${c} touch /var/log/named.log 2>&1`);
+    lines.push(
+      `docker exec ${c} chown named:named /var/log/named.log /run/named /var/bind 2>&1`,
+    );
+    lines.push(`if docker exec ${c} pidof named >/dev/null 2>&1; then`);
+    lines.push(`  docker exec ${c} rndc reload 2>&1`);
+    lines.push(`else`);
+    lines.push(`  docker exec ${c} named -u named -c /etc/bind/named.conf 2>&1`);
+    lines.push(`fi`);
     lines.push(`RC=$?`);
     lines.push(`echo "${NODE_END} $NODE_ID $RC"`);
   }
