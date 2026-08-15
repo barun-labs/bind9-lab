@@ -110,6 +110,20 @@ export function openDb(path = ':memory:'): Database.Database {
       FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS servers (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS labs (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sessions_userId ON sessions(userId);
     CREATE INDEX IF NOT EXISTS idx_api_keys_ownerUserId ON api_keys(ownerUserId);
     CREATE INDEX IF NOT EXISTS idx_views_configId ON views(configurationId);
@@ -117,6 +131,8 @@ export function openDb(path = ':memory:'): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_zones_viewId ON zones(viewId);
     CREATE INDEX IF NOT EXISTS idx_records_zoneId ON records(zoneId);
     CREATE INDEX IF NOT EXISTS idx_external_hosts_configId ON external_hosts(configurationId);
+    CREATE INDEX IF NOT EXISTS idx_servers_configId ON servers(configurationId);
+    CREATE INDEX IF NOT EXISTS idx_labs_configId ON labs(configurationId);
   `);
 
   const adminCheck = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
@@ -167,6 +183,18 @@ export function openDb(path = ':memory:'): Database.Database {
           const insertHost = db.prepare('INSERT OR IGNORE INTO external_hosts (id, configurationId, data) VALUES (?, ?, ?)');
           for (const h of externalHosts) {
             insertHost.run(h.id, h.configurationId, JSON.stringify(h));
+          }
+        }
+        if (Array.isArray(fixtures.servers)) {
+          const insertServer = db.prepare('INSERT OR IGNORE INTO servers (id, configurationId, data) VALUES (?, ?, ?)');
+          for (const s of fixtures.servers) {
+            insertServer.run(s.id, s.configurationId, JSON.stringify(s));
+          }
+        }
+        if (Array.isArray(fixtures.labs)) {
+          const insertLab = db.prepare('INSERT OR IGNORE INTO labs (id, configurationId, data) VALUES (?, ?, ?)');
+          for (const l of fixtures.labs) {
+            insertLab.run(l.id, l.configurationId, JSON.stringify(l));
           }
         }
       });

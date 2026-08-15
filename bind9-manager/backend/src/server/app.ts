@@ -27,6 +27,13 @@ import {
   type ZoneFilters,
   type RecordFilters,
 } from './entityStore';
+import {
+  listLabs,
+  getLab,
+  createLab,
+  updateLab,
+  deleteLab,
+} from './labStore';
 import { registerFrontendStatic } from './static';
 
 declare module 'fastify' {
@@ -486,6 +493,127 @@ export function buildApp(db: Database.Database, opts: FastifyServerOptions = {})
     const start = (page - 1) * size;
     const data = items.slice(start, start + size);
     return reply.status(200).send({ data, page, size, total });
+  });
+
+  // --- LAB CRUD ROUTES (DECLARATIVE-LAB TASK 1) ---
+
+  // GET /api/v1/labs - List labs filtered by ?configurationId=
+  app.get('/api/v1/labs', async (req, reply) => {
+    const query = (req.query as any) || {};
+    const configurationId = query.configurationId;
+    if (configurationId) {
+      if (!authorize(req.actor, 'view', configurationId)) {
+        return reply.status(403).send({
+          error: { code: 'FORBIDDEN', message: 'Forbidden' },
+        });
+      }
+      const labs = listLabs(db, configurationId);
+      return reply.status(200).send(labs);
+    }
+
+    const allLabs = listLabs(db);
+    const visible = allLabs.filter((l) => authorize(req.actor, 'view', l.configurationId));
+    return reply.status(200).send(visible);
+  });
+
+  // POST /api/v1/labs - Create a lab (requires edit)
+  app.post('/api/v1/labs', async (req, reply) => {
+    const body = req.body as any;
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      typeof body.name !== 'string' ||
+      typeof body.configurationId !== 'string' ||
+      !body.topology ||
+      typeof body.topology !== 'object'
+    ) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Invalid lab data' },
+      });
+    }
+
+    if (!authorize(req.actor, 'edit', body.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+
+    const lab = createLab(db, body);
+    return reply.status(201).send(lab);
+  });
+
+  // GET /api/v1/labs/:id - Get a single lab
+  app.get('/api/v1/labs/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'view', lab.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+
+    return reply.status(200).send(lab);
+  });
+
+  // PATCH /api/v1/labs/:id - Update a lab (requires edit)
+  app.patch('/api/v1/labs/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'edit', lab.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+
+    const body = req.body as any;
+    if (!body || typeof body !== 'object') {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Invalid request body' },
+      });
+    }
+
+    if (body.configurationId && body.configurationId !== lab.configurationId) {
+      if (!authorize(req.actor, 'edit', body.configurationId)) {
+        return reply.status(403).send({
+          error: { code: 'FORBIDDEN', message: 'Forbidden' },
+        });
+      }
+    }
+
+    const updated = updateLab(db, id, body);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/labs/:id - Delete a lab (requires edit)
+  app.delete('/api/v1/labs/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'edit', lab.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+
+    const result = deleteLab(db, id);
+    return reply.status(200).send(result);
   });
 
   // Serve the built React frontend (bind9-manager/app/dist) on every other

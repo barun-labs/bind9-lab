@@ -9,6 +9,7 @@ import type {
   RecordType,
   SyncState,
 } from '../../../shared/entities';
+import type { Server } from '../config-engine/model';
 
 export interface ZoneFilters {
   view?: string;
@@ -409,3 +410,59 @@ export function getExternalHost(
   if (!row) return null;
   return JSON.parse(row.data) as ExternalHost;
 }
+
+/**
+ * List servers for a configuration.
+ */
+export function listServers(db: Database.Database, configId: string): Server[] {
+  const rows = db.prepare('SELECT data FROM servers WHERE configurationId = ?').all(configId) as { data: string }[];
+  return rows.map((r) => JSON.parse(r.data) as Server);
+}
+
+/**
+ * Get server by ID.
+ */
+export function getServer(db: Database.Database, id: string): Server | null {
+  const row = db.prepare('SELECT data FROM servers WHERE id = ?').get(id) as { data: string } | undefined;
+  if (!row) return null;
+  return JSON.parse(row.data) as Server;
+}
+
+/**
+ * Upsert a server.
+ */
+export function upsertServer(db: Database.Database, server: Server & { configurationId?: string }): void {
+  const id = server.id;
+  const configurationId = (server as any).configurationId || '';
+  db.prepare(`
+    INSERT INTO servers (id, configurationId, data)
+    VALUES (?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET configurationId = excluded.configurationId, data = excluded.data
+  `).run(id, configurationId, JSON.stringify(server));
+}
+
+/**
+ * Delete a server by ID.
+ */
+export function deleteServerById(db: Database.Database, id: string): void {
+  db.prepare('DELETE FROM servers WHERE id = ?').run(id);
+}
+
+/**
+ * Delete server(s) matching a configurationId and nodeName.
+ */
+export function deleteServerByNode(db: Database.Database, configId: string, nodeName: string): void {
+  const rows = db.prepare('SELECT id, data FROM servers WHERE configurationId = ?').all(configId) as { id: string; data: string }[];
+  const delStmt = db.prepare('DELETE FROM servers WHERE id = ?');
+  for (const r of rows) {
+    try {
+      const s = JSON.parse(r.data);
+      if (s.nodeName === nodeName) {
+        delStmt.run(r.id);
+      }
+    } catch {
+      // ignore invalid json
+    }
+  }
+}
+

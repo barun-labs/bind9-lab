@@ -13,6 +13,7 @@ export interface NodeRoute {
 export interface NodeSpec {
   name: string;
   kind: 'linux' | 'bridge';
+  intent?: 'bind' | 'router' | 'bridge';
   image?: string;
   mgmtIpv4?: string;
   binds?: string[];
