@@ -214,3 +214,38 @@ rung that handles the task:
 The orchestrator plans, specs, dispatches, and reviews every diff; it does not implement.
 The build order within v1 is Phase 0 shell → Records screen → API Keys screen, each a
 worker task reviewed before the next begins.
+
+## v1.1 — auth + RBAC (mock in the frontend)
+
+Added after v1 shipped. This reverses the earlier "no login page" decision.
+
+**The hard constraint:** RBAC only enforces in a backend; a frontend cannot guard an API
+that does not exist. So v1.1 builds the *screens and the permission model* against fixtures
+with a **mocked** current user — it gates which controls render, it enforces nothing real.
+Actual enforcement (password hashing, key validation, permission checks) is the backend
+sub-project. Every place enforcement will later live carries a `// mock:` marker.
+
+**Model:** three roles — `viewer` (read), `editor` (stage changes), `admin` (manage users
+and keys) — plus a separate `deploy` permission, all **scoped per Configuration**. One
+permission model, two doors: a UI session and an API key both resolve to the same
+`(actor → roles → scope)` check. API keys are least-privilege — scoped to a subset of the
+owner's rights and optionally read-only.
+
+**Screens:** `/login` (outside the Chrome layout); a topbar user menu with logout; a route
+guard redirecting unauthenticated users to `/login`; `/settings/users` (admin) for user +
+per-config role management. The existing Records and API Keys screens become role-gated.
+
+**The authz core** is `useAuth()` → `{ currentUser, login, logout, can(permission, configId) }`.
+Every gated action calls `can()`, so replacing the mock with the backend later changes one
+module.
+
+**New / extended entities** (app-owned seed; `design/fixtures.json` has no users and stays
+untouched — the store adds a `users` seed in code):
+- `User { id, username, displayName, isActive, roles: RoleAssignment[] }`
+- `RoleAssignment { configurationId, role: 'viewer'|'editor'|'admin', canDeploy: boolean }`
+- `ApiKey` gains `ownerUserId, scopes: ('read'|'write'|'deploy')[], readOnly, expiresAt`.
+
+**Contract additions (recorded, built in the backend phase):** `POST /sessions` (login),
+`DELETE /sessions/current` (logout), `GET /me`, users CRUD + `PUT /users/:id/roles`, and the
+enforcement middleware resolving actor→roles→scope identically for a session or an API key.
+The plan for this increment is `docs/superpowers/plans/2026-08-15-bind9-manager-v1.1-auth.md`.
