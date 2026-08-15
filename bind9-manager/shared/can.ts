@@ -1,4 +1,5 @@
-import type { User, Permission } from '../types/entities';
+// NOTE: duplicated from app/src/auth/can.ts — unify in a later cleanup slice.
+import type { User, Permission } from './entities';
 
 export function can(
   user: User | null | undefined,
