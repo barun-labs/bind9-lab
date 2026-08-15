@@ -1,0 +1,24 @@
+[Unit]
+Description=Bind9-Manager (Fastify backend + built React app on one port)
+Documentation=https://github.com/barun-labs/bind9-lab
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lun
+Group=lun
+WorkingDirectory=/home/lun/bind9-manager/backend
+# Mirrors run.sh's start step. The frontend (app/dist) is built at deploy time by
+# run.sh, not here — this unit only runs the already-built server.
+Environment=PORT=8080
+Environment=NODE_ENV=production
+Environment=PATH=/opt/node-v22.23.1-linux-x64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/opt/node-v22.23.1-linux-x64/bin/npx tsx src/server/index.ts
+Restart=on-failure
+RestartSec=3
+# Give the SQLite DB + logs a moment to flush on stop.
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
