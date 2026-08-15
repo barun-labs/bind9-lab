@@ -1,10 +1,12 @@
 import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { StoreProvider, makeStore, type StoreData } from '../../data/store';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { seedUsers } from '../../data/users.seed';
 import type { User, Lab } from '../../types/entities';
+import * as api from '../../data/apiAdapter';
 import { LabEditor } from './LabEditor';
 
 const testLab: Lab = {
@@ -67,7 +69,7 @@ function renderLabEditor(
   );
 
   return render(
-    <StoreProvider initialStore={makeStore({ labs: [testLab], ...initialStore })}>
+    <StoreProvider initialStore={makeStore({ labs: [structuredClone(testLab)], ...initialStore })}>
       <AuthProvider initialUser={user}>
         <RouterProvider router={router} />
       </AuthProvider>
@@ -78,6 +80,10 @@ function renderLabEditor(
 describe('LabEditor', () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   test('adding a node then viewing the YAML tab shows that node name in the generated YAML', async () => {
@@ -203,5 +209,82 @@ topology:
 
     // Shows Saved status pill
     expect(await screen.findByText('Saved')).toBeInTheDocument();
+  });
+
+  test('clicking Deploy with a lab that validates clean drives the progress panel to SUCCEEDED and lists per-server results', async () => {
+    const user = userEvent.setup();
+
+    const validateSpy = vi.spyOn(api, 'validateLab').mockResolvedValueOnce({
+      topology: [],
+      perServer: [{ serverId: 'srv-lab-edit-1-ns1', ok: true, errors: [] }],
+    });
+
+    const deploySpy = vi.spyOn(api, 'deployLab').mockResolvedValueOnce({
+      jobId: 'job-deploy-clean',
+    });
+
+    vi.spyOn(api, 'getDeployJob').mockResolvedValueOnce({
+      id: 'job-deploy-clean',
+      labId: 'lab-edit-1',
+      status: 'SUCCEEDED',
+      createdAt: '2026-08-15T10:00:00Z',
+      result: {
+        validated: [{ serverId: 'srv-lab-edit-1-ns1', ok: true, errors: [] }],
+        deployed: [
+          {
+            serverId: 'srv-lab-edit-1-ns1',
+            ok: true,
+            output: 'dig @10.70.0.11 example.com. SOA -> OK',
+          },
+        ],
+      },
+    });
+
+    renderLabEditor();
+
+    expect(await screen.findByText('editor-test-lab')).toBeInTheDocument();
+
+    const deployBtn = screen.getByRole('button', { name: /^deploy$/i });
+    await user.click(deployBtn);
+
+    expect(validateSpy).toHaveBeenCalledWith(expect.anything(), 'lab-edit-1');
+    expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'lab-edit-1');
+
+    // Progress panel renders
+    expect(await screen.findByText(/deployment progress/i)).toBeInTheDocument();
+    expect(screen.getByText('(job-deploy-clean)')).toBeInTheDocument();
+    const succeededPills = await screen.findAllByText('SUCCEEDED');
+    expect(succeededPills.length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/srv-lab-edit-1-ns1/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/dig @10\.70\.0\.11 example\.com\. SOA -> OK/i)).toBeInTheDocument();
+  });
+
+  test('a validate failure blocks deploy and shows the error, deployLab is NOT called', async () => {
+    const user = userEvent.setup();
+
+    const validateSpy = vi.spyOn(api, 'validateLab').mockResolvedValueOnce({
+      topology: ['Invalid topology link endpoint'],
+      perServer: [{ serverId: 'srv-lab-edit-1-ns1', ok: false, errors: ['Zone SOA serial mismatch'] }],
+    });
+
+    const deploySpy = vi.spyOn(api, 'deployLab');
+
+    renderLabEditor();
+
+    expect(await screen.findByText('editor-test-lab')).toBeInTheDocument();
+
+    const deployBtn = screen.getByRole('button', { name: /^deploy$/i });
+    await user.click(deployBtn);
+
+    expect(validateSpy).toHaveBeenCalledWith(expect.anything(), 'lab-edit-1');
+    expect(deploySpy).not.toHaveBeenCalled();
+
+    // Error alert is displayed
+    expect(await screen.findByText(/deployment blocked by validation errors/i)).toBeInTheDocument();
+    expect(screen.getByText('Invalid topology link endpoint')).toBeInTheDocument();
+    expect(screen.getByText(/Zone SOA serial mismatch/i)).toBeInTheDocument();
+
+    // Progress panel is NOT rendered
+    expect(screen.queryByText(/deployment progress/i)).not.toBeInTheDocument();
   });
 });

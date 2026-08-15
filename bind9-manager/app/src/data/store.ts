@@ -155,6 +155,8 @@ export function useApi() {
       renderLab: (id: string) => api.renderLab(store, id),
       importLab: (input: api.ImportLabInput) => api.importLab(store, input),
       validateLab: (id: string) => api.validateLab(store, id),
+      deployLab: (id: string) => api.deployLab(store, id),
+      getDeployJob: (jobId: string) => api.getDeployJob(store, jobId),
     }),
     [store]
   );

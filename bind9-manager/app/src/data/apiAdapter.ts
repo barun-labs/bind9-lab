@@ -16,6 +16,7 @@ import type {
   UpdateLabPatch,
   ImportLabInput,
   ValidateLabResult,
+  DeployJob,
 } from '../types/entities';
 export type {
   Lab,
@@ -28,6 +29,9 @@ export type {
   NodeSpec,
   LinkSpec,
   NodeInterface,
+  DeployJob,
+  DeployResult,
+  DeployedServerResult,
 } from '../types/entities';
 import type { StoreData } from './store';
 import { apiFetch, isApiEnabled } from './http';
@@ -879,4 +883,97 @@ export async function validateLab(
     perServer,
   };
 }
+
+export async function deployLab(
+  store: StoreData,
+  id: string
+): Promise<{ jobId: string }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ jobId: string }>(`/api/v1/labs/${id}/deploy`, {
+      method: 'POST',
+    });
+  }
+
+  const lab = (store.labs || []).find((l) => l.id === id);
+  const jobId = 'job-' + Math.random().toString(36).substring(2, 10);
+  const now = new Date().toISOString();
+
+  const bindNodes = (lab?.topology?.nodes || []).filter(
+    (n) => n.intent === 'bind' || (!n.intent && n.kind !== 'bridge')
+  );
+  const validated = bindNodes.map((n) => ({
+    serverId: `srv-${id}-${n.name}`,
+    ok: true,
+    errors: [],
+  }));
+  const deployed = bindNodes.map((n) => ({
+    serverId: `srv-${id}-${n.name}`,
+    ok: true,
+    output: `dig @${n.mgmtIpv4 || '10.70.0.11'} example.com. SOA -> OK (flags: qr aa; 0 errors)`,
+  }));
+
+  const cannedJob: DeployJob = {
+    id: jobId,
+    labId: id,
+    status: 'SUCCEEDED',
+    createdAt: now,
+    result: {
+      validated: validated.length > 0 ? validated : [{ serverId: `srv-${id}-ns1`, ok: true, errors: [] }],
+      deployed:
+        deployed.length > 0
+          ? deployed
+          : [
+              {
+                serverId: `srv-${id}-ns1`,
+                ok: true,
+                output: 'dig @10.70.0.11 example.com. SOA -> OK (flags: qr aa; 0 errors)',
+              },
+            ],
+    },
+  };
+
+  if (!store.deployJobs) {
+    store.deployJobs = [];
+  }
+  store.deployJobs.push(cannedJob);
+
+  return { jobId };
+}
+
+export async function getDeployJob(
+  store: StoreData,
+  id: string
+): Promise<DeployJob | null> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<DeployJob>(`/api/v1/deploy-jobs/${id}`);
+    } catch (err: any) {
+      if (err?.status === 404) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  const job = (store.deployJobs || []).find((j) => j.id === id);
+  if (job) return job;
+
+  return {
+    id,
+    labId: 'lab-dns-1',
+    status: 'SUCCEEDED',
+    createdAt: new Date().toISOString(),
+    result: {
+      validated: [{ serverId: 'srv-lab-dns-1-ns1', ok: true, errors: [] }],
+      deployed: [
+        {
+          serverId: 'srv-lab-dns-1-ns1',
+          ok: true,
+          output: 'dig @10.70.0.11 example.com. SOA -> OK (flags: qr aa; 0 errors)',
+        },
+      ],
+    },
+  };
+}
+
 

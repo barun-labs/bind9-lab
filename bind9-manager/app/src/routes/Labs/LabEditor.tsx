@@ -12,6 +12,7 @@ import { CodeBlock } from '../../components/CodeBlock/CodeBlock';
 import { SidePanel } from '../../components/SidePanel/SidePanel';
 import { StatusPill } from '../../components/StatusPill/StatusPill';
 import { InlineAlert } from '../../components/InlineAlert/InlineAlert';
+import { DeployProgress } from './DeployProgress';
 
 type TabType = 'form' | 'yaml' | 'preview';
 
@@ -36,12 +37,20 @@ export function LabEditor() {
   const api = useApi();
   const { can } = useAuth();
   const canEdit = can('edit', configId);
+  const canDeploy = can('deploy', configId);
 
   const [lab, setLab] = useState<Lab | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Deploy State
+  const [activeDeployJobId, setActiveDeployJobId] = useState<string | null>(null);
+  const [isDeploying, setIsDeploying] = useState<boolean>(false);
+  const [isJobRunning, setIsJobRunning] = useState<boolean>(false);
+  const [deployError, setDeployError] = useState<string | null>(null);
+  const [deployValidationErrors, setDeployValidationErrors] = useState<string[]>([]);
 
   // Tab State
   const [activeTab, setActiveTab] = useState<TabType>('form');
@@ -195,6 +204,45 @@ export function LabEditor() {
       setError(err?.message || 'Failed to save lab');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Deploy Lab
+  const handleDeploy = async () => {
+    if (!labId || isDeploying || isJobRunning) return;
+    setIsDeploying(true);
+    setDeployError(null);
+    setDeployValidationErrors([]);
+
+    try {
+      const validation = await api.validateLab(labId);
+      const hasTopologyErrors = validation.topology && validation.topology.length > 0;
+      const failedServers = (validation.perServer || []).filter((s) => !s.ok);
+
+      if (hasTopologyErrors || failedServers.length > 0) {
+        const errList: string[] = [];
+        if (hasTopologyErrors) {
+          errList.push(...validation.topology);
+        }
+        for (const s of failedServers) {
+          const msg =
+            s.errors && s.errors.length > 0
+              ? s.errors.join(', ')
+              : 'Server configuration validation failed';
+          errList.push(`${s.serverId}: ${msg}`);
+        }
+        setDeployValidationErrors(errList);
+        setIsDeploying(false);
+        return;
+      }
+
+      const res = await api.deployLab(labId);
+      setActiveDeployJobId(res.jobId);
+      setIsJobRunning(true);
+    } catch (err: any) {
+      setDeployError(err?.message || 'Failed to trigger deployment');
+    } finally {
+      setIsDeploying(false);
     }
   };
 
@@ -393,12 +441,22 @@ export function LabEditor() {
             )}
             {canEdit && (
               <Button
-                variant="primary"
+                variant="secondary"
                 onClick={handleSaveLab}
                 loading={saving}
                 disabled={saving}
               >
                 Save Lab
+              </Button>
+            )}
+            {canDeploy && (
+              <Button
+                variant="primary"
+                onClick={handleDeploy}
+                loading={isDeploying}
+                disabled={isDeploying || isJobRunning}
+              >
+                Deploy
               </Button>
             )}
           </div>
@@ -409,6 +467,34 @@ export function LabEditor() {
         <InlineAlert tone="error" style={{ marginBottom: '16px' }}>
           {error}
         </InlineAlert>
+      )}
+
+      {deployValidationErrors.length > 0 && (
+        <InlineAlert tone="error" style={{ marginBottom: '16px' }}>
+          <div style={{ fontWeight: 600, marginBottom: '4px' }}>Deployment blocked by validation errors:</div>
+          <ul style={{ margin: 0, paddingLeft: '18px' }}>
+            {deployValidationErrors.map((err, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </InlineAlert>
+      )}
+
+      {deployError && (
+        <InlineAlert tone="error" style={{ marginBottom: '16px' }}>
+          {deployError}
+        </InlineAlert>
+      )}
+
+      {activeDeployJobId && (
+        <div style={{ marginBottom: '20px' }}>
+          <DeployProgress
+            jobId={activeDeployJobId}
+            onComplete={() => {
+              setIsJobRunning(false);
+            }}
+          />
+        </div>
       )}
 
       {/* Tabs */}

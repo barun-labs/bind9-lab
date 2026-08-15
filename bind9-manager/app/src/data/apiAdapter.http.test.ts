@@ -302,5 +302,57 @@ describe('apiAdapter HTTP real-backend path', () => {
     expect(mockFetch.mock.calls[2][0]).toBe('/api/v1/api-keys/key-2');
     expect(mockFetch.mock.calls[2][1].method).toBe('DELETE');
   });
+
+  test('deployLab and getDeployJob over HTTP', async () => {
+    // deployLab
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ jobId: 'job-http-123' }),
+    });
+
+    const store = makeStore();
+    const deployRes = await api.deployLab(store, 'lab-http-1');
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/v1/labs/lab-http-1/deploy');
+    expect(mockFetch.mock.calls[0][1].method).toBe('POST');
+    expect(deployRes.jobId).toBe('job-http-123');
+
+    // getDeployJob
+    const fakeJob = {
+      id: 'job-http-123',
+      labId: 'lab-http-1',
+      status: 'SUCCEEDED',
+      createdAt: '2026-08-15T10:00:00Z',
+      result: {
+        validated: [{ serverId: 'srv-ns1', ok: true, errors: [] }],
+        deployed: [{ serverId: 'srv-ns1', ok: true, output: 'dig output' }],
+      },
+    };
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => fakeJob,
+    });
+
+    const jobRes = await api.getDeployJob(store, 'job-http-123');
+    expect(mockFetch.mock.calls[1][0]).toBe('/api/v1/deploy-jobs/job-http-123');
+    expect(jobRes).toEqual(fakeJob);
+
+    // getDeployJob 404
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ error: { code: 'NOT_FOUND', message: 'Job not found' } }),
+    });
+
+    const notFoundJob = await api.getDeployJob(store, 'job-unknown');
+    expect(notFoundJob).toBeNull();
+  });
 });
+
 

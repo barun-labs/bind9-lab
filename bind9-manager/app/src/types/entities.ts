@@ -122,3 +122,25 @@ export interface ValidateLabResult {
   perServer: ServerValidationResult[];
 }
 
+export interface DeployedServerResult {
+  serverId: string;
+  ok: boolean;
+  output: string;
+}
+
+export interface DeployResult {
+  validated: { serverId: string; ok: boolean; errors: string[] }[];
+  plan?: string[];
+  aborted?: string;
+  deployed?: DeployedServerResult[];
+}
+
+export interface DeployJob {
+  id: string;
+  labId: string;
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+  result?: DeployResult;
+  error?: string;
+  createdAt: string;
+}
+

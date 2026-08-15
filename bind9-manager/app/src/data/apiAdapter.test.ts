@@ -94,4 +94,32 @@ topology:
   expect(afterDelete).toBeNull();
 });
 
+test('deployLab and getDeployJob in fixture mode', async () => {
+  const s = makeStore();
+  const lab = await api.createLab(s, {
+    name: 'deployable-lab',
+    configurationId: 'dns-lab',
+    topology: {
+      name: 'deployable-lab',
+      nodes: [
+        { name: 'ns1', kind: 'linux', intent: 'bind', image: 'dnsnode:1.0', mgmtIpv4: '10.70.0.11' },
+      ],
+      links: [],
+    },
+  });
+
+  const { jobId } = await api.deployLab(s, lab.id);
+  expect(jobId).toBeTruthy();
+  expect(jobId.startsWith('job-')).toBe(true);
+
+  const job = await api.getDeployJob(s, jobId);
+  expect(job).not.toBeNull();
+  expect(job?.id).toBe(jobId);
+  expect(job?.status).toBe('SUCCEEDED');
+  expect(job?.result?.validated.length).toBeGreaterThan(0);
+  expect(job?.result?.deployed?.length).toBeGreaterThan(0);
+  expect(job?.result?.deployed?.[0].output).toContain('dig @10.70.0.11');
+});
+
+
 
