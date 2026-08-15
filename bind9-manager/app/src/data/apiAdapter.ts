@@ -8,6 +8,8 @@ import type {
   SyncState,
   ExternalHost,
   ApiKey,
+  User,
+  RoleAssignment,
   ListEnvelope,
 } from '../types/entities';
 import type { StoreData } from './store';
@@ -437,4 +439,61 @@ export async function search(
     servers,
     blocks,
   };
+}
+
+export async function listUsers(
+  store: StoreData,
+  params?: ListParams
+): Promise<ListEnvelope<User>> {
+  let items = store.users || [];
+  if (params?.q && params.q.trim()) {
+    const qLower = params.q.trim().toLowerCase();
+    items = items.filter(
+      (u) =>
+        u.displayName.toLowerCase().includes(qLower) ||
+        u.username.toLowerCase().includes(qLower) ||
+        u.id.toLowerCase().includes(qLower)
+    );
+  }
+  items = applySort(items, params?.sort);
+  return paginate(items, params?.page, params?.size);
+}
+
+export async function setUserRole(
+  store: StoreData,
+  userId: string,
+  assignment: RoleAssignment
+): Promise<User> {
+  const user = store.users.find((u) => u.id === userId);
+  if (!user) {
+    throw new Error(`User with id ${userId} not found`);
+  }
+  if (!user.roles) {
+    user.roles = [];
+  }
+  const existingIndex = user.roles.findIndex(
+    (r) => r.configurationId === assignment.configurationId
+  );
+  if (existingIndex >= 0) {
+    user.roles[existingIndex] = {
+      ...user.roles[existingIndex],
+      ...assignment,
+    };
+  } else {
+    user.roles.push({ ...assignment });
+  }
+  return user;
+}
+
+export async function setUserActive(
+  store: StoreData,
+  userId: string,
+  isActive: boolean
+): Promise<User> {
+  const user = store.users.find((u) => u.id === userId);
+  if (!user) {
+    throw new Error(`User with id ${userId} not found`);
+  }
+  user.isActive = isActive;
+  return user;
 }

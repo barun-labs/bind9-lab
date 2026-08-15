@@ -6,7 +6,10 @@ import type {
   ResourceRecord,
   ExternalHost,
   ApiKey,
+  User,
+  RoleAssignment,
 } from '../types/entities';
+import { seedUsers } from './users.seed';
 import fixtures from '../../public/fixtures.json';
 import * as api from './apiAdapter';
 
@@ -24,6 +27,7 @@ export interface StoreData {
   deployJobs: any[];
   snapshots: any[];
   apiKeys: ApiKey[];
+  users: User[];
 }
 
 export type Store = StoreData;
@@ -44,6 +48,7 @@ export function makeStore(initialData?: Partial<StoreData>): StoreData {
     deployJobs: cloned.deployJobs ?? [],
     snapshots: cloned.snapshots ?? [],
     apiKeys: cloned.apiKeys ?? [],
+    users: cloned.users ?? structuredClone(seedUsers),
     ...initialData,
   };
 }
@@ -87,6 +92,9 @@ export function useApi() {
       listApiKeys: (params?: api.ListParams) => api.listApiKeys(store, params),
       createApiKey: (input: string | api.CreateApiKeyInput) => api.createApiKey(store, input),
       deleteApiKey: (id: string) => api.deleteApiKey(store, id),
+      listUsers: (params?: api.ListParams) => api.listUsers(store, params),
+      setUserRole: (userId: string, assignment: RoleAssignment) => api.setUserRole(store, userId, assignment),
+      setUserActive: (userId: string, isActive: boolean) => api.setUserActive(store, userId, isActive),
       search: (q: string) => api.search(store, q),
     }),
     [store]

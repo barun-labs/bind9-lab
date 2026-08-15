@@ -7,6 +7,7 @@ import { Chrome } from './layout/Chrome/Chrome';
 import { Placeholder } from './layout/Placeholder/Placeholder';
 import { ZoneRecords } from './routes/ZoneRecords/ZoneRecords';
 import { ApiKeys } from './routes/ApiKeys/ApiKeys';
+import { Users } from './routes/Users/Users';
 import { Login } from './routes/Login/Login';
 import { RequireAuth } from './auth/RequireAuth';
 
@@ -290,6 +291,10 @@ export const routes: RouteObject[] = [
       {
         path: 'settings/api-keys',
         element: <ApiKeys />,
+      },
+      {
+        path: 'settings/users',
+        element: <Users />,
       },
       {
         path: '*',
