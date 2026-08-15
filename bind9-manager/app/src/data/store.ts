@@ -9,6 +9,7 @@ import type {
   User,
   RoleAssignment,
   Lab,
+  TelemetrySnapshot,
 } from '../types/entities';
 import { seedUsers } from './users.seed';
 import fixtures from '../../public/fixtures.json';
@@ -159,6 +160,8 @@ export function useApi() {
       validateLab: (id: string) => api.validateLab(store, id),
       deployLab: (id: string) => api.deployLab(store, id),
       getDeployJob: (jobId: string) => api.getDeployJob(store, jobId),
+      getNodeLogs: (labId: string, node: string, tail?: number) => api.getNodeLogs(store, labId, node, tail),
+      openTelemetryStream: (labId: string, onFrame: (snap: TelemetrySnapshot) => void) => api.openTelemetryStream(store, labId, onFrame),
     }),
     [store]
   );

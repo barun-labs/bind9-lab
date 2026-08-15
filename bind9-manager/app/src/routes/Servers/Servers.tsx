@@ -5,6 +5,16 @@ import { useApi } from '../../data/store';
 import { DataTable, type DataTableColumn } from '../../components/DataTable/DataTable';
 import { StatusPill } from '../../components/StatusPill/StatusPill';
 import { InlineAlert } from '../../components/InlineAlert/InlineAlert';
+import { Button } from '../../components/Button/Button';
+import { TelemetryPanel } from './TelemetryPanel';
+
+function labIdFor(s: Server): string {
+  // reconciled server ids are `srv-<labId>-<nodeName>`
+  if (s.id.startsWith('srv-') && s.nodeName && s.id.endsWith('-' + s.nodeName)) {
+    return s.id.slice(4, -(s.nodeName.length + 1));
+  }
+  return s.labName ?? '';
+}
 
 export function Servers() {
   const { configId = 'dns-lab' } = useParams();
@@ -13,6 +23,7 @@ export function Servers() {
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [telemetryServer, setTelemetryServer] = useState<Server | null>(null);
 
   const loadServers = useCallback(async () => {
     setLoading(true);
@@ -60,6 +71,16 @@ export function Servers() {
         header: 'Sync',
         width: '160px',
         render: (s) => <StatusPill state={s.syncState} label={s.syncState} />,
+      },
+      {
+        key: 'telemetry',
+        header: '',
+        width: '120px',
+        render: (s) => (
+          <Button size="sm" onClick={() => setTelemetryServer(s)}>
+            Telemetry
+          </Button>
+        ),
       },
     ];
   }, []);
@@ -114,6 +135,12 @@ export function Servers() {
           emptyMessage="No servers"
         />
       </div>
+
+      <TelemetryPanel
+        labId={telemetryServer ? labIdFor(telemetryServer) : ''}
+        open={telemetryServer !== null}
+        onClose={() => setTelemetryServer(null)}
+      />
     </div>
   );
 }

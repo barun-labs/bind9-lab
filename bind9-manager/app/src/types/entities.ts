@@ -162,3 +162,25 @@ export interface DeployJob {
   createdAt: string;
 }
 
+export interface TelemetryNode {
+  nodeName: string;
+  containerName: string;
+  containerId?: string;
+  state?: string;
+  status?: string;
+  address?: string;
+  cpuPerc?: string;
+  memPerc?: string;
+  memUsage?: string;
+  netIO?: string;
+  blockIO?: string;
+  pids?: string;
+  present: boolean;
+}
+
+export interface TelemetrySnapshot {
+  nodes: TelemetryNode[];
+  at: string;
+  runtimeError?: string;
+}
+

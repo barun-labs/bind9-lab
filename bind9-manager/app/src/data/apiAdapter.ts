@@ -18,6 +18,8 @@ import type {
   ValidateLabResult,
   DeployJob,
   Server,
+  TelemetryNode,
+  TelemetrySnapshot,
 } from '../types/entities';
 export type {
   Lab,
@@ -35,7 +37,7 @@ export type {
   DeployedServerResult,
 } from '../types/entities';
 import type { StoreData } from './store';
-import { apiFetch, isApiEnabled } from './http';
+import { apiFetch, isApiEnabled, resolveUrl } from './http';
 import { generateClabYaml, parseClabYaml, validateClientTopology } from '../lib/clabYaml';
 
 
@@ -958,6 +960,105 @@ export async function deployLab(
   store.deployJobs.push(cannedJob);
 
   return { jobId };
+}
+
+export async function getNodeLogs(
+  _store: StoreData,
+  labId: string,
+  node: string,
+  tail = 200
+): Promise<string> {
+  if (isApiEnabled()) {
+    // Logs route returns text/plain; apiFetch hands back the raw text body.
+    return apiFetch<string>(`/api/v1/labs/${labId}/nodes/${node}/logs?tail=${tail}`);
+  }
+
+  return [
+    `named[1]: starting BIND 9.18.28 (node ${node})`,
+    `named[1]: zone example.com/IN loaded (serial 2026081501)`,
+    `named[1]: listening on IPv4 interface eth1, 10.70.0.11#53`,
+    `named[1]: zone example.com/IN: sending notifies (serial 2026081501)`,
+    `named[1]: client @0x7f3a2c001000 10.70.0.1#54011 (example.com): query: example.com IN A +E (10.70.0.11)`,
+    `named[1]: resolver priming query complete`,
+  ].join('\n');
+}
+
+function fixtureTelemetrySnapshot(tick: number): TelemetrySnapshot {
+  const cpuA = (0.15 + tick * 0.02).toFixed(2);
+  const cpuB = (0.08 + tick * 0.03).toFixed(2);
+  const memA = 12 + tick;
+  const memB = 10 + tick;
+
+  const nodes: TelemetryNode[] = [
+    {
+      nodeName: 'ns1',
+      containerName: 'clab-dns-lab-topo-ns1',
+      state: 'running',
+      address: '10.70.0.11',
+      cpuPerc: `${cpuA}%`,
+      memPerc: `${(3.1 + tick * 0.1).toFixed(1)}%`,
+      memUsage: `${memA}MiB / 2GiB`,
+      netIO: '1.2MB / 800KB',
+      blockIO: '0B / 0B',
+      pids: '12',
+      present: true,
+    },
+    {
+      nodeName: 'ns2',
+      containerName: 'clab-dns-lab-topo-ns2',
+      state: 'running',
+      address: '10.70.0.12',
+      cpuPerc: `${cpuB}%`,
+      memPerc: `${(2.4 + tick * 0.1).toFixed(1)}%`,
+      memUsage: `${memB}MiB / 2GiB`,
+      netIO: '900KB / 400KB',
+      blockIO: '0B / 0B',
+      pids: '11',
+      present: true,
+    },
+    {
+      nodeName: 'r1',
+      containerName: 'clab-dns-lab-topo-r1',
+      state: 'running',
+      address: '10.70.0.1',
+      cpuPerc: '0.05%',
+      memPerc: '1.2%',
+      memUsage: '8MiB / 2GiB',
+      netIO: '300KB / 200KB',
+      blockIO: '0B / 0B',
+      pids: '8',
+      present: true,
+    },
+  ];
+
+  return { nodes, at: new Date().toISOString() };
+}
+
+export function openTelemetryStream(
+  _store: StoreData,
+  labId: string,
+  onFrame: (snap: TelemetrySnapshot) => void
+): () => void {
+  if (isApiEnabled()) {
+    // EventSource cannot send an Authorization header, so real-mode SSE auth is a
+    // known follow-up. Do NOT put the bearer token in the query string — that
+    // leaks it into server logs. Fixture mode is the supported offline path today.
+    const es = new EventSource(resolveUrl(`/api/v1/labs/${labId}/telemetry/stream`));
+    es.onmessage = (e) => {
+      try {
+        onFrame(JSON.parse(e.data));
+      } catch {
+        // ignore malformed frames
+      }
+    };
+    return () => es.close();
+  }
+
+  let tick = 0;
+  const emit = () => onFrame(fixtureTelemetrySnapshot(tick++));
+  emit();
+  const interval = window.setInterval(emit, 2500);
+  return () => window.clearInterval(interval);
 }
 
 export async function getDeployJob(
