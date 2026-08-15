@@ -6,7 +6,7 @@ import { AuthProvider } from './auth/AuthProvider';
 import { seedUsers } from './data/users.seed';
 
 test('an unbuilt route renders chrome + placeholder', () => {
-  const r = createMemoryRouter(routes, { initialEntries: ['/config/dns-lab/servers'] });
+  const r = createMemoryRouter(routes, { initialEntries: ['/config/dns-lab/blocks'] });
   render(
     <StoreProvider>
       <AuthProvider initialUser={seedUsers[0]}>
@@ -15,5 +15,5 @@ test('an unbuilt route renders chrome + placeholder', () => {
     </StoreProvider>
   );
   expect(screen.getByText(/Bind9-Manager/i)).toBeInTheDocument(); // sidebar brand in chrome
-  expect(screen.getByRole('heading', { name: /Servers & Interfaces/i })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /Network Blocks & Reverse Zones/i })).toBeInTheDocument();
 });

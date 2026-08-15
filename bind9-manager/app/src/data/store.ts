@@ -149,6 +149,8 @@ export function useApi() {
       search: (q: string) => api.search(store, q),
       listLabs: (configId: string, params?: api.ListParams) => api.listLabs(store, configId, params),
       getLab: (id: string) => api.getLab(store, id),
+      listServers: (configId: string) => api.listServers(store, configId),
+      getServer: (configId: string, id: string) => api.getServer(store, configId, id),
       createLab: (input: api.CreateLabInput) => api.createLab(store, input),
       updateLab: (id: string, patch: api.UpdateLabPatch) => api.updateLab(store, id, patch),
       deleteLab: (id: string) => api.deleteLab(store, id),

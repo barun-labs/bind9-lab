@@ -32,6 +32,24 @@ export interface Configuration {
   counts: { views: number; zones: number; records: number; servers: number };
 }
 export interface ExternalHost { id: string; configurationId: string; fqdn: string; referenceCount: number; }
+export interface ServiceInterface { address: string; port: number; }
+export interface Server {
+  id: string;
+  configurationId: string;
+  hostname: string;
+  labName?: string;
+  nodeName?: string;
+  mgmtAddress?: string;
+  runtimeAddress?: string;   // populated by deploy-time reconcile (inspect IP)
+  containerId?: string;
+  runtimeState?: string;     // e.g. "running"
+  serviceInterfaces?: ServiceInterface[];
+  adminState?: string;
+  syncState: SyncState | string;
+  bindVersion?: string;
+  lastDeployedAt?: string;
+  [key: string]: any;        // fixtures carry extra nested `services` etc — tolerate them
+}
 export interface ApiKey {
   id: string;
   name: string;

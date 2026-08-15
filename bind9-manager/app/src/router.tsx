@@ -11,6 +11,7 @@ import { Users } from './routes/Users/Users';
 import { Login } from './routes/Login/Login';
 import { Labs } from './routes/Labs/Labs';
 import { LabEditor } from './routes/Labs/LabEditor';
+import { Servers } from './routes/Servers/Servers';
 import { RequireAuth } from './auth/RequireAuth';
 
 export const routes: RouteObject[] = [
@@ -130,12 +131,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/servers',
-        element: (
-          <Placeholder
-            title="Servers & Interfaces"
-            description="Managed BIND instances, network interfaces, and containerlab nodes."
-          />
-        ),
+        element: <Servers />,
       },
       {
         path: 'config/:configId/servers/:serverId',

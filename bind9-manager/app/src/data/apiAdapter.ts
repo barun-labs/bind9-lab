@@ -17,6 +17,7 @@ import type {
   ImportLabInput,
   ValidateLabResult,
   DeployJob,
+  Server,
 } from '../types/entities';
 export type {
   Lab,
@@ -684,6 +685,25 @@ export async function setUserActive(
   }
   user.isActive = isActive;
   return user;
+}
+
+export async function listServers(store: StoreData, configId: string): Promise<Server[]> {
+  if (isApiEnabled()) {
+    return apiFetch<Server[]>(`/api/v1/configurations/${configId}/servers`);
+  }
+  return (store.servers || []).filter((s: any) => s.configurationId === configId) as Server[];
+}
+
+export async function getServer(store: StoreData, configId: string, id: string): Promise<Server | null> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<Server>(`/api/v1/configurations/${configId}/servers/${id}`);
+    } catch (err: any) {
+      if (err?.status === 404) return null;
+      throw err;
+    }
+  }
+  return ((store.servers || []).find((s: any) => s.id === id && s.configurationId === configId) as Server) ?? null;
 }
 
 export async function listLabs(
