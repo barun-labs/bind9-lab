@@ -51,6 +51,77 @@ function bindServers(model: ConfigModel, topology: TopologyModel): ServerFiles[]
   return filesForServers(model).filter((entry) => linuxNodes.has(entry.serverId));
 }
 
+// containerlab's `kind: bridge` node references a Linux bridge on the HOST
+// — it never creates that bridge itself (unlike its other node kinds).
+// Without this, `containerlab deploy` fails outright with "Bridge ... does
+// not exist" for any topology using bridge nodes. Mirrors
+// anycast-dns/setup.sh's `sudo ip link add <name> type bridge` bring-up.
+function bridgeSetupCommands(topology: TopologyModel): string[] {
+  const commands: string[] = [];
+  for (const node of topology.nodes) {
+    if (node.kind !== 'bridge') continue;
+    const name = shellQuote(node.name);
+    commands.push(`sudo ip link show ${name} >/dev/null 2>&1 || sudo ip link add ${name} type bridge`);
+    commands.push(`sudo ip link set ${name} up`);
+  }
+  return commands;
+}
+
+// Data-plane provisioning: assign interface addresses, bring links up,
+// enable ip_forward on routers, and add routes — for every linux topology
+// node that carries this addressing info, regardless of whether it also
+// has a BIND role. Mirrors anycast-dns/deploy.sh's `ip addr replace` /
+// `ip route replace` bring-up, run here via containerlab's `docker exec`
+// instead of a hand-written shell script.
+function provisionCommands(topology: TopologyModel): string[] {
+  const commands: string[] = [];
+
+  for (const node of topology.nodes) {
+    if (node.kind !== 'linux') continue;
+
+    const hasProvisioning =
+      (node.interfaces && node.interfaces.length > 0) ||
+      node.ipForward ||
+      node.defaultVia !== undefined ||
+      (node.routes && node.routes.length > 0);
+    if (!hasProvisioning) continue;
+
+    const container = `clab-${topology.name}-${node.name}`;
+    const c = shellQuote(container);
+
+    for (const iface of node.interfaces ?? []) {
+      const ifaceName = shellQuote(iface.name);
+      // `replace`, not `add`: idempotent across re-deploys of the same
+      // node, matching anycast-dns/deploy.sh's `ip addr replace`.
+      commands.push(
+        `docker exec ${c} ip addr replace ${shellQuote(iface.address)} dev ${ifaceName}`,
+      );
+      commands.push(`docker exec ${c} ip link set ${ifaceName} up`);
+    }
+
+    if (node.ipForward) {
+      commands.push(`docker exec ${c} sysctl -w net.ipv4.ip_forward=1`);
+    }
+
+    if (node.defaultVia !== undefined) {
+      // `replace`, not `add`: containerlab's mgmt network already installs
+      // a default route via eth0, so a plain `ip route add default` fails
+      // with "File exists".
+      commands.push(
+        `docker exec ${c} ip route replace default via ${shellQuote(node.defaultVia)}`,
+      );
+    }
+
+    for (const route of node.routes ?? []) {
+      commands.push(
+        `docker exec ${c} ip route replace ${shellQuote(route.to)} via ${shellQuote(route.via)}`,
+      );
+    }
+  }
+
+  return commands;
+}
+
 function buildPlan(
   model: ConfigModel,
   topology: TopologyModel,
@@ -65,7 +136,9 @@ function buildPlan(
     }
   }
 
+  plan.push(...bridgeSetupCommands(topology));
   plan.push(`containerlab deploy -t ${labDir}/topo.clab.yml --reconfigure`);
+  plan.push(...provisionCommands(topology));
 
   for (const { serverId } of bindServers(model, topology)) {
     plan.push(
@@ -110,9 +183,13 @@ function buildDeployScript(
     }
   }
 
+  lines.push(...bridgeSetupCommands(topology));
+
   lines.push(
     `containerlab deploy -t ${shellQuote(`${labDir}/topo.clab.yml`)} --reconfigure`,
   );
+
+  lines.push(...provisionCommands(topology));
 
   for (const { serverId } of bindServers(model, topology)) {
     // containerlab prefixes every container it creates with `clab-`, so the

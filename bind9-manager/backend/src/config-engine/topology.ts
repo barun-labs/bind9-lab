@@ -1,11 +1,27 @@
 import { dump } from 'js-yaml';
 
+export interface NodeInterface {
+  name: string;
+  address: string;
+}
+
+export interface NodeRoute {
+  to: string;
+  via: string;
+}
+
 export interface NodeSpec {
   name: string;
   kind: 'linux' | 'bridge';
   image?: string;
   mgmtIpv4?: string;
   binds?: string[];
+  // Data-plane provisioning (deploy-time only; not part of the clab.yml
+  // topology file itself — see deployEngine.ts's provisioning step).
+  interfaces?: NodeInterface[];
+  ipForward?: boolean;
+  routes?: NodeRoute[];
+  defaultVia?: string;
 }
 
 export interface LinkSpec {

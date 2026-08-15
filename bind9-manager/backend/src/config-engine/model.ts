@@ -6,6 +6,12 @@ export interface Server {
   id: string;
   name?: string;
   serverGroupId?: string;
+  // containerlab lab/node identity — see design/docs/entities.md.
+  labName?: string;
+  nodeName?: string;
+  // Listen-on / data-plane addresses; visually distinct from a management
+  // address. rootHints.ts reads serviceInterfaces[0].address for db.root.
+  serviceInterfaces?: { address: string; port?: number }[];
   [key: string]: unknown;
 }
 
