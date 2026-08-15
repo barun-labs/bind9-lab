@@ -27,6 +27,21 @@ export function verifyPassword(pw: string, salt: string, hash: string): boolean 
 }
 
 /**
+ * Password policy. Returns null when acceptable, else a human-readable reason.
+ * Intentionally simple (length + small blocklist) — no external dependency.
+ */
+export function validatePassword(pw: string): string | null {
+  if (typeof pw !== 'string' || pw.length < 12) {
+    return 'Password must be at least 12 characters.';
+  }
+  const banned = new Set(['admin', 'password', 'changeme', 'letmein']);
+  if (banned.has(pw.toLowerCase())) {
+    return 'Password is too common.';
+  }
+  return null;
+}
+
+/**
  * Generate a cryptographically secure random 32-byte hex token.
  */
 export function randomToken(): string {

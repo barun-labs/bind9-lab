@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import type { User, RoleAssignment, ApiKey } from '../../../shared/entities';
-import { randomToken, sha256, verifyPassword } from './crypto';
+import { hashPassword, randomToken, sha256, verifyPassword } from './crypto';
 
 interface UserRow {
   id: string;
@@ -28,6 +28,9 @@ export function safeParseJson<T>(text: string | null | undefined, fallback: T): 
   }
 }
 
+// Module-level decoy so an unknown username still costs one scrypt (constant-time login).
+const DECOY = hashPassword('bind9-manager-nonexistent-user-decoy');
+
 /**
  * Authenticate a user and create an 8-hour session if credentials are valid.
  * Returns { token, expiresAt } on success, null on invalid credentials or inactive user.
@@ -39,11 +42,11 @@ export function login(
   now: number = Date.now()
 ): { token: string; expiresAt: string } | null {
   const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as UserRow | undefined;
-  if (!row || !row.isActive) {
-    return null;
-  }
+  const salt = row ? row.pwSalt : DECOY.salt;
+  const hash = row ? row.pwHash : DECOY.hash;
+  const passwordOk = verifyPassword(pw, salt, hash);
 
-  if (!verifyPassword(pw, row.pwSalt, row.pwHash)) {
+  if (!row || !row.isActive || !passwordOk) {
     return null;
   }
 

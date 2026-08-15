@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hashPassword, verifyPassword, randomToken, sha256 } from '../src/server/crypto';
+import { hashPassword, verifyPassword, validatePassword, randomToken, sha256 } from '../src/server/crypto';
 
 describe('crypto', () => {
   it('hashes password and verifies successfully with correct password', () => {
@@ -54,6 +54,12 @@ describe('crypto', () => {
     expect(token2).toHaveLength(64);
     expect(token1).toMatch(/^[0-9a-f]{64}$/);
     expect(token1).not.toBe(token2);
+  });
+
+  it('validatePassword enforces length and blocklist', () => {
+    expect(validatePassword('admin')).not.toBeNull();
+    expect(validatePassword('short')).not.toBeNull();
+    expect(validatePassword('a-strong-passphrase-1')).toBeNull();
   });
 
   it('sha256 computes correct deterministic hex digest', () => {

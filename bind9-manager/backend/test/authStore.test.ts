@@ -40,6 +40,15 @@ describe('db & authStore', () => {
       expect(res).toBeNull();
     });
 
+    it('login with unknown username still runs one scrypt (timing floor)', () => {
+      const db = openDb(':memory:');
+      const start = Date.now();
+      const res = login(db, 'no-such-user', 'whatever');
+      const elapsedMs = Date.now() - start;
+      expect(res).toBeNull();
+      expect(elapsedMs).toBeGreaterThan(3);
+    });
+
     it('login with inactive user returns null', () => {
       const db = openDb(':memory:');
       // Create an inactive user
@@ -249,6 +258,35 @@ describe('db & authStore', () => {
       const keyRow = db.prepare('SELECT * FROM api_keys WHERE id = ?').get(keyResult.id) as any;
       expect(keyRow.keyHash).toBe(sha256(rawApiKeyToken));
       expect(JSON.stringify(keyRow)).not.toContain(rawApiKeyToken);
+    });
+  });
+
+  describe('seed password policy (BIND9_ADMIN_PW)', () => {
+    const original = process.env.BIND9_ADMIN_PW;
+
+    afterEach(() => {
+      if (original === undefined) {
+        delete process.env.BIND9_ADMIN_PW;
+      } else {
+        process.env.BIND9_ADMIN_PW = original;
+      }
+    });
+
+    it('throws when operator supplies a weak password', () => {
+      process.env.BIND9_ADMIN_PW = 'weak';
+      expect(() => openDb(':memory:')).toThrow(/BIND9_ADMIN_PW rejected/);
+    });
+
+    it('seeds admin with a strong operator-supplied password', () => {
+      process.env.BIND9_ADMIN_PW = 'a-strong-passphrase-1';
+      const db = openDb(':memory:');
+      expect(getUserByUsername(db, 'admin')).not.toBeNull();
+    });
+
+    it('seeds admin with the built-in default when env is unset', () => {
+      delete process.env.BIND9_ADMIN_PW;
+      const db = openDb(':memory:');
+      expect(getUserByUsername(db, 'admin')).not.toBeNull();
     });
   });
 

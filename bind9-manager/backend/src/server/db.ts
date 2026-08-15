@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
-import { hashPassword } from './crypto';
+import { hashPassword, validatePassword } from './crypto';
 
 function loadFixtures(): any {
   const possibleUrls = [
@@ -143,6 +143,14 @@ export function openDb(path = ':memory:'): Database.Database {
   const adminCheck = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
   if (!adminCheck) {
     const adminPw = process.env.BIND9_ADMIN_PW ?? 'admin';
+    if (process.env.BIND9_ADMIN_PW !== undefined) {
+      const reason = validatePassword(adminPw);
+      if (reason) {
+        throw new Error(`BIND9_ADMIN_PW rejected: ${reason}`);
+      }
+    } else {
+      console.warn('[bind9-manager] Seeding admin with the built-in default password. Set BIND9_ADMIN_PW to a strong value for any real deployment.');
+    }
     const { salt, hash } = hashPassword(adminPw);
     const roles = JSON.stringify([{ configurationId: 'dns-lab', role: 'admin', canDeploy: true }]);
     const now = new Date().toISOString();
