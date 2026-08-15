@@ -63,12 +63,11 @@ export function StoreProvider({ children, initialStore }: StoreProviderProps) {
   return React.createElement(StoreContext.Provider, { value: storeRef.current }, children);
 }
 
+const defaultStore = makeStore();
+
 export function useStore(): StoreData {
   const context = useContext(StoreContext);
-  if (!context) {
-    throw new Error('useStore must be used within a StoreProvider');
-  }
-  return context;
+  return context ?? defaultStore;
 }
 
 export function useApi() {
