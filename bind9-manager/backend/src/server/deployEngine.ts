@@ -258,7 +258,12 @@ export async function deploy(
   topology: TopologyModel,
   opts: DeployOptions,
 ): Promise<DeployResult> {
-  if (/^dns$/.test(topology.name) || topology.name.startsWith('clab-')) {
+  if (
+    !topology.name ||
+    /^dns$/.test(topology.name) ||
+    topology.name.startsWith('clab-') ||
+    !/^[A-Za-z0-9_-]+$/.test(topology.name)
+  ) {
     return {
       validated: [],
       aborted: 'refusing to target a reserved/production lab name: ' + topology.name,

@@ -124,6 +124,11 @@ export function openDb(path = ':memory:'): Database.Database {
       FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS deploy_jobs (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sessions_userId ON sessions(userId);
     CREATE INDEX IF NOT EXISTS idx_api_keys_ownerUserId ON api_keys(ownerUserId);
     CREATE INDEX IF NOT EXISTS idx_views_configId ON views(configurationId);

@@ -43,11 +43,16 @@ import {
   type LinkSpec,
   type TopologyModel,
 } from '../config-engine/topology';
+import { spawn } from 'node:child_process';
 import {
   generateServerConfig,
   validateConfig,
   type Runner,
 } from '../config-engine';
+import {
+  startDeployJob,
+  getDeployJob,
+} from './deployJobs';
 import { registerFrontendStatic } from './static';
 
 declare module 'fastify' {
@@ -59,16 +64,41 @@ declare module 'fastify' {
 
 export interface AppOptions extends FastifyServerOptions {
   runner?: Runner;
+  labDir?: string;
 }
 
 let defaultAppRunner: Runner | undefined = undefined;
+
+const defaultFallbackRunner: Runner = (bashScript: string) => {
+  return new Promise((resolve) => {
+    const p = spawn('bash', ['-s']);
+    let stdout = '';
+    let stderr = '';
+
+    p.stdout.on('data', (d: Buffer | string) => {
+      stdout += d.toString();
+    });
+    p.stderr.on('data', (d: Buffer | string) => {
+      stderr += d.toString();
+    });
+    p.on('error', (err: Error) => {
+      resolve({ code: 1, stdout, stderr: stderr || err.message });
+    });
+    p.on('close', (code: number | null) => {
+      resolve({ code: code ?? 1, stdout, stderr });
+    });
+
+    p.stdin.write(bashScript);
+    p.stdin.end();
+  });
+};
 
 export function setDefaultAppRunner(runner: Runner | undefined): void {
   defaultAppRunner = runner;
 }
 
 export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyInstance {
-  const activeRunner = opts.runner ?? defaultAppRunner;
+  const activeRunner = opts.runner ?? defaultAppRunner ?? defaultFallbackRunner;
   const app = fastify(opts);
 
   app.decorateRequest('actor', null as unknown as Actor);
@@ -563,6 +593,19 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       });
     }
 
+    const topoName = body.topology.name;
+    if (typeof topoName !== 'string' || !/^[A-Za-z0-9_-]+$/.test(topoName)) {
+      return reply.status(422).send({
+        error: { code: 'INVALID_NAME', message: 'Topology name must only contain alphanumeric characters, underscores, and hyphens' },
+      });
+    }
+
+    if (typeof body.name !== 'string' || /\.\.|\/|\\/.test(body.name)) {
+      return reply.status(422).send({
+        error: { code: 'INVALID_NAME', message: 'Lab name must not contain path traversal characters' },
+      });
+    }
+
     const lab = createLab(db, body);
     return reply.status(201).send(lab);
   });
@@ -613,6 +656,27 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       if (!authorize(req.actor, 'edit', body.configurationId)) {
         return reply.status(403).send({
           error: { code: 'FORBIDDEN', message: 'Forbidden' },
+        });
+      }
+    }
+
+    if (body.name !== undefined) {
+      if (typeof body.name !== 'string' || /\.\.|\/|\\/.test(body.name)) {
+        return reply.status(422).send({
+          error: { code: 'INVALID_NAME', message: 'Lab name must not contain path traversal characters' },
+        });
+      }
+    }
+
+    if (body.topology !== undefined) {
+      if (
+        !body.topology ||
+        typeof body.topology !== 'object' ||
+        typeof body.topology.name !== 'string' ||
+        !/^[A-Za-z0-9_-]+$/.test(body.topology.name)
+      ) {
+        return reply.status(422).send({
+          error: { code: 'INVALID_NAME', message: 'Topology name must only contain alphanumeric characters, underscores, and hyphens' },
         });
       }
     }
@@ -692,8 +756,22 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     }
 
     try {
-      const topoName = (doc.name && String(doc.name).trim()) || (body.name && String(body.name).trim()) || 'imported-lab';
-      const labName = (body.name && String(body.name).trim()) || (doc.name && String(doc.name).trim()) || 'imported-lab';
+      const rawDocName = doc.name !== undefined && doc.name !== null ? String(doc.name).trim() : '';
+      const rawBodyName = body.name !== undefined && body.name !== null ? String(body.name).trim() : '';
+      const topoName = rawDocName || rawBodyName || 'imported-lab';
+      const labName = rawBodyName || rawDocName || 'imported-lab';
+
+      if (!/^[A-Za-z0-9_-]+$/.test(topoName)) {
+        return reply.status(422).send({
+          error: { code: 'INVALID_NAME', message: 'Topology name must only contain alphanumeric characters, underscores, and hyphens' },
+        });
+      }
+
+      if (/\.\.|\/|\\/.test(labName)) {
+        return reply.status(422).send({
+          error: { code: 'INVALID_NAME', message: 'Lab name must not contain path traversal characters' },
+        });
+      }
 
       const mgmtNetwork = doc.mgmt?.network;
       const mgmtSubnet = doc.mgmt?.['ipv4-subnet'] ?? doc.mgmt?.ipv4Subnet ?? doc.mgmt?.mgmtSubnet;
@@ -885,6 +963,54 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       topology,
       perServer,
     });
+  });
+
+  // POST /api/v1/labs/:id/deploy - Deploy a lab (requires deploy permission)
+  app.post('/api/v1/labs/:id/deploy', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'deploy', lab.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+
+    const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
+
+    const job = startDeployJob(db, lab, { run: activeRunner, labDir });
+    return reply.status(201).send({ jobId: job.id });
+  });
+
+  // GET /api/v1/deploy-jobs/:id - Get a deploy job status (requires view permission on the lab's configuration)
+  app.get('/api/v1/deploy-jobs/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const job = getDeployJob(db, id);
+    if (!job) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Deploy job not found' },
+      });
+    }
+
+    const lab = getLab(db, job.labId);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'view', lab.configurationId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+
+    return reply.status(200).send(job);
   });
 
   // Serve the built React frontend (bind9-manager/app/dist) on every other
