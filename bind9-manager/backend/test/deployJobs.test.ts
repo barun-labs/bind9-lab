@@ -8,6 +8,7 @@ import { createApiKey } from '../src/server/authStore';
 import { startDeployJob, getDeployJob, type DeployJob } from '../src/server/deployJobs';
 import type { Runner } from '../src/server/deployEngine';
 import type { TopologyModel } from '../src/config-engine/topology';
+import { getServer } from '../src/server/entityStore';
 
 describe('Deploy Jobs & Deploy Endpoint (DECLARATIVE-LAB Task 3)', () => {
   let db: Database.Database;
@@ -429,6 +430,64 @@ describe('Deploy Jobs & Deploy Endpoint (DECLARATIVE-LAB Task 3)', () => {
       expect(deployScript).toBeDefined();
       expect(deployScript).not.toContain('/tmp/custom-lab-dir-123');
       expect(deployScript).toContain('/home/lun/mylab');
+    });
+
+    it('SUCCEEDED job reconciles the bind Server row to SYNCED with a populated containerId', async () => {
+      const adminToken = await loginAs('admin', 'admin');
+      const adminHeader = { authorization: `Bearer ${adminToken}` };
+
+      const lab = createLab(db, {
+        name: 'mylab',
+        configurationId: 'dns-lab',
+        topology: validTopology,
+      });
+
+      const runnerWithInspect: Runner = async (script: string) => {
+        executedScripts.push(script);
+        if (script.includes('containerlab deploy')) {
+          let out = '';
+          const matches = script.matchAll(/NODE_ID='([^']+)'/g);
+          for (const match of matches) {
+            out += `__BIND9MGR_NODE_BEGIN__ ${match[1]}\nOK\n__BIND9MGR_NODE_END__ ${match[1]} 0\n`;
+          }
+          return { code: 0, stdout: out || 'OK', stderr: '' };
+        }
+        if (script.includes('containerlab inspect')) {
+          return {
+            code: 0,
+            stdout: JSON.stringify({
+              mylab: [
+                {
+                  name: 'clab-mylab-ns1',
+                  container_id: 'runtime-abc123',
+                  state: 'running',
+                  status: 'Up 1 minute',
+                  ipv4_address: '10.70.0.11/24',
+                },
+              ],
+            }),
+            stderr: '',
+          };
+        }
+        return { code: 0, stdout: 'OK', stderr: '' };
+      };
+
+      const inspectApp = buildApp(db, { runner: runnerWithInspect });
+
+      const res = await inspectApp.inject({
+        method: 'POST',
+        url: `/api/v1/labs/${lab.id}/deploy`,
+        headers: adminHeader,
+      });
+
+      expect(res.statusCode).toBe(201);
+      const { jobId } = JSON.parse(res.body);
+      const job = await waitForJob(jobId, adminHeader);
+      expect(job.status).toBe('SUCCEEDED');
+
+      const srv = getServer(db, 'srv-' + lab.id + '-ns1') as any;
+      expect(srv.syncState).toBe('SYNCED');
+      expect(srv.containerId).toBe('runtime-abc123');
     });
   });
 
