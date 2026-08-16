@@ -126,4 +126,40 @@ describe('Blocks API', () => {
     });
     expect(res.statusCode).toBe(403);
   });
+
+  it('rejects PATCHing a parent cidr that no longer contains its child (422 INVALID_HIERARCHY)', async () => {
+    const token = await loginAs();
+    const parent = JSON.parse((await app.inject({
+      method: 'POST', url: '/api/v1/configurations/dns-lab/blocks', headers: authHeader(token),
+      payload: { name: 'ten', cidr: '10.0.0.0/8', kind: 'BLOCK' },
+    })).body);
+    await app.inject({
+      method: 'POST', url: '/api/v1/configurations/dns-lab/blocks', headers: authHeader(token),
+      payload: { name: 'child', cidr: '10.20.0.0/16', kind: 'BLOCK', parentBlockId: parent.id },
+    });
+    const patch = await app.inject({
+      method: 'PATCH', url: `/api/v1/configurations/dns-lab/blocks/${parent.id}`, headers: authHeader(token),
+      payload: { cidr: '10.0.0.0/16' },
+    });
+    expect(patch.statusCode).toBe(422);
+    expect(JSON.parse(patch.body).error.code).toBe('INVALID_HIERARCHY');
+
+    const readBack = await app.inject({ method: 'GET', url: `/api/v1/configurations/dns-lab/blocks/${parent.id}`, headers: authHeader(token) });
+    expect(JSON.parse(readBack.body).cidr).toBe('10.0.0.0/8');
+  });
+
+  it('rejects PATCHing a NETWORK viewId to a missing view (422 INVALID_VIEW)', async () => {
+    const token = await loginAs();
+    const view = createView(db, 'dns-lab', { name: 'internal' });
+    const net = JSON.parse((await app.inject({
+      method: 'POST', url: '/api/v1/configurations/dns-lab/blocks', headers: authHeader(token),
+      payload: { name: 'net', cidr: '10.40.0.0/24', kind: 'NETWORK', viewId: view.id },
+    })).body);
+    const patch = await app.inject({
+      method: 'PATCH', url: `/api/v1/configurations/dns-lab/blocks/${net.id}`, headers: authHeader(token),
+      payload: { viewId: 'view-nope' },
+    });
+    expect(patch.statusCode).toBe(422);
+    expect(JSON.parse(patch.body).error.code).toBe('INVALID_VIEW');
+  });
 });

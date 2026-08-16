@@ -64,7 +64,7 @@ export function cidrsOverlap(a: string, b: string): boolean {
 }
 
 function octets(ip: string): string[] {
-  return ip.split('.');
+  return ip.split('.').map((p) => String(Number(p)));
 }
 
 export function reversePtrName(ip: string): string {

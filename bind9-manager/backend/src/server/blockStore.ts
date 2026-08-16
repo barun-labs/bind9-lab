@@ -74,5 +74,13 @@ export function validateBlockHierarchy(
   for (const sib of siblings) {
     if (cidrsOverlap(sib.cidr, candidate.cidr)) return { ok: false, code: 'INVALID_HIERARCHY' };
   }
+
+  // When editing an existing block, its current children must stay inside the new CIDR.
+  if (candidate.id) {
+    const children = all.filter((b) => b.parentBlockId === candidate.id);
+    for (const child of children) {
+      if (!cidrContainsCidr(candidate.cidr, child.cidr)) return { ok: false, code: 'INVALID_HIERARCHY' };
+    }
+  }
   return { ok: true };
 }

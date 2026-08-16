@@ -47,6 +47,12 @@ describe('ipv4', () => {
     expect(ptrZoneName('192.0.2.1')).toBe('2.0.192.in-addr.arpa');
   });
 
+  it('builds canonical reverse names from parsed integers (leading zeros collapse)', () => {
+    // must-fail control: raw-substring version would emit '02.0.192.in-addr.arpa'
+    expect(ptrZoneName('192.0.02.10')).toBe('2.0.192.in-addr.arpa');
+    expect(reversePtrName('192.0.02.10')).toBe('10.2.0.192.in-addr.arpa');
+  });
+
   it('validates IPv4 literals', () => {
     expect(isValidIpv4('192.0.2.1')).toBe(true);
     expect(isValidIpv4('192.0.2.256')).toBe(false);

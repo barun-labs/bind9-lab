@@ -1674,7 +1674,13 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       patch.cidr = body.cidr;
     }
     if (body.parentBlockId !== undefined) patch.parentBlockId = typeof body.parentBlockId === 'string' ? body.parentBlockId : null;
-    if (body.viewId !== undefined) patch.viewId = body.viewId;
+    if (body.viewId !== undefined) {
+      const v = typeof body.viewId === 'string' ? getView(db, body.viewId) : null;
+      if (!v || v.configurationId !== configId) {
+        return reply.status(422).send({ error: { code: 'INVALID_VIEW', message: 'viewId must reference a view in this configuration' } });
+      }
+      patch.viewId = body.viewId;
+    }
     const next = { id: existing.id, cidr: patch.cidr ?? existing.cidr, kind: existing.kind, parentBlockId: patch.parentBlockId !== undefined ? patch.parentBlockId : existing.parentBlockId };
     const hierarchy = validateBlockHierarchy(db, configId, next);
     if (!hierarchy.ok) return reply.status(422).send({ error: { code: hierarchy.code, message: 'Block violates the hierarchy rules' } });
