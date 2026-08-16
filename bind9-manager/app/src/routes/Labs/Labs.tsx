@@ -9,6 +9,7 @@ import { Input } from '../../components/Input/Input';
 import { Textarea } from '../../components/Textarea/Textarea';
 import { Modal } from '../../components/Modal/Modal';
 import { InlineAlert } from '../../components/InlineAlert/InlineAlert';
+import { StatusPill } from '../../components/StatusPill/StatusPill';
 
 function formatDate(isoString?: string | null): string {
   if (!isoString) return '—';
@@ -162,6 +163,21 @@ export function Labs() {
         render: (lab) => {
           const count = lab.topology?.links?.length || 0;
           return <span>{count} link{count === 1 ? '' : 's'}</span>;
+        },
+      },
+      {
+        key: 'lifecycle',
+        header: 'Status',
+        width: '150px',
+        render: (lab) => {
+          const st = lab.lifecycleState ?? 'NEVER_DEPLOYED';
+          const map: Record<string, { state: string; label: string }> = {
+            NEVER_DEPLOYED: { state: 'pending', label: 'Not deployed' },
+            DEPLOYED: { state: 'synced', label: 'Deployed' },
+            DESTROYED: { state: 'error', label: 'Destroyed' },
+          };
+          const m = map[st] ?? map.NEVER_DEPLOYED;
+          return <StatusPill state={m.state} label={m.label} />;
         },
       },
       {

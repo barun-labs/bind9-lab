@@ -287,4 +287,50 @@ topology:
     // Progress panel is NOT rendered
     expect(screen.queryByText(/deployment progress/i)).not.toBeInTheDocument();
   });
+
+  test('clicking Destroy confirms and calls destroyLab with the lab id', async () => {
+    const user = userEvent.setup();
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const destroySpy = vi.spyOn(api, 'destroyLab').mockResolvedValue({
+      lab: { ...structuredClone(testLab), lifecycleState: 'DESTROYED' as const },
+      servers: [],
+    });
+
+    renderLabEditor({ labs: [{ ...structuredClone(testLab), lifecycleState: 'DEPLOYED' }] });
+
+    expect(await screen.findByText('editor-test-lab')).toBeInTheDocument();
+
+    const destroyBtn = screen.getByRole('button', { name: /^destroy$/i });
+    await user.click(destroyBtn);
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(destroySpy).toHaveBeenCalledWith(expect.anything(), 'lab-edit-1');
+  });
+
+  test('Destroy button is disabled when the lab has no bind node', async () => {
+    const noBindLab: Lab = {
+      ...structuredClone(testLab),
+      lifecycleState: 'DEPLOYED',
+      topology: {
+        ...testLab.topology,
+        nodes: [
+          {
+            name: 'r1',
+            kind: 'linux',
+            intent: 'router',
+            image: 'dnsnode:1.0',
+            mgmtIpv4: '10.70.0.1',
+          },
+        ],
+      },
+    };
+
+    renderLabEditor({ labs: [noBindLab] });
+
+    expect(await screen.findByText('editor-test-lab')).toBeInTheDocument();
+
+    const destroyBtn = screen.getByRole('button', { name: /^destroy$/i });
+    expect(destroyBtn).toBeDisabled();
+  });
 });

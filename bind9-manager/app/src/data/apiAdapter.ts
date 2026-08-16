@@ -962,6 +962,24 @@ export async function deployLab(
   return { jobId };
 }
 
+export async function destroyLab(
+  store: StoreData,
+  labId: string,
+): Promise<{ lab: Lab | null; servers: Server[] }> {
+  if (isApiEnabled()) {
+    return apiFetch(`/api/v1/labs/${labId}/destroy`, { method: 'POST' });
+  }
+  // fixture: flip the lab to DESTROYED and force its bind servers to NODE_ABSENT in the store.
+  const lab = (store.labs || []).find((l: any) => l.id === labId) || null;
+  if (lab) {
+    (lab as any).lifecycleState = 'DESTROYED';
+    (lab as any).lastDestroyedAt = new Date().toISOString();
+  }
+  const servers = ((store.servers as any[]) || []).filter((s) => s.id.startsWith('srv-' + labId + '-'));
+  for (const s of servers) { s.syncState = 'NODE_ABSENT'; s.containerId = undefined; s.runtimeAddress = undefined; }
+  return { lab, servers };
+}
+
 export async function getNodeLogs(
   _store: StoreData,
   labId: string,

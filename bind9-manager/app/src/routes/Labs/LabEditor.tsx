@@ -32,6 +32,15 @@ const DEFAULT_NODE_FORM: NodeFormState = {
   interfaces: [],
 };
 
+function lifecycleStateInfo(state?: string): { state: string; label: string } {
+  const map: Record<string, { state: string; label: string }> = {
+    NEVER_DEPLOYED: { state: 'pending', label: 'Not deployed' },
+    DEPLOYED: { state: 'synced', label: 'Deployed' },
+    DESTROYED: { state: 'error', label: 'Destroyed' },
+  };
+  return map[state ?? 'NEVER_DEPLOYED'] ?? map.NEVER_DEPLOYED;
+}
+
 export function LabEditor() {
   const { configId = 'dns-lab', labId } = useParams();
   const api = useApi();
@@ -51,6 +60,7 @@ export function LabEditor() {
   const [isJobRunning, setIsJobRunning] = useState<boolean>(false);
   const [deployError, setDeployError] = useState<string | null>(null);
   const [deployValidationErrors, setDeployValidationErrors] = useState<string[]>([]);
+  const [destroying, setDestroying] = useState<boolean>(false);
 
   // Tab State
   const [activeTab, setActiveTab] = useState<TabType>('form');
@@ -122,6 +132,11 @@ export function LabEditor() {
       links,
     };
   }, [labName, lab?.name, mgmtNetwork, mgmtSubnet, nodes, links]);
+
+  const hasBindNode = useMemo(
+    () => nodes.some((n) => n.intent === 'bind' || (!n.intent && n.kind !== 'bridge')),
+    [nodes]
+  );
 
   // Synchronize YAML text when switching to YAML tab or preview
   const handleTabChange = (nextTab: TabType) => {
@@ -243,6 +258,22 @@ export function LabEditor() {
       setDeployError(err?.message || 'Failed to trigger deployment');
     } finally {
       setIsDeploying(false);
+    }
+  };
+
+  // Destroy Lab
+  const handleDestroy = async () => {
+    if (!labId || destroying) return;
+    if (!window.confirm(`Destroy lab "${lab?.name ?? labId}"? This tears down its containers.`)) return;
+    setDestroying(true);
+    setDeployError(null);
+    try {
+      await api.destroyLab(labId);
+      await loadLab();
+    } catch (err: any) {
+      setDeployError(err?.message || 'Failed to destroy lab');
+    } finally {
+      setDestroying(false);
     }
   };
 
@@ -379,6 +410,8 @@ export function LabEditor() {
     );
   }
 
+  const lifecycleInfo = lifecycleStateInfo(lab?.lifecycleState);
+
   return (
     <div
       style={{
@@ -433,6 +466,7 @@ export function LabEditor() {
             >
               {nodes.length} nodes · {links.length} links
             </span>
+            <StatusPill state={lifecycleInfo.state} label={lifecycleInfo.label} />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -450,14 +484,38 @@ export function LabEditor() {
               </Button>
             )}
             {canDeploy && (
-              <Button
-                variant="primary"
-                onClick={handleDeploy}
-                loading={isDeploying}
-                disabled={isDeploying || isJobRunning}
-              >
-                Deploy
-              </Button>
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={handleDestroy}
+                  loading={destroying}
+                  disabled={
+                    !hasBindNode ||
+                    lab?.lifecycleState !== 'DEPLOYED' ||
+                    destroying ||
+                    isDeploying ||
+                    isJobRunning
+                  }
+                  title={
+                    !hasBindNode
+                      ? 'Lab must contain a BIND node to destroy'
+                      : lab?.lifecycleState !== 'DEPLOYED'
+                        ? 'Nothing deployed to destroy'
+                        : undefined
+                  }
+                >
+                  Destroy
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={handleDeploy}
+                  loading={isDeploying}
+                  disabled={isDeploying || isJobRunning || !hasBindNode}
+                  title={!hasBindNode ? 'Lab must contain a BIND node to deploy' : undefined}
+                >
+                  Deploy
+                </Button>
+              </>
             )}
           </div>
         </div>

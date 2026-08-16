@@ -4,8 +4,25 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { StoreProvider, makeStore, type StoreData } from '../../data/store';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { seedUsers } from '../../data/users.seed';
-import type { User } from '../../types/entities';
+import type { User, Lab } from '../../types/entities';
 import { Labs } from './Labs';
+
+const deployedLab: Lab = {
+  id: 'lab-deployed',
+  name: 'deployed-lab',
+  configurationId: 'dns-lab',
+  topology: { name: 'deployed-lab', mgmtNetwork: 'clab-mgmt', mgmtSubnet: '10.70.0.0/24', nodes: [], links: [] },
+  createdAt: '2026-08-15T10:00:00Z',
+  updatedAt: '2026-08-15T10:00:00Z',
+  lifecycleState: 'DEPLOYED',
+};
+
+const destroyedLab: Lab = {
+  ...deployedLab,
+  id: 'lab-destroyed',
+  name: 'destroyed-lab',
+  lifecycleState: 'DESTROYED',
+};
 
 function renderLabs(initialStore?: Partial<StoreData>, userToLogin?: User, configId = 'dns-lab') {
   const defaultUser = seedUsers.find((u) => u.username === 'admin')!;
@@ -107,6 +124,14 @@ topology:
 
     expect(await screen.findByText('Lab Editor Page')).toBeInTheDocument();
 
+  });
+
+  test('renders a lifecycle pill per lab', async () => {
+    renderLabs({ labs: [deployedLab, destroyedLab] });
+
+    expect(await screen.findByText('deployed-lab')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Deployed' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Destroyed' })).toBeInTheDocument();
   });
 
   test('delete a lab removes it from the table', async () => {

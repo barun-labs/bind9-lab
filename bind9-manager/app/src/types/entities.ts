@@ -107,6 +107,9 @@ export interface Lab {
   topology: TopologyModel;
   createdAt: string;
   updatedAt: string;
+  lifecycleState?: 'NEVER_DEPLOYED' | 'DEPLOYED' | 'DESTROYED';
+  lastDeployedAt?: string;
+  lastDestroyedAt?: string;
 }
 
 export interface CreateLabInput {
