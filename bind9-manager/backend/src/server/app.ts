@@ -138,6 +138,7 @@ import {
 } from '../config-engine/topology';
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import {
   generateServerConfig,
   validateConfig,
@@ -168,11 +169,15 @@ import {
 } from './snapshotStore';
 import { runChangeSetDeploy, runPreflight } from './changeSetDeploy';
 import { registerFrontendStatic } from './static';
+import { buildOpenApiDocument, type RouteRef } from './openapi';
 
 declare module 'fastify' {
   interface FastifyRequest {
     actor: Actor;
     token?: string;
+  }
+  interface FastifyInstance {
+    registeredRoutes: RouteRef[];
   }
 }
 
@@ -210,6 +215,14 @@ const defaultFallbackRunner: Runner = (bashScript: string) => {
 export function setDefaultAppRunner(runner: Runner | undefined): void {
   defaultAppRunner = runner;
 }
+
+// The OpenAPI info.version, read once from backend/package.json. tsconfig has
+// no resolveJsonModule, so JSON imports are off the table; parse it by hand.
+const API_VERSION = (
+  JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
+    version: string;
+  }
+).version;
 
 // Render one server's generated file set as a single diffable text blob, with
 // a stable file order and a per-file header line so the diff is legible.
@@ -298,10 +311,28 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
   app.decorateRequest('actor', null as unknown as Actor);
   app.decorateRequest('token', undefined);
 
+  // Collect every route registered on this root instance so /api/openapi.json
+  // can describe the surface. Must be registered before any route, so put it
+  // first. Routes added inside child plugins (e.g. @fastify/static) are not
+  // captured, which is exactly what we want: the doc covers /api/v1 only.
+  const registeredRoutes: RouteRef[] = [];
+  app.addHook('onRoute', (routeOptions) => {
+    const methods = Array.isArray(routeOptions.method) ? routeOptions.method : [routeOptions.method];
+    for (const method of methods) {
+      registeredRoutes.push({ method, url: routeOptions.url });
+    }
+  });
+  app.decorate('registeredRoutes', registeredRoutes);
+
   // Authentication hook for all routes except POST /api/v1/sessions
   app.addHook('onRequest', async (req, reply) => {
     const urlPath = req.url.split('?')[0];
     if (req.method === 'POST' && (urlPath === '/api/v1/sessions' || urlPath === '/api/v1/sessions/')) {
+      return;
+    }
+
+    // The API reference is public: it describes routes, holds no secrets.
+    if (req.method === 'GET' && (urlPath === '/api/openapi.json' || urlPath === '/api-docs')) {
       return;
     }
 
@@ -3318,6 +3349,21 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
 
     deactivateUser(db, userId);
     return reply.status(200).send({ deactivated: true });
+  });
+
+  // GET /api/openapi.json - OpenAPI 3.0 description of the /api/v1 surface.
+  app.get('/api/openapi.json', async (_req, reply) => {
+    return reply.send(buildOpenApiDocument(app.registeredRoutes, API_VERSION));
+  });
+
+  // GET /api-docs - self-contained Scalar reference pointed at /api/openapi.json.
+  app.get('/api-docs', async (_req, reply) => {
+    return reply.type('text/html').send(
+      '<!doctype html><html><head><title>Bind9-Manager API</title></head><body>' +
+        '<script id="api-reference" data-url="/api/openapi.json"></script>' +
+        '<script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>' +
+        '</body></html>'
+    );
   });
 
   // Serve the built React frontend (bind9-manager/app/dist) on every other
