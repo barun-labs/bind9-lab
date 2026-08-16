@@ -1,4 +1,4 @@
-import { Outlet, useParams, useSearchParams, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useParams, useLocation, useNavigate } from 'react-router-dom';
 import { ConfigurationSwitcher } from '../../components/ConfigurationSwitcher/ConfigurationSwitcher';
 import { ViewSwitcher } from '../../components/ViewSwitcher/ViewSwitcher';
 import { PendingChangesPill } from '../../components/PendingChangesPill/PendingChangesPill';
@@ -11,7 +11,6 @@ import { useAuth } from '../../auth/AuthProvider';
 
 export function Chrome() {
   const { configId, zoneId, viewId, serverId, blockId, groupId, aclId, snapshotId } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -23,14 +22,11 @@ export function Chrome() {
   const currentConfig = configs.find((c) => c.id === currentConfigId) ?? configs[0];
 
   const views = store.views.filter((v) => v.configurationId === currentConfigId);
-  const currentViewParam = searchParams.get('view');
-  const currentView =
-    views.find((v) => v.id === currentViewParam || v.name === currentViewParam) ?? views[0];
+  const currentView = views.find((v) => v.id === viewId) ?? views[0];
   const currentViewId = currentView?.id ?? 'internal';
 
   const handleSelectConfig = (newConfigId: string) => {
-    const viewQuery = currentViewParam ? `?view=${currentViewParam}` : '';
-    navigate(`/config/${newConfigId}/zones${viewQuery}`);
+    navigate(`/config/${newConfigId}/views`);
   };
 
   const handleManageConfigs = () => {
@@ -38,11 +34,7 @@ export function Chrome() {
   };
 
   const handleSelectView = (newViewId: string) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set('view', newViewId);
-      return next;
-    });
+    navigate(`/config/${currentConfigId}/views/${newViewId}/zones`);
   };
 
   // Compute breadcrumbs
@@ -53,36 +45,58 @@ export function Chrome() {
     breadcrumbs = [{ label: 'Configurations' }];
   } else if (pathname === '/settings/api-keys') {
     breadcrumbs = [{ label: 'Settings' }, { label: 'API Keys' }];
-  } else if (pathname.includes('/zones/') && pathname.endsWith('/records')) {
+  } else if (pathname.includes('/views/') && viewId && zoneId && pathname.endsWith('/records')) {
+    const view = views.find((v) => v.id === viewId);
     const zone = store.zones.find((z) => z.id === zoneId);
     breadcrumbs = [
-      { label: 'Zones', href: `/config/${currentConfigId}/zones` },
-      { label: zone?.name ?? zoneId ?? 'lab.lun.net', isMono: true },
+      { label: 'DNS Views', href: `/config/${currentConfigId}/views` },
+      { label: view?.name ?? viewId, href: `/config/${currentConfigId}/views/${viewId}/zones` },
+      {
+        label: zone?.name ?? zoneId,
+        isMono: true,
+        href: `/config/${currentConfigId}/views/${viewId}/zones/${zoneId}/records`,
+      },
       { label: 'Records' },
     ];
-  } else if (pathname.includes('/zones/') && zoneId) {
-    const zone = store.zones.find((z) => z.id === zoneId);
+  } else if (pathname.includes('/views/') && viewId && pathname.endsWith('/zones')) {
+    const view = views.find((v) => v.id === viewId);
     breadcrumbs = [
-      { label: 'Zones', href: `/config/${currentConfigId}/zones` },
-      { label: zone?.name ?? zoneId, isMono: true },
-    ];
-  } else if (pathname.endsWith('/zones')) {
-    breadcrumbs = [
-      { label: 'Configuration', href: '/configurations' },
-      { label: currentConfig?.name ?? currentConfigId },
+      { label: 'DNS Views', href: `/config/${currentConfigId}/views` },
+      { label: view?.name ?? viewId },
       { label: 'Zones' },
+    ];
+  } else if (pathname.includes('/views/') && viewId && pathname.endsWith('/external-hosts')) {
+    const view = views.find((v) => v.id === viewId);
+    breadcrumbs = [
+      { label: 'DNS Views', href: `/config/${currentConfigId}/views` },
+      { label: view?.name ?? viewId },
+      { label: 'External Hosts' },
+    ];
+  } else if (pathname.includes('/views/') && viewId && pathname.endsWith('/options')) {
+    const view = views.find((v) => v.id === viewId);
+    breadcrumbs = [
+      { label: 'DNS Views', href: `/config/${currentConfigId}/views` },
+      { label: view?.name ?? viewId },
+      { label: 'Deployment Options' },
+    ];
+  } else if (pathname.includes('/views/') && viewId && pathname.endsWith('/roles')) {
+    const view = views.find((v) => v.id === viewId);
+    breadcrumbs = [
+      { label: 'DNS Views', href: `/config/${currentConfigId}/views` },
+      { label: view?.name ?? viewId },
+      { label: 'Deployment Roles' },
     ];
   } else if (pathname.includes('/views/') && viewId) {
     const view = views.find((v) => v.id === viewId);
     breadcrumbs = [
-      { label: 'Views', href: `/config/${currentConfigId}/views` },
+      { label: 'DNS Views', href: `/config/${currentConfigId}/views` },
       { label: view?.name ?? viewId },
     ];
   } else if (pathname.endsWith('/views')) {
     breadcrumbs = [
       { label: 'Configuration', href: '/configurations' },
       { label: currentConfig?.name ?? currentConfigId },
-      { label: 'Views' },
+      { label: 'DNS Views' },
     ];
   } else if (pathname.includes('/servers/') && serverId) {
     breadcrumbs = [
@@ -105,24 +119,6 @@ export function Chrome() {
       { label: 'Configuration', href: '/configurations' },
       { label: currentConfig?.name ?? currentConfigId },
       { label: 'Network Blocks' },
-    ];
-  } else if (pathname.endsWith('/external-hosts')) {
-    breadcrumbs = [
-      { label: 'Configuration', href: '/configurations' },
-      { label: currentConfig?.name ?? currentConfigId },
-      { label: 'External Hosts' },
-    ];
-  } else if (pathname.endsWith('/roles')) {
-    breadcrumbs = [
-      { label: 'Configuration', href: '/configurations' },
-      { label: currentConfig?.name ?? currentConfigId },
-      { label: 'Deployment Roles' },
-    ];
-  } else if (pathname.endsWith('/options')) {
-    breadcrumbs = [
-      { label: 'Configuration', href: '/configurations' },
-      { label: currentConfig?.name ?? currentConfigId },
-      { label: 'Deployment Options' },
     ];
   } else if (pathname.endsWith('/config-review')) {
     breadcrumbs = [

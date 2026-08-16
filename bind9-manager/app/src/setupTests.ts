@@ -42,3 +42,19 @@ if (!globalThis.localStorage || typeof globalThis.localStorage.getItem !== 'func
     });
   }
 }
+
+// jsdom doesn't implement matchMedia. Default to "no match" for every query;
+// tests that need a specific match (e.g. prefers-reduced-motion) override it
+// locally with vi.stubGlobal.
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as typeof window.matchMedia;
+}

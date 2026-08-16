@@ -13,6 +13,17 @@ import { Labs } from './routes/Labs/Labs';
 import { LabEditor } from './routes/Labs/LabEditor';
 import { Servers } from './routes/Servers/Servers';
 import { Views } from './routes/Views/Views';
+import { ViewHub } from './routes/Views/ViewHub';
+import { ZonesInView } from './routes/Views/ZonesInView';
+import { ViewOptionsPanel } from './routes/Views/ViewOptionsPanel';
+import { ViewRolesPanel } from './routes/Views/ViewRolesPanel';
+import {
+  RedirectToFirstViewZones,
+  RedirectToFirstViewExternalHosts,
+  RedirectToFirstViewRoles,
+  RedirectToFirstViewOptions,
+  RedirectZoneRecordsToView,
+} from './routes/Views/redirects';
 import { ExternalHosts } from './routes/ExternalHosts/ExternalHosts';
 import { QueryTool } from './routes/QueryTool/QueryTool';
 import { ZoneHealth } from './routes/ZoneHealth/ZoneHealth';
@@ -37,7 +48,7 @@ export const routes: RouteObject[] = [
     children: [
       {
         index: true,
-        element: <Navigate to="/config/dns-lab/zones" replace />,
+        element: <Navigate to="/config/dns-lab/views" replace />,
       },
       {
         path: 'configurations',
@@ -50,7 +61,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId',
-        element: <Navigate to="zones" replace />,
+        element: <Navigate to="views" replace />,
       },
       {
         path: 'config/:configId/views',
@@ -58,38 +69,51 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/views/:viewId',
-        element: (
-          <Placeholder
-            title="View Detail"
-            description="View ACL editor and configuration ordering."
-          />
-        ),
+        element: <ViewHub />,
+        children: [
+          {
+            index: true,
+            element: <Navigate to="zones" replace />,
+          },
+          {
+            path: 'zones',
+            element: <ZonesInView />,
+          },
+          {
+            path: 'external-hosts',
+            element: <ExternalHosts />,
+          },
+          {
+            path: 'options',
+            element: <ViewOptionsPanel />,
+          },
+          {
+            path: 'roles',
+            element: <ViewRolesPanel />,
+          },
+          {
+            // Zone hub is IA-7; for now, jump straight to the zone's records.
+            path: 'zones/:zoneId',
+            element: <Navigate to="records" replace />,
+          },
+          {
+            path: 'zones/:zoneId/records',
+            element: <ZoneRecords />,
+          },
+        ],
       },
       {
+        // Old flat routes redirect to the nested view hub using the active-or-first view.
         path: 'config/:configId/zones',
-        element: (
-          <Placeholder
-            title="Zones"
-            description="Forward, reverse, and stub zones managed in this configuration."
-          />
-        ),
-      },
-      {
-        path: 'config/:configId/zones/:zoneId',
-        element: (
-          <Placeholder
-            title="Zone Detail"
-            description="Zone overview, SOA records, and zone settings."
-          />
-        ),
+        element: <RedirectToFirstViewZones />,
       },
       {
         path: 'config/:configId/zones/:zoneId/records',
-        element: <ZoneRecords />,
+        element: <RedirectZoneRecordsToView />,
       },
       {
         path: 'config/:configId/external-hosts',
-        element: <ExternalHosts />,
+        element: <RedirectToFirstViewExternalHosts />,
       },
       {
         path: 'config/:configId/blocks',
@@ -111,21 +135,11 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/roles',
-        element: (
-          <Placeholder
-            title="Deployment Roles"
-            description="Primary, secondary, and stealth role assignments across servers."
-          />
-        ),
+        element: <RedirectToFirstViewRoles />,
       },
       {
         path: 'config/:configId/options',
-        element: (
-          <Placeholder
-            title="Deployment Options"
-            description="Inherited and overridden BIND options across configuration hierarchy."
-          />
-        ),
+        element: <RedirectToFirstViewOptions />,
       },
       {
         path: 'config/:configId/servers',

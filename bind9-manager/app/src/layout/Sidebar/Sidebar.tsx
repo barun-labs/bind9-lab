@@ -28,37 +28,13 @@ export function Sidebar({
   const navItems: NavItem[] = [
     {
       id: 'views',
-      label: 'Views',
+      label: 'DNS Views',
       subpath: 'views',
       icon: (
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }} aria-hidden="true">
           <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
           <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
           <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />
-        </svg>
-      ),
-    },
-    {
-      id: 'zones',
-      label: 'Zones',
-      subpath: 'zones',
-      icon: (
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }} aria-hidden="true">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M3 12h18" />
-          <path d="M12 3c2.5 2.7 4 6 4 9s-1.5 6.3-4 9c-2.5-2.7-4-6-4-9s1.5-6.3 4-9z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'external-hosts',
-      label: 'External Hosts',
-      subpath: 'external-hosts',
-      icon: (
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }} aria-hidden="true">
-          <path d="M14 5h5v5" />
-          <path d="M19 5l-9 9" />
-          <path d="M19 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
         </svg>
       ),
     },
@@ -74,30 +50,6 @@ export function Sidebar({
           <path d="M6 8v8" />
           <path d="M6 12h8" />
           <path d="M16 12h.01" />
-        </svg>
-      ),
-    },
-    {
-      id: 'roles',
-      label: 'Deployment Roles',
-      subpath: 'roles',
-      icon: (
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }} aria-hidden="true">
-          <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'options',
-      label: 'Deployment Options',
-      subpath: 'options',
-      icon: (
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }} aria-hidden="true">
-          <path d="M4 7h10" />
-          <path d="M4 12h16" />
-          <path d="M4 17h10" />
-          <circle cx="17" cy="7" r="2" />
-          <circle cx="8" cy="17" r="2" />
         </svg>
       ),
     },

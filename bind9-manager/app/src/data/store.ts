@@ -153,6 +153,8 @@ export function useApi() {
       deleteRecord: (id: string) => api.deleteRecord(store, id),
       setRecordDisabled: (id: string, disabled: boolean) => api.setRecordDisabled(store, id, disabled),
       listExternalHosts: (configId: string, params?: api.ListParams) => api.listExternalHosts(store, configId, params),
+      listDeploymentOptions: (configId: string, scope: api.OptionScope, scopeId: string) => api.listDeploymentOptions(store, configId, scope, scopeId),
+      listDeploymentRoles: (configId: string, scope: api.OptionScope, scopeId: string) => api.listDeploymentRoles(store, configId, scope, scopeId),
       listApiKeys: (params?: api.ListParams) => api.listApiKeys(store, params),
       createApiKey: (input: string | api.CreateApiKeyInput) => api.createApiKey(store, input),
       deleteApiKey: (id: string) => api.deleteApiKey(store, id),

@@ -97,6 +97,28 @@ export interface SearchResults {
   blocks: any[];
 }
 
+export type OptionScope = 'VIEW' | 'ZONE';
+
+export interface DeploymentOptionRow {
+  id: string;
+  configurationId: string;
+  scope: OptionScope;
+  scopeId: string;
+  key: string;
+  value: unknown | null;
+  disabled?: boolean;
+}
+
+export interface DeploymentRoleRow {
+  id: string;
+  configurationId: string;
+  scope: OptionScope;
+  scopeId: string;
+  serverId: string;
+  role: string;
+  disabled?: boolean;
+}
+
 export interface CreateApiKeyInput {
   name: string;
   ownerUserId?: string;
@@ -643,6 +665,41 @@ export async function listExternalHosts(
   }
   items = applySort(items, params?.sort);
   return paginate(items, params?.page, params?.size);
+}
+
+// ponytail: fixture rows in fixtures.json still carry the old ad-hoc
+// `scopeType` field rather than the spec's `scope`; accept either until the
+// fixture data migrates.
+export async function listDeploymentOptions(
+  store: StoreData,
+  configId: string,
+  scope: OptionScope,
+  scopeId: string
+): Promise<DeploymentOptionRow[]> {
+  if (isApiEnabled()) {
+    const qs = buildQueryString({ scope, scopeId });
+    return apiFetch<DeploymentOptionRow[]>(`/api/v1/configurations/${configId}/options${qs}`);
+  }
+
+  return (store.deploymentOptions || []).filter(
+    (row: any) => (row.scope ?? row.scopeType) === scope && row.scopeId === scopeId
+  ) as DeploymentOptionRow[];
+}
+
+export async function listDeploymentRoles(
+  store: StoreData,
+  configId: string,
+  scope: OptionScope,
+  scopeId: string
+): Promise<DeploymentRoleRow[]> {
+  if (isApiEnabled()) {
+    const qs = buildQueryString({ scope, scopeId });
+    return apiFetch<DeploymentRoleRow[]>(`/api/v1/configurations/${configId}/roles${qs}`);
+  }
+
+  return (store.deploymentRoles || []).filter(
+    (row: any) => (row.scope ?? row.scopeType) === scope && row.scopeId === scopeId
+  ) as DeploymentRoleRow[];
 }
 
 export async function listApiKeys(

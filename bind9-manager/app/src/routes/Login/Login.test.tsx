@@ -4,17 +4,22 @@ import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { routes } from '../../router';
 import { StoreProvider } from '../../data/store';
 import { AuthProvider } from '../../auth/AuthProvider';
+import { ThemeProvider } from '../../theme/ThemeProvider';
 import { seedUsers } from '../../data/users.seed';
 
+// Chrome always renders <ThemeSwitcher/>, which needs a ThemeProvider ancestor
+// (normally supplied by main.tsx, not by App.tsx itself).
 function renderWithProviders(initialPath: string, initialUser?: any) {
   const router = createMemoryRouter(routes, { initialEntries: [initialPath] });
   return {
     ...render(
-      <StoreProvider>
-        <AuthProvider initialUser={initialUser}>
-          <RouterProvider router={router} />
-        </AuthProvider>
-      </StoreProvider>
+      <ThemeProvider>
+        <StoreProvider>
+          <AuthProvider initialUser={initialUser}>
+            <RouterProvider router={router} />
+          </AuthProvider>
+        </StoreProvider>
+      </ThemeProvider>
     ),
     router,
   };
