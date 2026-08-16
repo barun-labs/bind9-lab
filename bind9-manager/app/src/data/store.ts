@@ -17,6 +17,7 @@ import type {
   RecordTemplate,
   RpzPolicy,
   RpzRule,
+  Snapshot,
 } from '../types/entities';
 import { seedUsers } from './users.seed';
 import fixtures from '../../public/fixtures.json';
@@ -88,7 +89,7 @@ export interface StoreData {
   deploymentOptions: any[];
   changeSet: any[];
   deployJobs: any[];
-  snapshots: any[];
+  snapshots: Snapshot[];
   apiKeys: ApiKey[];
   users: User[];
   labs: Lab[];
@@ -187,6 +188,12 @@ export function useApi() {
       createRpzRule: (configId: string, policyId: string, input: api.CreateRpzRuleInput) => api.createRpzRule(store, configId, policyId, input),
       updateRpzRule: (configId: string, ruleId: string, patch: api.UpdateRpzRulePatch) => api.updateRpzRule(store, configId, ruleId, patch),
       deleteRpzRule: (configId: string, ruleId: string) => api.deleteRpzRule(store, configId, ruleId),
+      listSnapshots: (configId: string) => api.listSnapshots(store, configId),
+      getSnapshot: (configId: string, id: string) => api.getSnapshot(store, configId, id),
+      captureSnapshot: (configId: string, input: api.CreateSnapshotInput) => api.captureSnapshot(store, configId, input),
+      adoptSnapshot: (configId: string) => api.adoptSnapshot(store, configId),
+      restoreSnapshot: (configId: string, id: string) => api.restoreSnapshot(store, configId, id),
+      deleteSnapshot: (configId: string, id: string) => api.deleteSnapshot(store, configId, id),
       listZones: (configId: string, filters?: api.ZoneFilters) => api.listZones(store, configId, filters),
       getZone: (zoneId: string) => api.getZone(store, zoneId),
       listRecords: (zoneId: string, filters?: api.RecordFilters) => api.listRecords(store, zoneId, filters),

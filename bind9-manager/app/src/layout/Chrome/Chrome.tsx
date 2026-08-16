@@ -144,11 +144,6 @@ export function Chrome() {
       { label: currentConfig?.name ?? currentConfigId },
       { label: 'Snapshots' },
     ];
-  } else if (pathname.endsWith('/backups/adopt')) {
-    breadcrumbs = [
-      { label: 'Snapshots', href: `/config/${currentConfigId}/backups` },
-      { label: 'Adopt from Server' },
-    ];
   } else if (pathname.includes('/backups/') && snapshotId) {
     breadcrumbs = [
       { label: 'Snapshots', href: `/config/${currentConfigId}/backups` },

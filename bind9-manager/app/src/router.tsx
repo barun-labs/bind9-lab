@@ -42,6 +42,8 @@ import { RecordTemplates } from './routes/RecordTemplates/RecordTemplates';
 import { RecordTemplateDetail } from './routes/RecordTemplates/RecordTemplateDetail';
 import { RpzPolicies } from './routes/Rpz/RpzPolicies';
 import { RpzPolicyDetail } from './routes/Rpz/RpzPolicyDetail';
+import { Snapshots } from './routes/Snapshots/Snapshots';
+import { SnapshotDetail } from './routes/Snapshots/SnapshotDetail';
 import { ReviewDeploy } from './routes/ReviewDeploy/ReviewDeploy';
 import { RequireAuth } from './auth/RequireAuth';
 
@@ -249,30 +251,18 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/backups',
-        element: (
-          <Placeholder
-            title="Snapshots"
-            description="Configuration snapshots and point-in-time restore points."
-          />
-        ),
+        element: <Snapshots />,
       },
       {
+        // "Adopt" has no dedicated flow — it's a button on the Snapshots list
+        // that captures a BASELINE snapshot from the last deploy. Render the
+        // same list for stray links to this path.
         path: 'config/:configId/backups/adopt',
-        element: (
-          <Placeholder
-            title="Import-from-server (adopt) flow"
-            description="Import existing BIND9 zone files and server configuration into a new configuration."
-          />
-        ),
+        element: <Snapshots />,
       },
       {
         path: 'config/:configId/backups/:snapshotId',
-        element: (
-          <Placeholder
-            title="Snapshot Detail"
-            description="Snapshot diff and restore preview."
-          />
-        ),
+        element: <SnapshotDetail />,
       },
       {
         path: 'settings/api-keys',

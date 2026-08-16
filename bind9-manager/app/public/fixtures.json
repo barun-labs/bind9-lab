@@ -3612,77 +3612,33 @@
       "id": "snap-4",
       "configurationId": "dns-lab",
       "label": "Pre-deploy snapshot",
-      "trigger": "AUTO_PRE_DEPLOY",
-      "scope": "CONFIGURATION",
-      "scopeRef": "dns-lab",
-      "sizeBytes": 184320,
       "createdAt": "2026-08-15T09:59:00Z",
-      "createdBy": "system",
-      "containedObjectSummary": {
-        "views": 3,
-        "zones": 8,
-        "records": 200,
-        "blocks": 5,
-        "servers": 3
-      },
-      "referencesMissingServers": false
+      "source": "CURRENT",
+      "counts": { "views": 3, "zones": 8, "records": 200, "blocks": 5, "servers": 3 }
     },
     {
       "id": "snap-3",
       "configurationId": "dns-lab",
       "label": "before breaking split-horizon ACL",
-      "trigger": "MANUAL",
-      "scope": "CONFIGURATION",
-      "scopeRef": "dns-lab",
-      "sizeBytes": 181200,
       "createdAt": "2026-08-13T14:20:00Z",
-      "createdBy": "user",
-      "containedObjectSummary": {
-        "views": 3,
-        "zones": 8,
-        "records": 196,
-        "blocks": 5,
-        "servers": 3
-      },
-      "referencesMissingServers": false
+      "source": "CURRENT",
+      "counts": { "views": 3, "zones": 8, "records": 196, "blocks": 5, "servers": 3 }
     },
     {
       "id": "snap-2",
       "configurationId": "dns-lab",
-      "label": "Nightly scheduled snapshot",
-      "trigger": "SCHEDULED",
-      "scope": "CONFIGURATION",
-      "scopeRef": "dns-lab",
-      "sizeBytes": 179000,
+      "label": "adopted from last deploy",
       "createdAt": "2026-08-13T02:00:00Z",
-      "createdBy": "system",
-      "containedObjectSummary": {
-        "views": 3,
-        "zones": 8,
-        "records": 194,
-        "blocks": 5,
-        "servers": 3
-      },
-      "referencesMissingServers": false
+      "source": "BASELINE",
+      "counts": { "views": 3, "zones": 8, "records": 194, "blocks": 0, "servers": 3 }
     },
     {
       "id": "snap-1",
       "configurationId": "dns-lab",
       "label": "Pre-destructive snapshot (bulk delete on legacy.lun.net)",
-      "trigger": "AUTO_PRE_DESTRUCTIVE",
-      "scope": "ZONE",
-      "scopeRef": "zone-legacy",
-      "sizeBytes": 4200,
       "createdAt": "2026-08-10T11:00:00Z",
-      "createdBy": "system",
-      "containedObjectSummary": {
-        "views": 0,
-        "zones": 1,
-        "records": 6,
-        "blocks": 0,
-        "servers": 0
-      },
-      "referencesMissingServers": true
+      "source": "CURRENT",
+      "counts": { "views": 0, "zones": 1, "records": 6, "blocks": 0, "servers": 0 }
     }
   ]
 }

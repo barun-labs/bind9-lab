@@ -40,6 +40,7 @@ import type {
   DiffLine,
   DeployPreflight,
   ChangeSetDeployJob,
+  Snapshot,
 } from '../types/entities';
 export type {
   Lab,
@@ -800,6 +801,131 @@ export async function deleteRpzRule(
 
   const arr = store.rpzRules ?? [];
   const index = arr.findIndex((r) => r.id === ruleId);
+  if (index >= 0) arr.splice(index, 1);
+  return { deleted: true };
+}
+
+export interface CreateSnapshotInput {
+  label?: string;
+  source?: 'CURRENT' | 'BASELINE';
+}
+
+// ponytail: fixture-mode capture reads counts straight off the client's
+// in-memory tables, mirroring the backend's captured-table list
+// (backend/src/server/snapshotStore.ts TABLE_SPECS). It does not persist a
+// rows blob, so fixture-mode restore is a no-op confirmation rather than a
+// real rollback — there is nothing in this demo store to replay old rows
+// into. Add a stored blob if the demo needs restore to actually change data.
+function fixtureSnapshotCounts(store: StoreData, configId: string, source: 'CURRENT' | 'BASELINE'): Record<string, number> {
+  const counts: Record<string, number> = {
+    views: store.views.filter((v) => v.configurationId === configId).length,
+    zones: store.zones.filter((z) => z.configurationId === configId).length,
+    records: store.records.filter((r) => store.zones.some((z) => z.id === r.zoneId && z.configurationId === configId)).length,
+    rpz_policies: (store.rpzPolicies ?? []).filter((p) => p.configurationId === configId).length,
+    external_hosts: (store.externalHosts ?? []).filter((h) => h.configurationId === configId).length,
+    servers: (store.servers ?? []).filter((s) => s.configurationId === configId).length,
+    acls: (store.acls ?? []).filter((a) => a.configurationId === configId).length,
+    // BASELINE captures the deployed model, which excludes secrets/inventory
+    // that never render to zone files: server groups, blocks, TSIG keys and
+    // record templates. Mirrors serializeBaseline() in snapshotStore.ts.
+    server_groups: source === 'CURRENT' ? (store.serverGroups ?? []).filter((g) => g.configurationId === configId).length : 0,
+    blocks: source === 'CURRENT' ? (store.networkBlocks ?? []).filter((b) => b.configurationId === configId).length : 0,
+    tsig_keys: source === 'CURRENT' ? (store.tsigKeys ?? []).filter((k) => k.configurationId === configId).length : 0,
+    record_templates: source === 'CURRENT' ? (store.recordTemplates ?? []).filter((t) => t.configurationId === configId).length : 0,
+  };
+  return counts;
+}
+
+export async function listSnapshots(store: StoreData, configId: string): Promise<Snapshot[]> {
+  if (isApiEnabled()) {
+    return apiFetch<Snapshot[]>(`/api/v1/configurations/${configId}/snapshots`);
+  }
+
+  return (store.snapshots ?? [])
+    .filter((s) => s.configurationId === configId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getSnapshot(store: StoreData, configId: string, id: string): Promise<Snapshot | null> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<Snapshot>(`/api/v1/configurations/${configId}/snapshots/${id}`);
+    } catch (err: any) {
+      if (err?.status === 404) return null;
+      throw err;
+    }
+  }
+
+  return (store.snapshots ?? []).find((s) => s.id === id && s.configurationId === configId) ?? null;
+}
+
+export async function captureSnapshot(
+  store: StoreData,
+  configId: string,
+  input: CreateSnapshotInput
+): Promise<Snapshot> {
+  if (isApiEnabled()) {
+    return apiFetch<Snapshot>(`/api/v1/configurations/${configId}/snapshots`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const source = input.source ?? 'CURRENT';
+  const snapshot: Snapshot = {
+    id: 'snap-' + Math.random().toString(16).slice(2, 10),
+    configurationId: configId,
+    label: input.label || '',
+    createdAt: new Date().toISOString(),
+    source,
+    counts: fixtureSnapshotCounts(store, configId, source),
+  };
+  if (!store.snapshots) store.snapshots = [];
+  store.snapshots.unshift(snapshot);
+  return snapshot;
+}
+
+export async function adoptSnapshot(store: StoreData, configId: string): Promise<Snapshot> {
+  if (isApiEnabled()) {
+    return apiFetch<Snapshot>(`/api/v1/configurations/${configId}/snapshots/adopt`, {
+      method: 'POST',
+    });
+  }
+
+  return captureSnapshot(store, configId, { label: 'adopted from last deploy', source: 'BASELINE' });
+}
+
+export async function restoreSnapshot(
+  store: StoreData,
+  configId: string,
+  id: string
+): Promise<{ restored: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ restored: boolean }>(`/api/v1/configurations/${configId}/snapshots/${id}/restore`, {
+      method: 'POST',
+    });
+  }
+
+  const exists = (store.snapshots ?? []).some((s) => s.id === id && s.configurationId === configId);
+  if (!exists) {
+    throw new Error(`Snapshot ${id} not found`);
+  }
+  return { restored: true };
+}
+
+export async function deleteSnapshot(
+  store: StoreData,
+  configId: string,
+  id: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: boolean }>(`/api/v1/configurations/${configId}/snapshots/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  const arr = store.snapshots ?? [];
+  const index = arr.findIndex((s) => s.id === id && s.configurationId === configId);
   if (index >= 0) arr.splice(index, 1);
   return { deleted: true };
 }
