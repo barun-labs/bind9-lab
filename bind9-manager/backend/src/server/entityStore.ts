@@ -1080,21 +1080,45 @@ export function applyRecordTemplate(
   return applyTx();
 }
 
+/** Stored server record: every Server field plus the optional trust secret. */
+type ServerWithTrust = Server & { trustSecret?: string };
+
 /**
- * List servers for a configuration.
+ * Strip the trust secret from a stored server. The secret is generated
+ * server-side and is only ever read internally by the deploy path; list/get
+ * keep trustKeyId/trustKeyCreatedAt but never the secret (mirrors tsig sanitize).
  */
-export function listServers(db: Database.Database, configId: string): Server[] {
-  const rows = db.prepare('SELECT data FROM servers WHERE configurationId = ?').all(configId) as { data: string }[];
-  return rows.map((r) => JSON.parse(r.data) as Server);
+function stripServerTrustSecret(server: ServerWithTrust): Server {
+  const { trustSecret: _secret, ...rest } = server;
+  return rest;
 }
 
 /**
- * Get server by ID.
+ * Get server by ID including the trust secret. Internal only — used by the
+ * read-modify-write paths (reconcile, PATCH, mark-absent) so they preserve the
+ * secret across writes instead of silently rotating it.
+ */
+export function getServerWithTrustSecret(db: Database.Database, id: string): ServerWithTrust | null {
+  const row = db.prepare('SELECT data FROM servers WHERE id = ?').get(id) as { data: string } | undefined;
+  if (!row) return null;
+  return JSON.parse(row.data) as ServerWithTrust;
+}
+
+/**
+ * List servers for a configuration (trust secret stripped).
+ */
+export function listServers(db: Database.Database, configId: string): Server[] {
+  const rows = db.prepare('SELECT data FROM servers WHERE configurationId = ?').all(configId) as { data: string }[];
+  return rows.map((r) => stripServerTrustSecret(JSON.parse(r.data) as ServerWithTrust));
+}
+
+/**
+ * Get server by ID (trust secret stripped).
  */
 export function getServer(db: Database.Database, id: string): Server | null {
   const row = db.prepare('SELECT data FROM servers WHERE id = ?').get(id) as { data: string } | undefined;
   if (!row) return null;
-  return JSON.parse(row.data) as Server;
+  return stripServerTrustSecret(JSON.parse(row.data) as ServerWithTrust);
 }
 
 /**
@@ -1108,6 +1132,57 @@ export function upsertServer(db: Database.Database, server: Server & { configura
     VALUES (?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET configurationId = excluded.configurationId, data = excluded.data
   `).run(id, configurationId, JSON.stringify(server));
+}
+
+/**
+ * Ensure a server has a trust key, minting one on first use. Returns the public
+ * pair (id + createdAt), never the secret. A server without a trustSecret gets a
+ * fresh key lazily — this is the deploy path's entry point.
+ */
+export function ensureServerTrustKey(
+  db: Database.Database,
+  serverId: string,
+): { trustKeyId: string; trustKeyCreatedAt: string } {
+  const existing = getServerWithTrustSecret(db, serverId);
+  if (existing && typeof existing.trustSecret === 'string') {
+    return {
+      trustKeyId: String(existing.trustKeyId ?? ''),
+      trustKeyCreatedAt: String(existing.trustKeyCreatedAt ?? ''),
+    };
+  }
+  if (!existing) {
+    throw new Error(`Server ${serverId} not found`);
+  }
+  const trustKeyId = 'tk-' + randomBytes(6).toString('hex');
+  const trustSecret = randomBytes(32).toString('base64');
+  const trustKeyCreatedAt = new Date().toISOString();
+  upsertServer(db, { ...existing, trustKeyId, trustSecret, trustKeyCreatedAt });
+  return { trustKeyId, trustKeyCreatedAt };
+}
+
+/**
+ * Read the stored trust secret. Internal only — the deploy path signs with it.
+ */
+export function getServerTrustSecret(db: Database.Database, serverId: string): string | null {
+  const existing = getServerWithTrustSecret(db, serverId);
+  return existing && typeof existing.trustSecret === 'string' ? existing.trustSecret : null;
+}
+
+/**
+ * Regenerate a server's trust key (secret + id + timestamp). Returns the public
+ * pair, never the secret; null if the server does not exist.
+ */
+export function rotateServerTrustKey(
+  db: Database.Database,
+  serverId: string,
+): { trustKeyId: string; trustKeyCreatedAt: string } | null {
+  const existing = getServerWithTrustSecret(db, serverId);
+  if (!existing) return null;
+  const trustKeyId = 'tk-' + randomBytes(6).toString('hex');
+  const trustSecret = randomBytes(32).toString('base64');
+  const trustKeyCreatedAt = new Date().toISOString();
+  upsertServer(db, { ...existing, trustKeyId, trustSecret, trustKeyCreatedAt });
+  return { trustKeyId, trustKeyCreatedAt };
 }
 
 /**

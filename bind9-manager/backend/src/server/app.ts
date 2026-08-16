@@ -56,6 +56,8 @@ import {
   deleteServerGroup,
   listServers,
   getServer,
+  getServerWithTrustSecret,
+  rotateServerTrustKey,
   upsertServer,
   deleteServerById,
   buildConfigModel,
@@ -1147,7 +1149,9 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     if (!authorize(req.actor, 'edit', configId)) {
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
     }
-    const existing = getServer(db, serverId);
+    // Read the full record so the trust key survives the PATCH (secret preserved
+    // in the store, stripped from the response below).
+    const existing = getServerWithTrustSecret(db, serverId);
     if (!existing || existing.configurationId !== configId) {
       return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Server not found' } });
     }
@@ -1173,7 +1177,8 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     merged.id = existing.id;                 // never change id
     merged.configurationId = configId;       // never change scope
     upsertServer(db, merged);
-    return reply.status(200).send(merged);
+    const { trustSecret: _secret, ...publicServer } = merged;
+    return reply.status(200).send(publicServer);
   });
 
   // DELETE /api/v1/configurations/:configId/servers/:serverId - Delete a server (scope-checked, requires edit)
@@ -1188,6 +1193,27 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     }
     deleteServerById(db, serverId);
     return reply.status(200).send({ deleted: true });
+  });
+
+  // POST /api/v1/configurations/:configId/servers/:serverId/rotate-trust-key - Rotate a server's trust key (admin-only)
+  app.post('/api/v1/configurations/:configId/servers/:serverId/rotate-trust-key', async (req, reply) => {
+    const { configId, serverId } = req.params as { configId: string; serverId: string };
+    // ponytail: same admin-on-any-config predicate as POST /configurations
+    const isAdmin = (req.actor.user.roles ?? []).some((r) =>
+      authorize(req.actor, 'admin', r.configurationId)
+    );
+    if (!isAdmin) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const server = getServer(db, serverId);
+    if (!server || server.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Server not found' } });
+    }
+    const rotated = rotateServerTrustKey(db, serverId);
+    if (!rotated) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Server not found' } });
+    }
+    return reply.status(200).send(rotated);
   });
 
   // GET /api/v1/configurations/:configId/views - List views for a configuration

@@ -4,7 +4,8 @@ import type { ConfigModel } from '../config-engine/model';
 import type { Lab } from './labStore';
 import { generateServerConfig, validateConfig, type Runner } from '../config-engine';
 import { shellQuote } from '../config-engine/shellQuote';
-import { buildConfigModel } from './entityStore';
+import { buildConfigModel, ensureServerTrustKey, getServerTrustSecret } from './entityStore';
+import { buildManifest, signManifest } from './trustManifest';
 import { computeChangeSet } from './changeSet';
 import { getBaselineModel, setBaselineModel, updateDeployJob } from './changeSetStore';
 import type {
@@ -179,6 +180,36 @@ function isoNow(): string {
 }
 
 /**
+ * Prove the container is the node we think it is before writing config into it.
+ * One docker inspect reads the containerlab labels; the node label must match
+ * exactly. The topology label's value varies by clab version, so a mismatch is
+ * only fatal when the label is non-empty (an empty topo label is tolerated).
+ */
+export async function assertManagedTarget(
+  run: Runner,
+  container: string,
+  nodeName: string,
+  topoName: string,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const script =
+    `docker inspect -f '{{index .Config.Labels "clab-node-name"}}|{{index .Config.Labels "containerlab"}}' ` +
+    shellQuote(container);
+  const res = await run(script);
+  if (res.code !== 0) {
+    const detail = (res.stderr || res.stdout || '').trim().slice(0, 200) || `exit ${res.code}`;
+    return { ok: false, reason: `TARGET_UNTRUSTED: docker inspect failed (${detail})` };
+  }
+  const [nodeLabel = '', topoLabel = ''] = res.stdout.trim().split('|');
+  if (nodeLabel !== nodeName) {
+    return { ok: false, reason: `TARGET_UNTRUSTED: clab-node-name label '${nodeLabel}' does not match '${nodeName}'` };
+  }
+  if (topoLabel && topoLabel !== topoName) {
+    return { ok: false, reason: `TARGET_UNTRUSTED: containerlab label '${topoLabel}' does not match '${topoName}'` };
+  }
+  return { ok: true };
+}
+
+/**
  * Run a change-set deploy: preflight, push to the target servers, aggregate,
  * and replace the baseline ONLY on full success. Never throws — errors are
  * captured into the job and persisted.
@@ -260,6 +291,47 @@ export async function runChangeSetDeploy(
       continue;
     }
 
+    let target;
+    try {
+      target = await assertManagedTarget(opts.run, container, nodeName, lab.topology.name);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      results.push({
+        serverId,
+        outcome: 'FAILED',
+        startedAt,
+        finishedAt: isoNow(),
+        stderr: detail,
+        trust: 'TARGET_UNTRUSTED',
+      });
+      continue;
+    }
+    if (!target.ok) {
+      results.push({
+        serverId,
+        outcome: 'FAILED',
+        startedAt,
+        finishedAt: isoNow(),
+        stderr: target.reason,
+        trust: 'TARGET_UNTRUSTED',
+      });
+      continue;
+    }
+
+    try {
+      ensureServerTrustKey(db, serverId);
+      const secret = getServerTrustSecret(db, serverId);
+      if (secret) {
+        const manifest = buildManifest({ node: nodeName, deployJobId: job.id, generatedAt: isoNow(), files });
+        const signature = signManifest(secret, manifest);
+        files = { ...files, '.manager-manifest.json': JSON.stringify({ manifest, signature }) };
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      results.push({ serverId, outcome: 'FAILED', startedAt, finishedAt: isoNow(), stderr: detail });
+      continue;
+    }
+
     let res;
     try {
       res = await opts.run(buildPushScript(files, opts.labDir, nodeName, container));
@@ -271,7 +343,7 @@ export async function runChangeSetDeploy(
 
     const finishedAt = isoNow();
     if (res.code === 0) {
-      results.push({ serverId, outcome: 'SUCCEEDED', startedAt, finishedAt });
+      results.push({ serverId, outcome: 'SUCCEEDED', startedAt, finishedAt, trust: 'SIGNED' });
     } else {
       results.push({
         serverId,
@@ -279,6 +351,7 @@ export async function runChangeSetDeploy(
         startedAt,
         finishedAt,
         stderr: (res.stderr || res.stdout || '').slice(0, 2000),
+        trust: 'SIGNED',
       });
     }
   }

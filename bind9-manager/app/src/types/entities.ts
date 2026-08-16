@@ -48,6 +48,8 @@ export interface Server {
   syncState: SyncState | string;
   bindVersion?: string;
   lastDeployedAt?: string;
+  trustKeyId?: string;
+  trustKeyCreatedAt?: string;
   [key: string]: any;        // fixtures carry extra nested `services` etc — tolerate them
 }
 export interface ApiKey {

@@ -12,6 +12,9 @@ export interface Server {
   // Listen-on / data-plane addresses; visually distinct from a management
   // address. rootHints.ts reads serviceInterfaces[0].address for db.root.
   serviceInterfaces?: { address: string; port?: number }[];
+  // Per-server trust key public fields (trustSecret is stored-only, never typed).
+  trustKeyId?: string;
+  trustKeyCreatedAt?: string;
   [key: string]: unknown;
 }
 

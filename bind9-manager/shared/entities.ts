@@ -104,7 +104,8 @@ export interface DeployPreflightCheck { serverId?: string; zoneId?: string; zone
   result: 'OK' | 'WARN' | 'FAIL'; detail: string; }
 export interface DeployPreflight { checkconf: DeployPreflightCheck[]; checkzone: DeployPreflightCheck[]; }
 export interface DeployServerResult { serverId: string; outcome: DeployOutcome;
-  startedAt: string; finishedAt?: string; stderr?: string; }
+  startedAt: string; finishedAt?: string; stderr?: string;
+  trust?: 'SIGNED' | 'TARGET_UNTRUSTED' | 'SKIPPED'; }
 export interface ChangeSetDeployJob {
   id: string;                 // `csdj-`+randomBytes(6).hex
   configurationId: string;

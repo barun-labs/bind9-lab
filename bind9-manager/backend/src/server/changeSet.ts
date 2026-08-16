@@ -28,14 +28,18 @@ function isDisabledFlag(obj: Record<string, unknown>): boolean {
   return obj.disabled === true || obj.adminState === 'DISABLED';
 }
 
-// Remove the fields whose only-change is classified as DISABLE/ENABLE rather
-// than UPDATE: the disable flag (disabled/adminState) and the runtime status
-// field (syncState) that flip independently of config intent.
+// Remove the fields that flip independently of config intent and therefore
+// must not surface as a change-set item: the disable flag (disabled/adminState),
+// the runtime status field (syncState), and the per-server trust key metadata
+// (trustKeyId/trustKeyCreatedAt/trustSecret) minted at deploy time.
 function withoutDisableFlags(obj: Record<string, unknown>): Record<string, unknown> {
   const clone: Record<string, unknown> = { ...obj };
   delete clone.disabled;
   delete clone.adminState;
   delete clone.syncState;
+  delete clone.trustKeyId;
+  delete clone.trustKeyCreatedAt;
+  delete clone.trustSecret;
   return clone;
 }
 

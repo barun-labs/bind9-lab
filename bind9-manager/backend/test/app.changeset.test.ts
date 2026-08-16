@@ -16,6 +16,7 @@ describe('change-set review & deploy API', () => {
   let failPush = false;
   let mockRunner: Runner;
   let scripts: string[] = [];
+  let inspectOutput = 'ns1|mylab';
 
   const dnsTopology: TopologyModel = {
     name: 'mylab',
@@ -47,8 +48,12 @@ describe('change-set review & deploy API', () => {
     runnerResult = { code: 0, stdout: '', stderr: '' };
     failPush = false;
     scripts = [];
+    inspectOutput = 'ns1|mylab';
     mockRunner = async (script) => {
       scripts.push(script);
+      if (script.includes('docker inspect')) {
+        return { code: 0, stdout: inspectOutput, stderr: '' };
+      }
       if (failPush && script.includes('rndc reconfig')) {
         return { code: 1, stdout: '', stderr: 'rndc reload failed' };
       }
@@ -446,5 +451,64 @@ describe('change-set review & deploy API', () => {
       payload: { targetServerIds: [`srv-${labId}-ns1`] },
     });
     expect(res.statusCode).toBe(403);
+  });
+
+  it('POST deploy-jobs: a mismatched container label aborts the push (TARGET_UNTRUSTED, no rndc)', async () => {
+    const token = await loginAs('admin', 'admin');
+    const header = { authorization: `Bearer ${token}` };
+    const labId = dnsLabId();
+    const serverId = `srv-${labId}-ns1`;
+    inspectOutput = 'other-node|mylab';
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/configurations/dns-lab/deploy-jobs',
+      headers: header,
+      payload: { targetServerIds: [serverId] },
+    });
+    expect(res.statusCode).toBe(201);
+    const { jobId } = JSON.parse(res.body);
+
+    const jobRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/configurations/dns-lab/deploy-jobs/${jobId}`,
+      headers: header,
+    });
+    const job = JSON.parse(jobRes.body);
+    expect(job.status).toBe('FAILED');
+    expect(job.serverResults[0]).toMatchObject({
+      serverId,
+      outcome: 'FAILED',
+      trust: 'TARGET_UNTRUSTED',
+    });
+    // Must-fail control: the push script (rndc) must never have run.
+    expect(scripts.some((s) => s.includes('rndc reconfig'))).toBe(false);
+  });
+
+  it('POST deploy-jobs: matching label signs the push and ships .manager-manifest.json', async () => {
+    const token = await loginAs('admin', 'admin');
+    const header = { authorization: `Bearer ${token}` };
+    const labId = dnsLabId();
+    const serverId = `srv-${labId}-ns1`;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/configurations/dns-lab/deploy-jobs',
+      headers: header,
+      payload: { targetServerIds: [serverId] },
+    });
+    expect(res.statusCode).toBe(201);
+    const { jobId } = JSON.parse(res.body);
+
+    const jobRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/configurations/dns-lab/deploy-jobs/${jobId}`,
+      headers: header,
+    });
+    const job = JSON.parse(jobRes.body);
+    expect(job.status).toBe('SUCCEEDED');
+    expect(job.serverResults[0]).toMatchObject({ serverId, outcome: 'SUCCEEDED', trust: 'SIGNED' });
+    // The signed manifest flows through the existing base64 push path.
+    expect(scripts.some((s) => s.includes('.manager-manifest.json'))).toBe(true);
   });
 });

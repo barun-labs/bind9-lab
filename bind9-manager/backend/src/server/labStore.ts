@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { randomBytes } from 'node:crypto';
 import type { TopologyModel, NodeInterface } from '../config-engine/topology';
-import { listServers, upsertServer, deleteServerById, getServer } from './entityStore';
+import { listServers, upsertServer, deleteServerById, getServerWithTrustSecret } from './entityStore';
 import type { Server } from '../config-engine/model';
 import type { DeployResult, RuntimeNode } from './deployEngine';
 
@@ -154,7 +154,7 @@ export function reconcileServersRuntime(
       (r) => r.name === containerName,
     );
 
-    const existing = getServer(db, 'srv-' + lab.id + '-' + node.name);
+    const existing = getServerWithTrustSecret(db, 'srv-' + lab.id + '-' + node.name);
     if (!existing) {
       // reconcileServers creates this row at lab CRUD time; if it is
       // somehow missing, do not fabricate a Server from runtime data alone.
@@ -245,7 +245,7 @@ export function setLabLifecycle(
 export function markLabServersAbsent(db: Database.Database, lab: Lab): void {
   const bindNodes = (lab.topology?.nodes || []).filter((n) => n && n.intent === 'bind');
   for (const node of bindNodes) {
-    const existing = getServer(db, 'srv-' + lab.id + '-' + node.name);
+    const existing = getServerWithTrustSecret(db, 'srv-' + lab.id + '-' + node.name);
     if (!existing) continue;
     upsertServer(db, {
       ...existing,
