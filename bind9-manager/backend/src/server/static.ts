@@ -54,6 +54,11 @@ export function registerFrontendStatic(
   // normal JSON 404, and unmatched /docs/ requests 404 as docs (never the SPA).
   app.setNotFoundHandler((req, reply) => {
     const urlPath = req.url.split('?')[0];
+    if (req.method === 'GET' && (urlPath === '/docs' || urlPath === '/docs/')) {
+      // Bare /docs (no file match) -> the docs index. Handles the missing
+      // trailing slash and a docs mount that is present but didn't match root.
+      return reply.redirect('/docs/index.html');
+    }
     if (req.method === 'GET' && urlPath.startsWith('/docs')) {
       return reply.status(404).send({
         error: { code: 'NOT_FOUND', message: 'Documentation page not found' },
