@@ -16,6 +16,9 @@ import { Views } from './routes/Views/Views';
 import { ExternalHosts } from './routes/ExternalHosts/ExternalHosts';
 import { QueryTool } from './routes/QueryTool/QueryTool';
 import { ZoneHealth } from './routes/ZoneHealth/ZoneHealth';
+import { Acls } from './routes/Acls/Acls';
+import { AclEditor } from './routes/Acls/AclEditor';
+import { AclEvaluator } from './routes/Acls/AclEvaluator';
 import { RequireAuth } from './auth/RequireAuth';
 
 export const routes: RouteObject[] = [
@@ -164,30 +167,15 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/acls',
-        element: (
-          <Placeholder
-            title="ACLs"
-            description="Named access control lists for queries, transfers, and recursive lookups."
-          />
-        ),
+        element: <Acls />,
       },
       {
         path: 'config/:configId/acls/evaluate',
-        element: (
-          <Placeholder
-            title="ACL Evaluator"
-            description="Test client IP evaluation against access control chains."
-          />
-        ),
+        element: <AclEvaluator />,
       },
       {
         path: 'config/:configId/acls/:aclId',
-        element: (
-          <Placeholder
-            title="ACL Detail"
-            description="ACL rules, negations, and nested ACL definitions."
-          />
-        ),
+        element: <AclEditor />,
       },
       {
         path: 'config/:configId/keys',

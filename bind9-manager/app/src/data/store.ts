@@ -10,6 +10,7 @@ import type {
   RoleAssignment,
   Lab,
   TelemetrySnapshot,
+  Acl,
 } from '../types/entities';
 import { seedUsers } from './users.seed';
 import fixtures from '../../public/fixtures.json';
@@ -66,6 +67,7 @@ export const seedLabs: Lab[] = [
 export interface StoreData {
   configurations: Configuration[];
   views: View[];
+  acls: Acl[];
   zones: Zone[];
   records: ResourceRecord[];
   externalHosts: ExternalHost[];
@@ -88,6 +90,7 @@ export function makeStore(initialData?: Partial<StoreData>): StoreData {
   return {
     configurations: cloned.configurations ?? [],
     views: cloned.views ?? [],
+    acls: cloned.acls ?? [],
     zones: cloned.zones ?? [],
     records: cloned.records ?? [],
     externalHosts: cloned.externalHosts ?? [],
@@ -136,6 +139,12 @@ export function useApi() {
       createView: (configId: string, input: api.CreateViewInput) => api.createView(store, configId, input),
       updateView: (configId: string, id: string, patch: api.UpdateViewPatch) => api.updateView(store, configId, id, patch),
       deleteView: (configId: string, id: string) => api.deleteView(store, configId, id),
+      listAcls: (configId: string) => api.listAcls(store, configId),
+      getAcl: (configId: string, aclId: string) => api.getAcl(store, configId, aclId),
+      createAcl: (configId: string, input: api.CreateAclInput) => api.createAcl(store, configId, input),
+      updateAcl: (configId: string, aclId: string, patch: api.UpdateAclPatch) => api.updateAcl(store, configId, aclId, patch),
+      deleteAcl: (configId: string, aclId: string) => api.deleteAcl(store, configId, aclId),
+      evaluateAcl: (configId: string, input: { target: string; clientIp: string }) => api.evaluateAcl(store, configId, input),
       listZones: (configId: string, filters?: api.ZoneFilters) => api.listZones(store, configId, filters),
       getZone: (zoneId: string) => api.getZone(store, zoneId),
       listRecords: (zoneId: string, filters?: api.RecordFilters) => api.listRecords(store, zoneId, filters),

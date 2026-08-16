@@ -223,3 +223,9 @@ export interface HealthFinding {
   subject?: string;
 }
 
+export type AclEntryType = 'ADDRESS'|'CIDR'|'ACL_NAME'|'KEY_NAME'|'ANY'|'NONE'|'LOCALHOST'|'LOCALNETS';
+export interface AclEntry { id: string; order: number; type: AclEntryType; value: string|null; negated: boolean; }
+export interface Acl { id: string; configurationId: string; name: string; entries: AclEntry[]; usedByCount: number; }
+export interface AclTraceStep { entryId: string; type: string; value: string|null; negated: boolean; matched: boolean; }
+export interface AclEvalResult { matched: boolean; decision: 'ALLOW'|'DENY'; trace: AclTraceStep[]; error?: string; }
+

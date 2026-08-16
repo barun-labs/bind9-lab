@@ -23,6 +23,9 @@ import type {
   StatisticsSnapshot,
   QueryResult,
   HealthFinding,
+  Acl,
+  AclEntry,
+  AclEvalResult,
 } from '../types/entities';
 export type {
   Lab,
@@ -255,6 +258,126 @@ export async function deleteView(
   const index = store.views.findIndex((v) => v.id === id && v.configurationId === configId);
   if (index >= 0) store.views.splice(index, 1);
   return { deleted: true };
+}
+
+export interface CreateAclInput {
+  name: string;
+  entries?: AclEntry[];
+}
+
+export interface UpdateAclPatch {
+  name?: string;
+  entries?: AclEntry[];
+}
+
+export async function listAcls(
+  store: StoreData,
+  configId: string
+): Promise<Acl[]> {
+  if (isApiEnabled()) {
+    return apiFetch<Acl[]>(`/api/v1/configurations/${configId}/acls`);
+  }
+
+  return store.acls
+    .filter((a) => a.configurationId === configId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getAcl(
+  store: StoreData,
+  configId: string,
+  aclId: string
+): Promise<Acl | null> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<Acl>(`/api/v1/configurations/${configId}/acls/${aclId}`);
+    } catch (err: any) {
+      if (err?.status === 404) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  return store.acls.find((a) => a.id === aclId && a.configurationId === configId) ?? null;
+}
+
+export async function createAcl(
+  store: StoreData,
+  configId: string,
+  input: CreateAclInput
+): Promise<Acl> {
+  if (isApiEnabled()) {
+    return apiFetch<Acl>(`/api/v1/configurations/${configId}/acls`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const acl: Acl = {
+    id: 'acl-' + Math.random().toString(16).slice(2, 10),
+    configurationId: configId,
+    name: input.name,
+    entries: (input.entries ?? []).map((e, i) => ({ ...e, order: i })),
+    usedByCount: 0,
+  };
+  store.acls.push(acl);
+  return acl;
+}
+
+export async function updateAcl(
+  store: StoreData,
+  configId: string,
+  aclId: string,
+  patch: UpdateAclPatch
+): Promise<Acl> {
+  if (isApiEnabled()) {
+    return apiFetch<Acl>(`/api/v1/configurations/${configId}/acls/${aclId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  const acl = store.acls.find((a) => a.id === aclId && a.configurationId === configId);
+  if (!acl) {
+    throw new Error(`ACL with id ${aclId} not found`);
+  }
+  if (patch.name !== undefined) acl.name = patch.name;
+  if (patch.entries !== undefined) {
+    acl.entries = patch.entries.map((e, i) => ({ ...e, order: i }));
+  }
+  return acl;
+}
+
+export async function deleteAcl(
+  store: StoreData,
+  configId: string,
+  aclId: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: boolean }>(`/api/v1/configurations/${configId}/acls/${aclId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  const index = store.acls.findIndex((a) => a.id === aclId && a.configurationId === configId);
+  if (index >= 0) store.acls.splice(index, 1);
+  return { deleted: true };
+}
+
+export async function evaluateAcl(
+  _store: StoreData,
+  configId: string,
+  input: { target: string; clientIp: string }
+): Promise<AclEvalResult> {
+  if (isApiEnabled()) {
+    return apiFetch<AclEvalResult>(`/api/v1/configurations/${configId}/acls/evaluate`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  return { matched: false, decision: 'DENY', trace: [] };
 }
 
 export async function listZones(
