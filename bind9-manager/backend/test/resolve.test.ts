@@ -164,6 +164,62 @@ describe('resolve.ts', () => {
 
       expect(resolveOption(model, { serverId: 'srv-1' }, 'non-existent')).toBeUndefined();
     });
+
+    it('(a) a ZONE-scope option with disabled=true suppresses a VIEW-scope value for the same key', () => {
+      const model: ConfigModel = {
+        configuration: dummyConfig,
+        views: [viewInternal],
+        zones: [zoneInternal],
+        records,
+        servers: [{ id: 'srv-1' }],
+        roles: [],
+        options: [
+          { scopeType: 'VIEW', scopeId: 'view-int', key: 'recursion', value: true },
+          { scopeType: 'ZONE', scopeId: 'zone-int', key: 'recursion', value: true, disabled: true },
+        ],
+      };
+
+      expect(
+        resolveOption(model, { serverId: 'srv-1', viewId: 'view-int', zoneId: 'zone-int' }, 'recursion'),
+      ).toBeUndefined();
+    });
+
+    it('(b) MUST-FAIL CONTROL: with no ZONE row (inherit), resolveOption returns the VIEW value', () => {
+      const model: ConfigModel = {
+        configuration: dummyConfig,
+        views: [viewInternal],
+        zones: [zoneInternal],
+        records,
+        servers: [{ id: 'srv-1' }],
+        roles: [],
+        options: [
+          { scopeType: 'VIEW', scopeId: 'view-int', key: 'recursion', value: true },
+        ],
+      };
+
+      expect(
+        resolveOption(model, { serverId: 'srv-1', viewId: 'view-int', zoneId: 'zone-int' }, 'recursion'),
+      ).toBe(true);
+    });
+
+    it('(c) a ZONE-scope row with a value (override) returns the zone value', () => {
+      const model: ConfigModel = {
+        configuration: dummyConfig,
+        views: [viewInternal],
+        zones: [zoneInternal],
+        records,
+        servers: [{ id: 'srv-1' }],
+        roles: [],
+        options: [
+          { scopeType: 'VIEW', scopeId: 'view-int', key: 'recursion', value: true },
+          { scopeType: 'ZONE', scopeId: 'zone-int', key: 'recursion', value: false },
+        ],
+      };
+
+      expect(
+        resolveOption(model, { serverId: 'srv-1', viewId: 'view-int', zoneId: 'zone-int' }, 'recursion'),
+      ).toBe(false);
+    });
   });
 
   describe('zonesForServer', () => {

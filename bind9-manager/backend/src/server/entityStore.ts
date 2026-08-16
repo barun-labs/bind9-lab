@@ -12,8 +12,11 @@ import type {
   ListEnvelope,
   RecordType,
   SyncState,
+  OptionScope,
+  DeploymentOptionRow,
+  DeploymentRoleRow,
 } from '../../../shared/entities';
-import type { Server, ConfigModel } from '../config-engine/model';
+import type { Server, ServerRole, ConfigModel } from '../config-engine/model';
 
 export interface ZoneFilters {
   view?: string;
@@ -689,6 +692,232 @@ export function deleteServerByNode(db: Database.Database, configId: string, node
   }
 }
 
+interface DeploymentOptionDbRow {
+  id: string;
+  configurationId: string;
+  scopeType: string;
+  scopeId: string;
+  key: string;
+  value: string | null;
+  disabled: number;
+}
+
+function optionRowToModel(row: DeploymentOptionDbRow): DeploymentOptionRow {
+  return {
+    id: row.id,
+    configurationId: row.configurationId,
+    scope: row.scopeType as OptionScope,
+    scopeId: row.scopeId,
+    key: row.key,
+    value: row.value === null ? null : JSON.parse(row.value),
+    disabled: Boolean(row.disabled),
+  };
+}
+
+function getDeploymentOption(db: Database.Database, id: string): DeploymentOptionRow | null {
+  const row = db.prepare('SELECT id, configurationId, scopeType, scopeId, key, value, disabled FROM deployment_options WHERE id = ?').get(id) as DeploymentOptionDbRow | undefined;
+  if (!row) return null;
+  return optionRowToModel(row);
+}
+
+/**
+ * List deployment options for a configuration.
+ */
+export function listDeploymentOptions(db: Database.Database, configId: string): DeploymentOptionRow[] {
+  const rows = db.prepare('SELECT id, configurationId, scopeType, scopeId, key, value, disabled FROM deployment_options WHERE configurationId = ?').all(configId) as DeploymentOptionDbRow[];
+  return rows.map(optionRowToModel);
+}
+
+/**
+ * Create a deployment option for a configuration.
+ */
+export function createDeploymentOption(
+  db: Database.Database,
+  configId: string,
+  input: { scope: OptionScope; scopeId: string; key: string; value: unknown; disabled?: boolean },
+): DeploymentOptionRow {
+  const option: DeploymentOptionRow = {
+    id: 'do-' + randomBytes(6).toString('hex'),
+    configurationId: configId,
+    scope: input.scope,
+    scopeId: input.scopeId,
+    key: input.key,
+    value: input.value ?? null,
+    disabled: Boolean(input.disabled),
+  };
+  db.prepare(`
+    INSERT INTO deployment_options (id, configurationId, scopeType, scopeId, key, value, disabled)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    option.id,
+    configId,
+    option.scope,
+    option.scopeId,
+    option.key,
+    JSON.stringify(option.value),
+    option.disabled ? 1 : 0,
+  );
+  return option;
+}
+
+/**
+ * Update an existing deployment option.
+ */
+export function updateDeploymentOption(
+  db: Database.Database,
+  id: string,
+  patch: { scope?: OptionScope; scopeId?: string; key?: string; value?: unknown; disabled?: boolean },
+): DeploymentOptionRow {
+  const existing = getDeploymentOption(db, id);
+  if (!existing) {
+    throw new Error(`Deployment option ${id} not found`);
+  }
+
+  const updated: DeploymentOptionRow = {
+    ...existing,
+    scope: patch.scope ?? existing.scope,
+    scopeId: patch.scopeId ?? existing.scopeId,
+    key: patch.key ?? existing.key,
+    value: patch.value !== undefined ? patch.value : existing.value,
+    disabled: patch.disabled !== undefined ? Boolean(patch.disabled) : existing.disabled,
+  };
+
+  db.prepare(`
+    UPDATE deployment_options
+    SET scopeType = ?, scopeId = ?, key = ?, value = ?, disabled = ?
+    WHERE id = ?
+  `).run(
+    updated.scope,
+    updated.scopeId,
+    updated.key,
+    JSON.stringify(updated.value),
+    updated.disabled ? 1 : 0,
+    id,
+  );
+  return updated;
+}
+
+/**
+ * Delete a deployment option by ID.
+ */
+export function deleteDeploymentOption(db: Database.Database, id: string): { deleted: true } {
+  db.prepare('DELETE FROM deployment_options WHERE id = ?').run(id);
+  return { deleted: true };
+}
+
+interface DeploymentRoleDbRow {
+  id: string;
+  configurationId: string;
+  scopeType: string;
+  scopeId: string;
+  serverId: string;
+  role: string;
+  disabled: number;
+}
+
+function roleRowToModel(row: DeploymentRoleDbRow): DeploymentRoleRow {
+  return {
+    id: row.id,
+    configurationId: row.configurationId,
+    scope: row.scopeType as OptionScope,
+    scopeId: row.scopeId,
+    serverId: row.serverId,
+    role: row.role,
+    disabled: Boolean(row.disabled),
+  };
+}
+
+function getDeploymentRole(db: Database.Database, id: string): DeploymentRoleRow | null {
+  const row = db.prepare('SELECT id, configurationId, scopeType, scopeId, serverId, role, disabled FROM deployment_roles WHERE id = ?').get(id) as DeploymentRoleDbRow | undefined;
+  if (!row) return null;
+  return roleRowToModel(row);
+}
+
+/**
+ * List deployment roles for a configuration.
+ */
+export function listDeploymentRoles(db: Database.Database, configId: string): DeploymentRoleRow[] {
+  const rows = db.prepare('SELECT id, configurationId, scopeType, scopeId, serverId, role, disabled FROM deployment_roles WHERE configurationId = ?').all(configId) as DeploymentRoleDbRow[];
+  return rows.map(roleRowToModel);
+}
+
+/**
+ * Create a deployment role for a configuration.
+ */
+export function createDeploymentRole(
+  db: Database.Database,
+  configId: string,
+  input: { scope: OptionScope; scopeId: string; serverId: string; role: string; disabled?: boolean },
+): DeploymentRoleRow {
+  const roleRow: DeploymentRoleRow = {
+    id: 'dr-' + randomBytes(6).toString('hex'),
+    configurationId: configId,
+    scope: input.scope,
+    scopeId: input.scopeId,
+    serverId: input.serverId,
+    role: input.role,
+    disabled: Boolean(input.disabled),
+  };
+  db.prepare(`
+    INSERT INTO deployment_roles (id, configurationId, scopeType, scopeId, serverId, role, disabled)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    roleRow.id,
+    configId,
+    roleRow.scope,
+    roleRow.scopeId,
+    roleRow.serverId,
+    roleRow.role,
+    roleRow.disabled ? 1 : 0,
+  );
+  return roleRow;
+}
+
+/**
+ * Update an existing deployment role.
+ */
+export function updateDeploymentRole(
+  db: Database.Database,
+  id: string,
+  patch: { scope?: OptionScope; scopeId?: string; serverId?: string; role?: string; disabled?: boolean },
+): DeploymentRoleRow {
+  const existing = getDeploymentRole(db, id);
+  if (!existing) {
+    throw new Error(`Deployment role ${id} not found`);
+  }
+
+  const updated: DeploymentRoleRow = {
+    ...existing,
+    scope: patch.scope ?? existing.scope,
+    scopeId: patch.scopeId ?? existing.scopeId,
+    serverId: patch.serverId ?? existing.serverId,
+    role: patch.role ?? existing.role,
+    disabled: patch.disabled !== undefined ? Boolean(patch.disabled) : existing.disabled,
+  };
+
+  db.prepare(`
+    UPDATE deployment_roles
+    SET scopeType = ?, scopeId = ?, serverId = ?, role = ?, disabled = ?
+    WHERE id = ?
+  `).run(
+    updated.scope,
+    updated.scopeId,
+    updated.serverId,
+    updated.role,
+    updated.disabled ? 1 : 0,
+    id,
+  );
+  return updated;
+}
+
+/**
+ * Delete a deployment role by ID.
+ */
+export function deleteDeploymentRole(db: Database.Database, id: string): { deleted: true } {
+  db.prepare('DELETE FROM deployment_roles WHERE id = ?').run(id);
+  return { deleted: true };
+}
+
 /**
  * Assemble a ConfigModel from the entity store for a configuration.
  */
@@ -714,6 +943,22 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
   const externalHosts = listExternalHosts(db, configId);
   const acls = listAcls(db, configId);
 
+  const options = listDeploymentOptions(db, configId).map((row) => ({
+    scopeType: row.scope,
+    scopeId: row.scopeId,
+    key: row.key,
+    value: row.value,
+    disabled: row.disabled,
+  }));
+
+  const roles = listDeploymentRoles(db, configId)
+    .filter((row) => row.scope === 'ZONE')
+    .map((row) => ({
+      serverId: row.serverId,
+      zoneId: row.scopeId,
+      role: row.role as ServerRole,
+    }));
+
   return {
     configuration,
     views,
@@ -721,8 +966,8 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
     records,
     servers,
     acls,
-    roles: [],
-    options: [],
+    roles,
+    options,
     externalHosts,
   };
 }

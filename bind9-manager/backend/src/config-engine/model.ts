@@ -26,6 +26,7 @@ export interface DeploymentOption {
   scopeId: string;
   key: string;
   value: unknown;
+  disabled?: boolean;
 }
 
 export interface ConfigModel {

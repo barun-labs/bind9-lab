@@ -149,6 +149,28 @@ export function openDb(path = ':memory:'): Database.Database {
       FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS deployment_options (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      scopeType TEXT NOT NULL,
+      scopeId TEXT NOT NULL,
+      key TEXT NOT NULL,
+      value TEXT,
+      disabled INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(configurationId, scopeType, scopeId, key)
+    );
+
+    CREATE TABLE IF NOT EXISTS deployment_roles (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      scopeType TEXT NOT NULL,
+      scopeId TEXT NOT NULL,
+      serverId TEXT NOT NULL,
+      role TEXT NOT NULL,
+      disabled INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(configurationId, scopeType, scopeId, serverId)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sessions_userId ON sessions(userId);
     CREATE INDEX IF NOT EXISTS idx_api_keys_ownerUserId ON api_keys(ownerUserId);
     CREATE INDEX IF NOT EXISTS idx_views_configId ON views(configurationId);

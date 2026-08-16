@@ -39,7 +39,7 @@ export function resolveOption(
       return !configId || opt.scopeId === configId || opt.scopeId === 'CONFIGURATION' || opt.scopeId === 'global' || !opt.scopeId;
     });
     if (found !== undefined) {
-      return found.value;
+      return found.disabled ? undefined : found.value;
     }
   }
 
