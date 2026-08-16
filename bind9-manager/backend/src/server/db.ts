@@ -138,6 +138,13 @@ export function openDb(path = ':memory:'): Database.Database {
       FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS blocks (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS tsig_keys (
       id TEXT PRIMARY KEY,
       configurationId TEXT NOT NULL,
@@ -203,6 +210,7 @@ export function openDb(path = ':memory:'): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_labs_configId ON labs(configurationId);
     CREATE INDEX IF NOT EXISTS idx_acls_configId ON acls(configurationId);
     CREATE INDEX IF NOT EXISTS idx_server_groups_configId ON server_groups(configurationId);
+    CREATE INDEX IF NOT EXISTS idx_blocks_configId ON blocks(configurationId);
     CREATE INDEX IF NOT EXISTS idx_tsig_keys_configId ON tsig_keys(configurationId);
     CREATE INDEX IF NOT EXISTS idx_record_templates_configId ON record_templates(configurationId);
     CREATE INDEX IF NOT EXISTS idx_changeset_deploy_jobs_configId ON changeset_deploy_jobs(configurationId);

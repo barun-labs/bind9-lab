@@ -42,6 +42,16 @@ export interface Acl { id: string; configurationId: string; name: string; entrie
 export type TsigAlgorithm = 'hmac-sha256' | 'hmac-sha512' | 'hmac-sha384' | 'hmac-sha224' | 'hmac-sha1' | 'hmac-md5';
 export interface TsigKey { id: string; configurationId: string; name: string; algorithm: TsigAlgorithm; secret?: string; usedByCount: number; }
 export interface ServerGroup { id: string; configurationId: string; name: string; description?: string; memberCount: number; }
+export type BlockKind = 'BLOCK' | 'NETWORK';
+export interface Block {
+  id: string;
+  configurationId: string;
+  name: string;
+  cidr: string;               // IPv4 CIDR, e.g. '10.20.1.0/24'
+  parentBlockId: string | null;
+  kind: BlockKind;
+  viewId?: string;            // NETWORK only: view its reverse zones live in
+}
 export interface RecordTemplateEntry {
   name: string;            // relative record label as it will be stored on the record, e.g. '@', 'www', 'mail'
   type: RecordType;

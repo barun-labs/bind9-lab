@@ -99,6 +99,15 @@ import {
   setLabLifecycle,
   markLabServersAbsent,
 } from './labStore';
+import {
+  listBlocks,
+  getBlock,
+  createBlock,
+  updateBlock,
+  deleteBlock,
+  validateBlockHierarchy,
+} from './blockStore';
+import { parseCidr } from './ipv4';
 import { parseInspect, destroy } from './deployEngine';
 import { snapshot } from './telemetry';
 import { statisticsSnapshot } from './statistics';
@@ -1580,6 +1589,109 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     }
     const result = evaluateAcl(listAcls(db, configId), target, clientIp);
     return reply.status(200).send(result);
+  });
+
+  // --- NETWORK BLOCKS ROUTES (IPAM #57) ---
+
+  app.get('/api/v1/configurations/:configId/blocks', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    if (!getConfiguration(db, configId)) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    return reply.status(200).send(listBlocks(db, configId));
+  });
+
+  app.get('/api/v1/configurations/:configId/blocks/:blockId', async (req, reply) => {
+    const { configId, blockId } = req.params as { configId: string; blockId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const block = getBlock(db, blockId);
+    if (!block || block.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Block not found' } });
+    }
+    return reply.status(200).send(block);
+  });
+
+  app.post('/api/v1/configurations/:configId/blocks', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    if (!getConfiguration(db, configId)) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (!name || name.length > 128) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be 1-128 chars' } });
+    }
+    if (typeof body.cidr !== 'string' || !parseCidr(body.cidr)) {
+      return reply.status(422).send({ error: { code: 'INVALID_CIDR', message: 'cidr must be a valid IPv4 CIDR' } });
+    }
+    if (body.kind !== 'BLOCK' && body.kind !== 'NETWORK') {
+      return reply.status(422).send({ error: { code: 'INVALID_KIND', message: "kind must be 'BLOCK' or 'NETWORK'" } });
+    }
+    const parentBlockId = typeof body.parentBlockId === 'string' ? body.parentBlockId : null;
+    if (body.kind === 'NETWORK') {
+      if (typeof body.viewId !== 'string' || !getView(db, body.viewId) || getView(db, body.viewId)!.configurationId !== configId) {
+        return reply.status(422).send({ error: { code: 'INVALID_VIEW', message: 'NETWORK requires a viewId in this configuration' } });
+      }
+    }
+    const hierarchy = validateBlockHierarchy(db, configId, { cidr: body.cidr, kind: body.kind, parentBlockId });
+    if (!hierarchy.ok) {
+      return reply.status(422).send({ error: { code: hierarchy.code, message: 'Block violates the hierarchy rules' } });
+    }
+    const block = createBlock(db, configId, { name, cidr: body.cidr, kind: body.kind, parentBlockId, viewId: body.kind === 'NETWORK' ? body.viewId : undefined });
+    return reply.status(201).send(block);
+  });
+
+  app.patch('/api/v1/configurations/:configId/blocks/:blockId', async (req, reply) => {
+    const { configId, blockId } = req.params as { configId: string; blockId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getBlock(db, blockId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Block not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const patch: { name?: string; cidr?: string; parentBlockId?: string | null; viewId?: string } = {};
+    if (body.name !== undefined) {
+      const name = typeof body.name === 'string' ? body.name.trim() : '';
+      if (!name || name.length > 128) return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be 1-128 chars' } });
+      patch.name = name;
+    }
+    if (body.cidr !== undefined) {
+      if (typeof body.cidr !== 'string' || !parseCidr(body.cidr)) return reply.status(422).send({ error: { code: 'INVALID_CIDR', message: 'cidr must be a valid IPv4 CIDR' } });
+      patch.cidr = body.cidr;
+    }
+    if (body.parentBlockId !== undefined) patch.parentBlockId = typeof body.parentBlockId === 'string' ? body.parentBlockId : null;
+    if (body.viewId !== undefined) patch.viewId = body.viewId;
+    const next = { id: existing.id, cidr: patch.cidr ?? existing.cidr, kind: existing.kind, parentBlockId: patch.parentBlockId !== undefined ? patch.parentBlockId : existing.parentBlockId };
+    const hierarchy = validateBlockHierarchy(db, configId, next);
+    if (!hierarchy.ok) return reply.status(422).send({ error: { code: hierarchy.code, message: 'Block violates the hierarchy rules' } });
+    const updated = updateBlock(db, blockId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  app.delete('/api/v1/configurations/:configId/blocks/:blockId', async (req, reply) => {
+    const { configId, blockId } = req.params as { configId: string; blockId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getBlock(db, blockId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Block not found' } });
+    }
+    const hasChildren = listBlocks(db, configId).some((b) => b.parentBlockId === blockId);
+    if (hasChildren) {
+      return reply.status(422).send({ error: { code: 'HAS_CHILDREN', message: 'Delete or reparent child blocks first' } });
+    }
+    return reply.status(200).send(deleteBlock(db, blockId));
   });
 
   // --- DEPLOYMENT OPTIONS ROUTES (IA-4) ---
