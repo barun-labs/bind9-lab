@@ -9,7 +9,7 @@ import { Sidebar } from '../Sidebar/Sidebar';
 import { ThemeSwitcher } from '../../theme/ThemeSwitcher';
 import { useStore, useApi } from '../../data/store';
 import { useAuth } from '../../auth/AuthProvider';
-import type { Configuration } from '../../types/entities';
+import type { Configuration, View, Zone } from '../../types/entities';
 
 export function Chrome() {
   const { configId, zoneId, viewId, blockId, groupId, aclId, snapshotId, policyId } = useParams();
@@ -41,7 +41,34 @@ export function Chrome() {
   // if that becomes annoying.
   const currentConfig = configs.find((c) => c.id === currentConfigId) ?? configs[0];
 
-  const views = store.views.filter((v) => v.configurationId === currentConfigId);
+  const [views, setViews] = useState<View[]>(
+    store.views.filter((v) => v.configurationId === currentConfigId)
+  );
+  const [zones, setZones] = useState<Zone[]>(store.zones);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listViews(currentConfigId)
+      .then((v) => {
+        if (!cancelled) setViews(v);
+      })
+      .catch(() => {
+        // keep the seeded list on failure
+      });
+    api
+      .listZones(currentConfigId)
+      .then((res) => {
+        if (!cancelled) setZones(res.data);
+      })
+      .catch(() => {
+        // keep the seeded list on failure
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, currentConfigId]);
+  // ponytail: one-shot fetch per config; no live-refresh after an inline view/zone create until the
+  // next config switch or reload — acceptable, matches the configs behavior in this file.
   const currentView = views.find((v) => v.id === viewId) ?? views[0];
   const currentViewId = currentView?.id ?? 'internal';
 
@@ -67,7 +94,7 @@ export function Chrome() {
     breadcrumbs = [{ label: 'Settings' }, { label: 'API Keys' }];
   } else if (pathname.includes('/views/') && viewId && zoneId && pathname.endsWith('/records')) {
     const view = views.find((v) => v.id === viewId);
-    const zone = store.zones.find((z) => z.id === zoneId);
+    const zone = zones.find((z) => z.id === zoneId);
     breadcrumbs = [
       { label: 'DNS Views', href: `/config/${currentConfigId}/views` },
       { label: view?.name ?? viewId, href: `/config/${currentConfigId}/views/${viewId}/zones` },
