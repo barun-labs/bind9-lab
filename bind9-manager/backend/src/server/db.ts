@@ -221,6 +221,15 @@ export function openDb(path = ':memory:'): Database.Database {
       UNIQUE(configurationId, scopeType, scopeId, serverId)
     );
 
+    CREATE TABLE IF NOT EXISTS snapshots (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      label TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sessions_userId ON sessions(userId);
     CREATE INDEX IF NOT EXISTS idx_api_keys_ownerUserId ON api_keys(ownerUserId);
     CREATE INDEX IF NOT EXISTS idx_views_configId ON views(configurationId);
@@ -238,6 +247,7 @@ export function openDb(path = ':memory:'): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_tsig_keys_configId ON tsig_keys(configurationId);
     CREATE INDEX IF NOT EXISTS idx_record_templates_configId ON record_templates(configurationId);
     CREATE INDEX IF NOT EXISTS idx_changeset_deploy_jobs_configId ON changeset_deploy_jobs(configurationId);
+    CREATE INDEX IF NOT EXISTS idx_snapshots_configId ON snapshots(configurationId);
   `);
 
   const adminCheck = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');

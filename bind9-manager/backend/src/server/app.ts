@@ -159,6 +159,13 @@ import {
   createDeployJob,
   getDeployJob as getChangeSetDeployJob,
 } from './changeSetStore';
+import {
+  captureSnapshot,
+  listSnapshots,
+  getSnapshotMeta,
+  restoreSnapshot,
+  deleteSnapshot,
+} from './snapshotStore';
 import { runChangeSetDeploy, runPreflight } from './changeSetDeploy';
 import { registerFrontendStatic } from './static';
 
@@ -2167,6 +2174,92 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Zone not found' } });
     }
     return reply.status(200).send(effectiveZoneRoles(buildConfigModel(db, configId), zone.viewId, zoneId));
+  });
+
+  // --- SNAPSHOTS ROUTES (PLANE #59) ---
+
+  // POST /api/v1/configurations/:configId/snapshots - Capture a snapshot (requires edit)
+  app.post('/api/v1/configurations/:configId/snapshots', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const label = typeof body.label === 'string' ? body.label : '';
+    const source = body.source === 'BASELINE' ? 'BASELINE' : 'CURRENT';
+    const snapshot = captureSnapshot(db, configId, { label, source });
+    return reply.status(201).send(snapshot);
+  });
+
+  // POST /api/v1/configurations/:configId/snapshots/adopt - Adopt the last-deployed baseline (requires edit)
+  app.post('/api/v1/configurations/:configId/snapshots/adopt', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const snapshot = captureSnapshot(db, configId, { label: 'adopted from last deploy', source: 'BASELINE' });
+    return reply.status(201).send(snapshot);
+  });
+
+  // GET /api/v1/configurations/:configId/snapshots - List snapshots (requires view)
+  app.get('/api/v1/configurations/:configId/snapshots', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    return reply.status(200).send(listSnapshots(db, configId));
+  });
+
+  // GET /api/v1/configurations/:configId/snapshots/:id - Snapshot metadata (requires view, scope-checked)
+  app.get('/api/v1/configurations/:configId/snapshots/:id', async (req, reply) => {
+    const { configId, id } = req.params as { configId: string; id: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const meta = getSnapshotMeta(db, id);
+    if (!meta || meta.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Snapshot not found' } });
+    }
+    return reply.status(200).send(meta);
+  });
+
+  // POST /api/v1/configurations/:configId/snapshots/:id/restore - Restore a snapshot (requires edit, scope-checked)
+  app.post('/api/v1/configurations/:configId/snapshots/:id/restore', async (req, reply) => {
+    const { configId, id } = req.params as { configId: string; id: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const meta = getSnapshotMeta(db, id);
+    if (!meta || meta.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Snapshot not found' } });
+    }
+    const result = restoreSnapshot(db, id);
+    if (!result) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Snapshot not found' } });
+    }
+    return reply.status(200).send(result);
+  });
+
+  // DELETE /api/v1/configurations/:configId/snapshots/:id - Delete a snapshot (requires edit, scope-checked)
+  app.delete('/api/v1/configurations/:configId/snapshots/:id', async (req, reply) => {
+    const { configId, id } = req.params as { configId: string; id: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const meta = getSnapshotMeta(db, id);
+    if (!meta || meta.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Snapshot not found' } });
+    }
+    deleteSnapshot(db, id);
+    return reply.status(200).send({ deleted: true });
   });
 
   // --- CHANGE-SET REVIEW & DEPLOY ROUTES ---

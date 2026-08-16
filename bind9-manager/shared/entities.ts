@@ -136,3 +136,15 @@ export interface ChangeSetDeployJob {
   warningAck?: boolean;
   createdAt: string;
 }
+
+// Metadata shape returned by the snapshots API. The captured rows blob (which
+// contains secrets) never leaves the store; only per-table row counts are
+// exposed here.
+export interface Snapshot {
+  id: string;                 // `snap-`+randomBytes(6).hex
+  configurationId: string;
+  label: string;
+  createdAt: string;
+  source: 'CURRENT' | 'BASELINE';
+  counts: Record<string, number>;
+}
