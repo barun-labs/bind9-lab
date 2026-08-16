@@ -171,10 +171,12 @@ export function Labs() {
         width: '150px',
         render: (lab) => {
           const st = lab.lifecycleState ?? 'NEVER_DEPLOYED';
+          // ponytail: a DEPLOYED lab is labeled Running without a live
+          // container health check; true health would need per-lab telemetry polling — future.
           const map: Record<string, { state: string; label: string }> = {
             NEVER_DEPLOYED: { state: 'pending', label: 'Not deployed' },
-            DEPLOYED: { state: 'synced', label: 'Deployed' },
-            DESTROYED: { state: 'error', label: 'Destroyed' },
+            DEPLOYED: { state: 'synced', label: 'Running' },
+            DESTROYED: { state: 'pending', label: 'Not deployed' },
           };
           const m = map[st] ?? map.NEVER_DEPLOYED;
           return <StatusPill state={m.state} label={m.label} />;

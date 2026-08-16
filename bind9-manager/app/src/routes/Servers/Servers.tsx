@@ -36,6 +36,7 @@ export function Servers() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [telemetryServer, setTelemetryServer] = useState<Server | null>(null);
+  const [editingServer, setEditingServer] = useState<Server | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -76,16 +77,29 @@ export function Servers() {
   };
 
   const handleOpenModal = () => {
+    setEditingServer(null);
     resetServerForm();
     setIsModalOpen(true);
   };
 
+  const handleOpenEdit = useCallback((server: Server) => {
+    setEditingServer(server);
+    setHostname(server.hostname);
+    setMgmtAddress(server.mgmtAddress ?? '');
+    setServiceAddress(server.serviceAddress ?? '');
+    setNodeName(server.nodeName ?? '');
+    setImage(server.image ?? '');
+    setModalError(null);
+    setIsModalOpen(true);
+  }, []);
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setEditingServer(null);
     resetServerForm();
   };
 
-  const handleCreateServer = async (e?: FormEvent) => {
+  const handleSubmitServer = async (e?: FormEvent) => {
     if (e) e.preventDefault();
     const trimmedHostname = hostname.trim();
     if (!trimmedHostname || isSubmitting) return;
@@ -94,22 +108,32 @@ export function Servers() {
     setModalError(null);
 
     try {
-      const input: CreateServerInput = {
-        hostname: trimmedHostname,
-        adminState,
-        ...(mgmtAddress.trim() ? { mgmtAddress: mgmtAddress.trim() } : {}),
-        ...(nodeName.trim() ? { nodeName: nodeName.trim() } : {}),
-        ...(image.trim() ? { image: image.trim() } : {}),
-        ...(serviceAddress.trim()
-          ? { serviceInterfaces: [{ address: serviceAddress.trim(), port: 53 }] }
-          : {}),
-      };
-      await api.createServer(configId, input);
+      if (editingServer) {
+        await api.updateServer(configId, editingServer.id, {
+          hostname: trimmedHostname,
+          mgmtAddress: mgmtAddress.trim() || undefined,
+          nodeName: nodeName.trim() || undefined,
+          image: image.trim() || undefined,
+        });
+      } else {
+        const input: CreateServerInput = {
+          hostname: trimmedHostname,
+          adminState,
+          ...(mgmtAddress.trim() ? { mgmtAddress: mgmtAddress.trim() } : {}),
+          ...(nodeName.trim() ? { nodeName: nodeName.trim() } : {}),
+          ...(image.trim() ? { image: image.trim() } : {}),
+          ...(serviceAddress.trim()
+            ? { serviceInterfaces: [{ address: serviceAddress.trim(), port: 53 }] }
+            : {}),
+        };
+        await api.createServer(configId, input);
+      }
       setIsModalOpen(false);
+      setEditingServer(null);
       resetServerForm();
       await loadServers();
     } catch (err: any) {
-      setModalError(err?.message || 'Failed to create server');
+      setModalError(err?.message || 'Failed to save server');
     } finally {
       setIsSubmitting(false);
     }
@@ -176,23 +200,32 @@ export function Servers() {
       cols.push({
         key: 'actions',
         header: '',
-        width: '90px',
+        width: '150px',
         align: 'right',
         render: (s) => (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => handleDeleteServer(s)}
-            aria-label={`Delete server ${s.hostname}`}
-          >
-            Delete
-          </Button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+            <Button
+              size="sm"
+              onClick={() => handleOpenEdit(s)}
+              aria-label={`Edit server ${s.hostname}`}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => handleDeleteServer(s)}
+              aria-label={`Delete server ${s.hostname}`}
+            >
+              Delete
+            </Button>
+          </div>
         ),
       });
     }
 
     return cols;
-  }, [canEdit, handleDeleteServer]);
+  }, [canEdit, handleDeleteServer, handleOpenEdit]);
 
   return (
     <div
@@ -269,7 +302,7 @@ export function Servers() {
       <Modal
         open={isModalOpen}
         onClose={handleCloseModal}
-        title="Add Server"
+        title={editingServer ? 'Edit Server' : 'Add Server'}
         actions={
           <>
             <Button variant="secondary" onClick={handleCloseModal}>
@@ -277,16 +310,16 @@ export function Servers() {
             </Button>
             <Button
               variant="primary"
-              onClick={() => handleCreateServer()}
+              onClick={() => handleSubmitServer()}
               disabled={!hostname.trim() || isSubmitting}
               loading={isSubmitting}
             >
-              Create Server
+              {editingServer ? 'Save' : 'Add'}
             </Button>
           </>
         }
       >
-        <form onSubmit={handleCreateServer} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <form onSubmit={handleSubmitServer} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {modalError && <InlineAlert tone="error">{modalError}</InlineAlert>}
           <div className="field">
             <label htmlFor="server-hostname">Hostname</label>

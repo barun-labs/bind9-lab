@@ -2020,6 +2020,27 @@ export async function createServer(
   return server as Server;
 }
 
+export type UpdateServerPatch = Partial<
+  Pick<Server, 'hostname' | 'name' | 'mgmtAddress' | 'nodeName' | 'image'>
+>;
+
+export async function updateServer(
+  store: StoreData,
+  configId: string,
+  serverId: string,
+  patch: UpdateServerPatch
+): Promise<Server> {
+  if (isApiEnabled()) {
+    return apiFetch<Server>(`/api/v1/configurations/${configId}/servers/${serverId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+  const idx = store.servers.findIndex((s) => s.id === serverId);
+  if (idx >= 0) store.servers[idx] = { ...store.servers[idx], ...patch };
+  return store.servers[idx];
+}
+
 export async function deleteServer(
   store: StoreData,
   configId: string,

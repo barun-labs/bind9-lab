@@ -381,6 +381,37 @@ export function Sidebar({
             </span>
           )}
         </a>
+        <a
+          href="/api-docs"
+          target="_blank"
+          rel="noreferrer"
+          title={isExpanded ? undefined : 'API Docs'}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '9px 16px',
+            margin: '0 8px',
+            color: 'var(--color-text)',
+            fontSize: '13px',
+            fontWeight: 500,
+            textDecoration: 'none',
+          }}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }} aria-hidden="true">
+            <path d="M8 6l-5 6 5 6" />
+            <path d="M16 6l5 6-5 6" />
+          </svg>
+          {isExpanded && (
+            <span style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              API Docs
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none', opacity: 0.6 }} aria-hidden="true">
+                <path d="M7 17L17 7" />
+                <path d="M7 7h10v10" />
+              </svg>
+            </span>
+          )}
+        </a>
       </nav>
 
       <button

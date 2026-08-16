@@ -130,8 +130,8 @@ topology:
     renderLabs({ labs: [deployedLab, destroyedLab] });
 
     expect(await screen.findByText('deployed-lab')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Deployed' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Destroyed' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Running' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Not deployed' })).toBeInTheDocument();
   });
 
   test('delete a lab removes it from the table', async () => {

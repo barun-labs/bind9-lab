@@ -36,11 +36,18 @@ vi.mock('../../data/apiAdapter', async (importOriginal) => {
       hostname: 'bind-c',
       syncState: 'PENDING',
     })),
+    updateServer: vi.fn(async (_store, _configId, serverId, patch) => ({
+      id: serverId,
+      configurationId: 'dns-lab',
+      hostname: patch.hostname ?? 'bind-a',
+      syncState: 'SYNCED',
+    })),
     deleteServer: vi.fn(async () => ({ deleted: true })),
   };
 });
 
 const createServerMock = vi.mocked(apiAdapter.createServer);
+const updateServerMock = vi.mocked(apiAdapter.updateServer);
 const deleteServerMock = vi.mocked(apiAdapter.deleteServer);
 
 function renderServers(userToLogin?: User) {
@@ -97,12 +104,29 @@ describe('Servers', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Add Server' }));
 
     fireEvent.change(screen.getByLabelText('Hostname'), { target: { value: 'bind-c' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Create Server' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
     expect(createServerMock).toHaveBeenCalledWith(
       expect.any(Object),
       'dns-lab',
       expect.objectContaining({ hostname: 'bind-c' })
+    );
+  });
+
+  test('editing a server submits updateServer with the patched fields', async () => {
+    renderServers();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit server bind-a' }));
+
+    const hostnameInput = screen.getByLabelText('Hostname');
+    fireEvent.change(hostnameInput, { target: { value: 'bind-a-2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(updateServerMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      'dns-lab',
+      'srv-1',
+      expect.objectContaining({ hostname: 'bind-a-2' })
     );
   });
 
