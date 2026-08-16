@@ -10,7 +10,7 @@ import { useStore } from '../../data/store';
 import { useAuth } from '../../auth/AuthProvider';
 
 export function Chrome() {
-  const { configId, zoneId, viewId, serverId, blockId, groupId, aclId, snapshotId } = useParams();
+  const { configId, zoneId, viewId, serverId, blockId, groupId, aclId, snapshotId, policyId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -204,6 +204,11 @@ export function Chrome() {
       { label: 'Configuration', href: '/configurations' },
       { label: currentConfig?.name ?? currentConfigId },
       { label: 'Query Tool' },
+    ];
+  } else if (pathname.includes('/rpz/') && policyId) {
+    breadcrumbs = [
+      { label: 'RPZ', href: `/config/${currentConfigId}/rpz` },
+      { label: policyId, isMono: true },
     ];
   } else if (pathname.endsWith('/rpz')) {
     breadcrumbs = [

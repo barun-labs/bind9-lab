@@ -32,6 +32,10 @@ import type {
   BlockKind,
   RecordTemplate,
   RecordTemplateEntry,
+  RpzTrigger,
+  RpzAction,
+  RpzPolicy,
+  RpzRule,
   ChangeSetResponse,
   DiffLine,
   DeployPreflight,
@@ -618,6 +622,185 @@ export async function deleteServerGroup(
 
   const index = store.serverGroups.findIndex((g) => g.id === groupId && g.configurationId === configId);
   if (index >= 0) store.serverGroups.splice(index, 1);
+  return { deleted: true };
+}
+
+export interface CreateRpzPolicyInput {
+  name: string;
+  viewId: string;
+  defaultPolicy?: RpzAction;
+  order?: number;
+}
+
+export async function listRpzPolicies(store: StoreData, configId: string): Promise<RpzPolicy[]> {
+  if (isApiEnabled()) {
+    return apiFetch<RpzPolicy[]>(`/api/v1/configurations/${configId}/rpz-policies`);
+  }
+
+  return (store.rpzPolicies ?? [])
+    .filter((p) => p.configurationId === configId)
+    .sort((a, b) => a.order - b.order);
+}
+
+export async function getRpzPolicy(
+  store: StoreData,
+  configId: string,
+  policyId: string
+): Promise<RpzPolicy | null> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<RpzPolicy>(`/api/v1/configurations/${configId}/rpz-policies/${policyId}`);
+    } catch (err: any) {
+      if (err?.status === 404) return null;
+      throw err;
+    }
+  }
+
+  return (store.rpzPolicies ?? []).find((p) => p.id === policyId && p.configurationId === configId) ?? null;
+}
+
+export async function createRpzPolicy(
+  store: StoreData,
+  configId: string,
+  input: CreateRpzPolicyInput
+): Promise<RpzPolicy> {
+  if (isApiEnabled()) {
+    return apiFetch<RpzPolicy>(`/api/v1/configurations/${configId}/rpz-policies`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const policy: RpzPolicy = {
+    id: 'rpz-' + Math.random().toString(16).slice(2, 10),
+    configurationId: configId,
+    viewId: input.viewId,
+    name: input.name,
+    order: input.order ?? (store.rpzPolicies ?? []).filter((p) => p.configurationId === configId).length,
+    defaultPolicy: input.defaultPolicy,
+  };
+  if (!store.rpzPolicies) store.rpzPolicies = [];
+  store.rpzPolicies.push(policy);
+  return policy;
+}
+
+// ponytail: no updateRpzPolicy — mirrors updateRecordTemplate, which the
+// backend also exposes but no screen edits a policy's name/view/default
+// after creation today. Add when a screen needs it.
+export async function deleteRpzPolicy(
+  store: StoreData,
+  configId: string,
+  policyId: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: boolean }>(`/api/v1/configurations/${configId}/rpz-policies/${policyId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  const arr = store.rpzPolicies ?? [];
+  const index = arr.findIndex((p) => p.id === policyId && p.configurationId === configId);
+  if (index >= 0) arr.splice(index, 1);
+  return { deleted: true };
+}
+
+export interface CreateRpzRuleInput {
+  trigger: RpzTrigger;
+  value: string;
+  action: RpzAction;
+  cname?: string;
+  order?: number;
+}
+
+export interface UpdateRpzRulePatch {
+  trigger?: RpzTrigger;
+  value?: string;
+  action?: RpzAction;
+  cname?: string;
+  order?: number;
+}
+
+export async function listRpzRules(
+  store: StoreData,
+  configId: string,
+  policyId: string
+): Promise<RpzRule[]> {
+  if (isApiEnabled()) {
+    return apiFetch<RpzRule[]>(`/api/v1/configurations/${configId}/rpz-policies/${policyId}/rules`);
+  }
+
+  return (store.rpzRules ?? [])
+    .filter((r) => r.policyId === policyId)
+    .sort((a, b) => a.order - b.order);
+}
+
+export async function createRpzRule(
+  store: StoreData,
+  configId: string,
+  policyId: string,
+  input: CreateRpzRuleInput
+): Promise<RpzRule> {
+  if (isApiEnabled()) {
+    return apiFetch<RpzRule>(`/api/v1/configurations/${configId}/rpz-policies/${policyId}/rules`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const rule: RpzRule = {
+    id: 'rpzr-' + Math.random().toString(16).slice(2, 10),
+    policyId,
+    trigger: input.trigger,
+    value: input.value,
+    action: input.action,
+    cname: input.action === 'CNAME' ? input.cname : undefined,
+    order: input.order ?? (store.rpzRules ?? []).filter((r) => r.policyId === policyId).length,
+  };
+  if (!store.rpzRules) store.rpzRules = [];
+  store.rpzRules.push(rule);
+  return rule;
+}
+
+export async function updateRpzRule(
+  store: StoreData,
+  configId: string,
+  ruleId: string,
+  patch: UpdateRpzRulePatch
+): Promise<RpzRule> {
+  if (isApiEnabled()) {
+    return apiFetch<RpzRule>(`/api/v1/configurations/${configId}/rpz-rules/${ruleId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  const rule = (store.rpzRules ?? []).find((r) => r.id === ruleId);
+  if (!rule) {
+    throw new Error(`Rpz rule ${ruleId} not found`);
+  }
+  if (patch.trigger !== undefined) rule.trigger = patch.trigger;
+  if (patch.value !== undefined) rule.value = patch.value;
+  if (patch.action !== undefined) rule.action = patch.action;
+  if (patch.cname !== undefined) rule.cname = patch.cname;
+  if (rule.action !== 'CNAME') rule.cname = undefined;
+  if (patch.order !== undefined) rule.order = patch.order;
+  return rule;
+}
+
+export async function deleteRpzRule(
+  store: StoreData,
+  configId: string,
+  ruleId: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: boolean }>(`/api/v1/configurations/${configId}/rpz-rules/${ruleId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  const arr = store.rpzRules ?? [];
+  const index = arr.findIndex((r) => r.id === ruleId);
+  if (index >= 0) arr.splice(index, 1);
   return { deleted: true };
 }
 

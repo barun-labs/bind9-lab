@@ -15,6 +15,8 @@ import type {
   ServerGroup,
   Block,
   RecordTemplate,
+  RpzPolicy,
+  RpzRule,
 } from '../types/entities';
 import { seedUsers } from './users.seed';
 import fixtures from '../../public/fixtures.json';
@@ -75,6 +77,8 @@ export interface StoreData {
   tsigKeys: TsigKey[];
   serverGroups: ServerGroup[];
   recordTemplates: RecordTemplate[];
+  rpzPolicies: RpzPolicy[];
+  rpzRules: RpzRule[];
   zones: Zone[];
   records: ResourceRecord[];
   externalHosts: ExternalHost[];
@@ -101,6 +105,8 @@ export function makeStore(initialData?: Partial<StoreData>): StoreData {
     tsigKeys: cloned.tsigKeys ?? [],
     serverGroups: cloned.serverGroups ?? [],
     recordTemplates: cloned.recordTemplates ?? [],
+    rpzPolicies: cloned.rpzPolicies ?? [],
+    rpzRules: cloned.rpzRules ?? [],
     zones: cloned.zones ?? [],
     records: cloned.records ?? [],
     externalHosts: cloned.externalHosts ?? [],
@@ -173,6 +179,14 @@ export function useApi() {
       getRecordTemplate: (configId: string, templateId: string) => api.getRecordTemplate(store, configId, templateId),
       createRecordTemplate: (configId: string, input: api.CreateRecordTemplateInput) => api.createRecordTemplate(store, configId, input),
       deleteRecordTemplate: (configId: string, templateId: string) => api.deleteRecordTemplate(store, configId, templateId),
+      listRpzPolicies: (configId: string) => api.listRpzPolicies(store, configId),
+      getRpzPolicy: (configId: string, policyId: string) => api.getRpzPolicy(store, configId, policyId),
+      createRpzPolicy: (configId: string, input: api.CreateRpzPolicyInput) => api.createRpzPolicy(store, configId, input),
+      deleteRpzPolicy: (configId: string, policyId: string) => api.deleteRpzPolicy(store, configId, policyId),
+      listRpzRules: (configId: string, policyId: string) => api.listRpzRules(store, configId, policyId),
+      createRpzRule: (configId: string, policyId: string, input: api.CreateRpzRuleInput) => api.createRpzRule(store, configId, policyId, input),
+      updateRpzRule: (configId: string, ruleId: string, patch: api.UpdateRpzRulePatch) => api.updateRpzRule(store, configId, ruleId, patch),
+      deleteRpzRule: (configId: string, ruleId: string) => api.deleteRpzRule(store, configId, ruleId),
       listZones: (configId: string, filters?: api.ZoneFilters) => api.listZones(store, configId, filters),
       getZone: (zoneId: string) => api.getZone(store, zoneId),
       listRecords: (zoneId: string, filters?: api.RecordFilters) => api.listRecords(store, zoneId, filters),

@@ -238,6 +238,10 @@ export type BlockKind = 'BLOCK'|'NETWORK';
 export interface Block { id: string; configurationId: string; name: string; cidr: string; parentBlockId: string | null; kind: BlockKind; viewId?: string; }
 export interface RecordTemplateEntry { name: string; type: RecordType; ttl?: number; rdata: Record<string, unknown>; disabled?: boolean; }
 export interface RecordTemplate { id: string; configurationId: string; name: string; description?: string; entries: RecordTemplateEntry[]; }
+export type RpzTrigger = 'QNAME'|'CLIENT_IP'|'IP';
+export type RpzAction = 'NXDOMAIN'|'NODATA'|'PASSTHRU'|'DROP'|'TCP_ONLY'|'CNAME';
+export interface RpzPolicy { id: string; configurationId: string; viewId: string; name: string; order: number; defaultPolicy?: RpzAction; }
+export interface RpzRule { id: string; policyId: string; trigger: RpzTrigger; value: string; action: RpzAction; cname?: string; order: number; }
 
 export type ChangeSetItemAction = 'CREATE'|'UPDATE'|'DELETE'|'DISABLE'|'ENABLE';
 export type ChangeSetObjectType = 'VIEW'|'ZONE'|'RECORD'|'ACL'|'SERVER';

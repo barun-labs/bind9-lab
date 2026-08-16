@@ -40,6 +40,8 @@ import { Blocks } from './routes/Blocks/Blocks';
 import { BlockDetail } from './routes/Blocks/BlockDetail';
 import { RecordTemplates } from './routes/RecordTemplates/RecordTemplates';
 import { RecordTemplateDetail } from './routes/RecordTemplates/RecordTemplateDetail';
+import { RpzPolicies } from './routes/Rpz/RpzPolicies';
+import { RpzPolicyDetail } from './routes/Rpz/RpzPolicyDetail';
 import { ReviewDeploy } from './routes/ReviewDeploy/ReviewDeploy';
 import { RequireAuth } from './auth/RequireAuth';
 
@@ -217,12 +219,11 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/rpz',
-        element: (
-          <Placeholder
-            title="RPZ"
-            description="Response Policy Zones for DNS filtering and policy enforcement."
-          />
-        ),
+        element: <RpzPolicies />,
+      },
+      {
+        path: 'config/:configId/rpz/:policyId',
+        element: <RpzPolicyDetail />,
       },
       {
         path: 'config/:configId/config-review',
