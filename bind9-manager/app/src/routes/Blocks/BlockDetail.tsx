@@ -7,11 +7,42 @@ import { DataTable, type DataTableColumn } from '../../components/DataTable/Data
 import { InlineAlert } from '../../components/InlineAlert/InlineAlert';
 import { Button } from '../../components/Button/Button';
 import { Input } from '../../components/Input/Input';
+import { Select } from '../../components/Select/Select';
+import { StatusPill } from '../../components/StatusPill/StatusPill';
+import type { BlockAddress, BlockAddressPage } from '../../data/apiAdapter';
 
 const childColumns: DataTableColumn<Block>[] = [
   { key: 'name', header: 'Name', render: (b) => b.name },
   { key: 'cidr', header: 'CIDR', render: (b) => <span style={{ fontFamily: 'var(--font-mono)' }}>{b.cidr}</span> },
   { key: 'kind', header: 'Kind', render: (b) => b.kind },
+];
+
+const PAGE_SIZES = [256, 512, 1024, 2048, 4096, 8192];
+
+function statusPillState(status: BlockAddress['status']): { state: string; label: string } {
+  switch (status) {
+    case 'allocated':
+      return { state: 'synced', label: 'allocated' };
+    case 'network':
+      return { state: 'disabled', label: 'network' };
+    case 'broadcast':
+      return { state: 'disabled', label: 'broadcast' };
+    default:
+      return { state: 'free', label: 'free' };
+  }
+}
+
+const addressColumns: DataTableColumn<BlockAddress>[] = [
+  { key: 'ip', header: 'IP', render: (a) => <span style={{ fontFamily: 'var(--font-mono)' }}>{a.ip}</span> },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (a) => {
+      const { state, label } = statusPillState(a.status);
+      return <StatusPill state={state} label={label} />;
+    },
+  },
+  { key: 'record', header: 'Record', render: (a) => a.recordName ?? '—' },
 ];
 
 export function BlockDetail() {
@@ -34,6 +65,12 @@ export function BlockDetail() {
   const [reconciling, setReconciling] = useState<boolean>(false);
   const [reconcileMessage, setReconcileMessage] = useState<string | null>(null);
   const [reconcileError, setReconcileError] = useState<string | null>(null);
+
+  const [addressPage, setAddressPage] = useState<BlockAddressPage | null>(null);
+  const [addressOffset, setAddressOffset] = useState<number>(0);
+  const [addressLimit, setAddressLimit] = useState<number>(256);
+  const [addressLoading, setAddressLoading] = useState<boolean>(false);
+  const [addressError, setAddressError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,6 +95,26 @@ export function BlockDetail() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAddressLoading(true);
+    setAddressError(null);
+    api
+      .listBlockAddresses(configId, blockId, addressOffset, addressLimit)
+      .then((page) => {
+        if (!cancelled) setAddressPage(page);
+      })
+      .catch((err: any) => {
+        if (!cancelled) setAddressError(err?.message || 'Failed to load IP addresses');
+      })
+      .finally(() => {
+        if (!cancelled) setAddressLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, configId, blockId, addressOffset, addressLimit]);
 
   const handleSave = useCallback(async () => {
     const trimmedName = name.trim();
@@ -189,6 +246,66 @@ export function BlockDetail() {
       <div style={{ border: '1px solid var(--color-divider)', background: 'var(--color-surface)' }}>
         <DataTable columns={childColumns} rows={children} emptyMessage="No child blocks" />
       </div>
+
+      {block.cidr && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '32px 0 12px 0' }}>
+            <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0, fontFamily: 'var(--font-heading)' }}>
+              IP addresses
+            </h2>
+            <Select
+              value={addressLimit}
+              onChange={(e) => {
+                setAddressLimit(Number(e.target.value));
+                setAddressOffset(0);
+              }}
+              options={PAGE_SIZES.map((n) => ({ label: `${n} / page`, value: n }))}
+              aria-label="IP addresses per page"
+            />
+          </div>
+          <div style={{ border: '1px solid var(--color-divider)', background: 'var(--color-surface)' }}>
+            <DataTable
+              columns={addressColumns}
+              rows={addressPage?.data ?? []}
+              loading={addressLoading}
+              error={addressError}
+              emptyMessage="No addresses"
+              rowKey={(a) => a.ip}
+            />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 24px',
+                borderTop: '1px solid var(--color-divider)',
+              }}
+            >
+              <span style={{ fontSize: '12px', color: 'color-mix(in srgb, var(--color-text) 55%, transparent)' }}>
+                Showing {addressPage ? addressOffset + 1 : 0}–{addressPage ? addressOffset + addressPage.data.length : 0} of {addressPage?.total ?? 0}
+              </span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={addressOffset === 0}
+                  onClick={() => setAddressOffset((o) => Math.max(0, o - addressLimit))}
+                >
+                  Prev
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={addressOffset + addressLimit >= (addressPage?.total ?? 0)}
+                  onClick={() => setAddressOffset((o) => o + addressLimit)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

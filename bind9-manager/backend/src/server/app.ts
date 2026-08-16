@@ -122,7 +122,7 @@ import {
   deleteBlock,
   validateBlockHierarchy,
 } from './blockStore';
-import { parseCidr } from './ipv4';
+import { parseCidr, intToIp } from './ipv4';
 import { parseInspect, destroy } from './deployEngine';
 import { snapshot } from './telemetry';
 import { statisticsSnapshot } from './statistics';
@@ -1958,6 +1958,60 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       return reply.status(422).send({ error: { code: 'NOT_A_NETWORK', message: 'Only a NETWORK can be reconciled' } });
     }
     return reply.status(200).send(reconcileBlock(db, blockId));
+  });
+
+  app.get('/api/v1/configurations/:configId/blocks/:blockId/addresses', async (req, reply) => {
+    const { configId, blockId } = req.params as { configId: string; blockId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const block = getBlock(db, blockId);
+    if (!block || block.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Block not found' } });
+    }
+    const parsed = parseCidr(block.cidr);
+    if (!parsed) {
+      return reply.status(422).send({ error: { code: 'INVALID_CIDR', message: 'Block has an invalid CIDR' } });
+    }
+    const { network, prefix } = parsed;
+    const total = prefix >= 32 ? 1 : Math.pow(2, 32 - prefix); // host count incl. network+broadcast
+    const q = req.query as { offset?: string; limit?: string };
+    let offset = Number.parseInt(q.offset ?? '0', 10); if (!Number.isFinite(offset) || offset < 0) offset = 0;
+    let limit = Number.parseInt(q.limit ?? '256', 10); if (!Number.isFinite(limit) || limit < 1) limit = 256;
+    if (limit > 8192) limit = 8192; // hard cap: never enumerate an unbounded window
+    if (offset > total) offset = total;
+    const count = Math.min(limit, total - offset);
+
+    // Allocation map: every A record in THIS config, address -> {id,name}. Build once.
+    const allocRows = db.prepare(
+      `SELECT r.id AS id,
+              json_extract(r.data, '$.name')          AS name,
+              json_extract(r.data, '$.rdata.address') AS address
+       FROM records r
+       JOIN zones z ON z.id = r.zoneId
+       JOIN views v ON v.id = z.viewId
+       WHERE v.configurationId = ?
+         AND json_extract(r.data, '$.type') = 'A'
+         AND json_extract(r.data, '$.rdata.address') IS NOT NULL`
+    ).all(configId) as { id: string; name: string | null; address: string | null }[];
+    const alloc = new Map<string, { id: string; name: string | null }>();
+    for (const row of allocRows) if (row.address) alloc.set(row.address, { id: row.id, name: row.name });
+
+    const data = [];
+    const usableFirst = network;                 // network address
+    const usableLast = network + total - 1;      // broadcast
+    for (let i = 0; i < count; i++) {
+      const n = network + offset + i;
+      const ip = intToIp(n >>> 0);
+      let status: 'network' | 'broadcast' | 'allocated' | 'free';
+      if (prefix <= 30 && n === usableFirst) status = 'network';
+      else if (prefix <= 30 && n === usableLast) status = 'broadcast';
+      else if (alloc.has(ip)) status = 'allocated';
+      else status = 'free';
+      const rec = alloc.get(ip);
+      data.push({ ip, status, recordId: rec?.id, recordName: rec?.name ?? undefined });
+    }
+    return reply.status(200).send({ data, total, offset, limit });
   });
 
   // --- DEPLOYMENT OPTIONS ROUTES (IA-4) ---

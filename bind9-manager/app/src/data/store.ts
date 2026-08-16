@@ -180,6 +180,7 @@ export function useApi() {
       updateBlock: (configId: string, blockId: string, patch: api.UpdateBlockPatch) => api.updateBlock(store, configId, blockId, patch),
       deleteBlock: (configId: string, blockId: string) => api.deleteBlock(store, configId, blockId),
       reconcileBlock: (configId: string, blockId: string) => api.reconcileBlock(store, configId, blockId),
+      listBlockAddresses: (configId: string, blockId: string, offset: number, limit: number) => api.listBlockAddresses(store, configId, blockId, offset, limit),
       listRecordTemplates: (configId: string) => api.listRecordTemplates(store, configId),
       getRecordTemplate: (configId: string, templateId: string) => api.getRecordTemplate(store, configId, templateId),
       createRecordTemplate: (configId: string, input: api.CreateRecordTemplateInput) => api.createRecordTemplate(store, configId, input),

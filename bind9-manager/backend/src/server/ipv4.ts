@@ -1,6 +1,6 @@
 // IPv4-only CIDR math on unsigned 32-bit integers. No dependencies.
 
-function ipToInt(ip: string): number | null {
+export function ipToInt(ip: string): number | null {
   const parts = ip.split('.');
   if (parts.length !== 4) return null;
   let value = 0;
@@ -11,6 +11,11 @@ function ipToInt(ip: string): number | null {
     value = value * 256 + octet;
   }
   return value;
+}
+
+export function intToIp(n: number): string {
+  // n is an unsigned 32-bit int; render dotted-quad.
+  return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
 }
 
 export function isValidIpv4(ip: string): boolean {

@@ -3,7 +3,7 @@ import type Database from 'better-sqlite3';
 import { openDb } from '../src/server/db';
 import { buildApp } from '../src/server/app';
 import { hashPassword } from '../src/server/crypto';
-import { createView } from '../src/server/entityStore';
+import { createView, createZone, createRecord } from '../src/server/entityStore';
 
 describe('Blocks API', () => {
   let db: Database.Database;
@@ -161,5 +161,29 @@ describe('Blocks API', () => {
     });
     expect(patch.statusCode).toBe(422);
     expect(JSON.parse(patch.body).error.code).toBe('INVALID_VIEW');
+  });
+
+  it('enumerates every IP in a NETWORK block with allocation status', async () => {
+    const token = await loginAs();
+    const view = createView(db, 'dns-lab', { name: 'internal' });
+    const zone = createZone(db, 'dns-lab', { viewId: view.id, name: 'example.test' });
+    createRecord(db, zone.id, { name: 'host', type: 'A', ttl: 3600, rdata: { address: '10.10.10.10' } });
+    const net = JSON.parse((await app.inject({
+      method: 'POST', url: '/api/v1/configurations/dns-lab/blocks', headers: authHeader(token),
+      payload: { name: 'lab-net', cidr: '10.10.10.0/24', kind: 'NETWORK', viewId: view.id },
+    })).body);
+
+    const res = await app.inject({
+      method: 'GET', url: `/api/v1/configurations/dns-lab/blocks/${net.id}/addresses?offset=0&limit=256`, headers: authHeader(token),
+    });
+    expect(res.statusCode).toBe(200);
+    const page = JSON.parse(res.body);
+    expect(page.total).toBe(256);
+    const byIp = new Map<string, any>(page.data.map((a: any) => [a.ip, a]));
+    expect(byIp.get('10.10.10.10').status).toBe('allocated');
+    expect(byIp.get('10.10.10.10').recordName).toBe('host');
+    expect(byIp.get('10.10.10.0').status).toBe('network');
+    expect(byIp.get('10.10.10.255').status).toBe('broadcast');
+    expect(byIp.get('10.10.10.1').status).toBe('free');
   });
 });

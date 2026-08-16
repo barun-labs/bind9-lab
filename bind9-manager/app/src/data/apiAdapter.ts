@@ -1149,6 +1149,22 @@ export async function reconcileBlock(_store: StoreData, configId: string, blockI
   return { created: 0 };
 }
 
+export interface BlockAddress { ip: string; status: 'network'|'broadcast'|'allocated'|'free'; recordId?: string; recordName?: string; }
+export interface BlockAddressPage { data: BlockAddress[]; total: number; offset: number; limit: number; }
+
+export async function listBlockAddresses(
+  _store: StoreData, configId: string, blockId: string, offset: number, limit: number
+): Promise<BlockAddressPage> {
+  if (isApiEnabled()) {
+    return apiFetch<BlockAddressPage>(
+      `/api/v1/configurations/${configId}/blocks/${blockId}/addresses?offset=${offset}&limit=${limit}`
+    );
+  }
+  // ponytail: fixture mode shows empty; real API drives the screen. Enumerating
+  // a full CIDR client-side (fixtures only) is nice-to-have, not needed offline.
+  return { data: [], total: 0, offset, limit };
+}
+
 export interface CreateRecordTemplateInput {
   name: string;
   description?: string;
