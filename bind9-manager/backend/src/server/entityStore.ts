@@ -115,6 +115,68 @@ export function getConfiguration(db: Database.Database, id: string): Configurati
 }
 
 /**
+ * Create a new configuration. An explicit valid id is honored; otherwise a
+ * server-generated 'cfg-' + 6 random bytes is used.
+ */
+export function createConfiguration(
+  db: Database.Database,
+  input: { name: string; id?: string }
+): Configuration {
+  const id =
+    input.id && /^[A-Za-z0-9._-]+$/.test(input.id)
+      ? input.id
+      : 'cfg-' + randomBytes(6).toString('hex');
+  const now = new Date().toISOString();
+  const config: Configuration = {
+    id,
+    name: input.name,
+    isActive: true,
+    createdFromTemplateId: null,
+    createdAt: now,
+    updatedAt: now,
+    counts: { views: 0, zones: 0, records: 0, servers: 0 },
+  };
+  db.prepare('INSERT INTO configurations (id, data) VALUES (?, ?)').run(id, JSON.stringify(config));
+  return config;
+}
+
+/**
+ * Update a configuration. name/isActive merge over the stored record;
+ * id, createdAt and counts are immutable; updatedAt is stamped fresh.
+ */
+export function updateConfiguration(
+  db: Database.Database,
+  id: string,
+  patch: { name?: string; isActive?: boolean }
+): Configuration {
+  const existing = getConfiguration(db, id);
+  if (!existing) {
+    throw new Error(`Configuration ${id} not found`);
+  }
+  const updated: Configuration = {
+    ...existing,
+    id: existing.id,
+    createdAt: existing.createdAt,
+    counts: existing.counts,
+    name: typeof patch.name === 'string' ? patch.name : existing.name,
+    isActive: patch.isActive !== undefined ? Boolean(patch.isActive) : existing.isActive,
+    updatedAt: new Date().toISOString(),
+  };
+  db.prepare('UPDATE configurations SET data = ? WHERE id = ?').run(JSON.stringify(updated), id);
+  return updated;
+}
+
+/**
+ * Delete a configuration. Child rows (views/zones/records/servers/acls/
+ * external_hosts/tsig_keys/server_groups/deployment_options/deployment_roles)
+ * cascade via their FKs (PRAGMA foreign_keys is ON in openDb).
+ */
+export function deleteConfiguration(db: Database.Database, id: string): { deleted: true } {
+  db.prepare('DELETE FROM configurations WHERE id = ?').run(id);
+  return { deleted: true };
+}
+
+/**
  * List views for a configuration.
  */
 export function listViews(db: Database.Database, configId: string): View[] {

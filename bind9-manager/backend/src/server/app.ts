@@ -16,6 +16,9 @@ import { authorize, type Actor } from './authorize';
 import {
   listConfigurations,
   getConfiguration,
+  createConfiguration,
+  updateConfiguration,
+  deleteConfiguration,
   listViews,
   getView,
   createView,
@@ -366,7 +369,7 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     }
 
     const isOwner = row.ownerUserId === req.actor.user.id;
-    const isAdmin = req.actor.user.roles.some((r) =>
+    const isAdmin = (req.actor.user.roles ?? []).some((r) =>
       authorize(req.actor, 'admin', r.configurationId)
     );
 
@@ -402,6 +405,81 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     const start = (page - 1) * size;
     const data = items.slice(start, start + size);
     return reply.status(200).send({ data, page, size, total });
+  });
+
+  // POST /api/v1/configurations - Create a configuration (admin-only)
+  app.post('/api/v1/configurations', async (req, reply) => {
+    // ponytail: no global-admin predicate exists; gate on admin role on ANY config
+    const isAdmin = (req.actor.user.roles ?? []).some((r) =>
+      authorize(req.actor, 'admin', r.configurationId)
+    );
+    if (!isAdmin) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const name = typeof body.name === 'string' ? body.name : '';
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'Invalid configuration name' } });
+    }
+    const all = listConfigurations(db);
+    if (all.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+      return reply.status(409).send({ error: { code: 'CONFLICT', message: 'A configuration with this name already exists' } });
+    }
+    const id = typeof body.id === 'string' && body.id ? body.id : undefined;
+    if (id && all.some((c) => c.id === id)) {
+      return reply.status(409).send({ error: { code: 'CONFLICT', message: 'A configuration with this id already exists' } });
+    }
+    const config = createConfiguration(db, { name, id });
+    return reply.status(201).send(config);
+  });
+
+  // PATCH /api/v1/configurations/:configId - Rename / toggle a configuration (requires edit)
+  app.patch('/api/v1/configurations/:configId', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const patch: { name?: string; isActive?: boolean } = {};
+    if (body.name !== undefined) {
+      const name = typeof body.name === 'string' ? body.name : '';
+      if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+        return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'Invalid configuration name' } });
+      }
+      const dup = listConfigurations(db).some(
+        (c) => c.id !== configId && c.name.toLowerCase() === name.toLowerCase()
+      );
+      if (dup) {
+        return reply.status(409).send({ error: { code: 'CONFLICT', message: 'A configuration with this name already exists' } });
+      }
+      patch.name = name;
+    }
+    if (body.isActive !== undefined) {
+      patch.isActive = Boolean(body.isActive);
+    }
+    const updated = updateConfiguration(db, configId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/configurations/:configId - Delete a configuration (requires edit; refuses the last remaining)
+  app.delete('/api/v1/configurations/:configId', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    if (listConfigurations(db).length <= 1) {
+      return reply.status(409).send({ error: { code: 'LAST_CONFIG', message: 'Cannot delete the only configuration' } });
+    }
+    const result = deleteConfiguration(db, configId);
+    return reply.status(200).send(result);
   });
 
   // GET /api/v1/configurations/:configId/zones - List zones with filters
