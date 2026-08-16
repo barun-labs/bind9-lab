@@ -68,6 +68,10 @@
   --duration-panel: 200ms;
   --duration-toast: 150ms;
 
+  /* Config strip — dark bar in both themes; keep readable regardless of accent-ramp flip */
+  --config-strip-bg: var(--color-accent-900);
+  --config-strip-fg: var(--color-bg);
+
   /* Layout constants */
   --chrome-config-strip-h: 30px;
   --chrome-topbar-h: 56px;
@@ -145,6 +149,10 @@
   --diff-added-bg: var(--state-success-bg);   --diff-added-text: var(--state-success);
   --diff-removed-bg: var(--state-error-bg);   --diff-removed-text: var(--state-error);
   --diff-context-text: var(--color-text);
+
+  /* Config strip — stays a dark bar; accent-200 is dark steel-blue in reversed dark ramp. */
+  --config-strip-bg: var(--color-accent-200);
+  --config-strip-fg: var(--color-text);
 
   /* Elevation — deeper on a dark ground. */
   --shadow-sm: 0 1px 2px color-mix(in srgb, #000 40%, transparent);
