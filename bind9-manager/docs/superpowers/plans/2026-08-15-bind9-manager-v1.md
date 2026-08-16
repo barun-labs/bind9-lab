@@ -470,6 +470,6 @@ Expected: no type errors, all tests green, build succeeds.
 
 ## Self-review notes (done)
 
-- **Spec coverage:** shell+routing (Task 8), Records (Task 9), API Keys (Task 10), types (2), zonefile (3), validate (4), query (5), adapter/store (6), primitives (7), gate (11) — every v1 spec section maps to a task. BlueCat-informed contract additions are recorded-not-built per spec, so no task, correctly.
+- **Spec coverage:** shell+routing (Task 8), Records (Task 9), API Keys (Task 10), types (2), zonefile (3), validate (4), query (5), adapter/store (6), primitives (7), gate (11) — every v1 spec section maps to a task. DDI-informed contract additions are recorded-not-built per spec, so no task, correctly.
 - **Placeholders:** logic tasks carry concrete tests + expected outputs; UI tasks carry concrete source line ranges + the transliteration mapping + three named behavior assertions each. No "TBD"/"add error handling"/"similar to Task N".
 - **Type consistency:** adapter fn names in Task 6 are the ones Tasks 8–10 consume; `validateRecord`/`zoneFileLine`/`rdataDisplay`/`parseQuery`/`toSearch` signatures match across tasks.

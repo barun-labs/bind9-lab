@@ -1,7 +1,7 @@
 # Bind9-Manager v1 — design
 
 Bind9-Manager is a web console for the BIND9 anycast lab that lives in this repo
-(`../anycast-dns/`). It gives an operator a BlueCat-shaped way to see and edit DNS
+(`../anycast-dns/`). It gives an operator a DDI-platform-shaped way to see and edit DNS
 objects — Configurations, Views, Zones, Records, Servers — instead of hand-editing
 `named.conf` and zone files.
 
@@ -143,31 +143,31 @@ SCREAMING_SNAKE values in the doc. Interfaces: `ResourceRecord`, `Zone`, `View`,
 - `lib/query.ts` — URL ⇄ table state (`type`, `status`, `q`, `page`, `size`, `sort`,
   `recordId`), so the Records screen is deep-linkable and refresh-safe.
 
-## API surface additions (BlueCat-informed) — recorded, not built in v1
+## API surface additions (DDI-informed) — recorded, not built in v1
 
-Comparing the imported `api-contract.md` against the BlueCat BAM v2 API (a mature product in
+Comparing the imported `api-contract.md` against the reference DDI API (v2) (a mature product in
 this exact domain) surfaced gaps worth recording in the contract now, to be built when the
 backend sub-project starts. None of this is implemented in v1.
 
-- **Auth as bearer API keys.** BAM authenticates with `username:apiToken` (a token minted
+- **Auth as bearer API keys.** The reference DDI API authenticates with `username:apiToken` (a token minted
   from a session), schemes `basicAuthentication` + `bearerToken`. v1 direction: no login
   page; the first auth capability is minting an API key. Contract:
   `POST /api-keys {name}` → returns the token **once**; `GET /api-keys` returns metadata
   only, never the secret; `DELETE /api-keys/:id`.
-- **Available-space discovery** — BAM `availableAddresses/Blocks/Networks`. Add
+- **Available-space discovery** — the reference DDI API `availableAddresses/Blocks/Networks`. Add
   `GET /blocks/:id/available?kind=address|block|network`.
-- **Issues / data-checker** — BAM `GET /{collection}/{id}/issues`. This is our
+- **Issues / data-checker** — the reference DDI API `GET /{collection}/{id}/issues`. This is our
   `HealthFinding` (Phase 12); promote it to `GET /issues?objectType=&objectId=`.
-- **Audit trail** — BAM attaches a change-control comment to writes and exposes
+- **Audit trail** — the reference DDI API attaches a change-control comment to writes and exposes
   `/transactions`. Add `GET /audit` plus an optional `comment` on every mutation.
-- **Server logs** — BAM server `_links` expose `logs`. Add `GET /servers/:id/logs`.
-- **CSV export** — BAM `text/csv` honors `fields`. Add `?format=csv` to list endpoints.
+- **Server logs** — the reference DDI API's server `_links` expose `logs`. Add `GET /servers/:id/logs`.
+- **CSV export** — the reference DDI API `text/csv` honors `fields`. Add `?format=csv` to list endpoints.
 
-**Excluded on purpose:** DHCP, client classes, MAC/lease resources — BlueCat is DDI,
+**Excluded on purpose:** DHCP, client classes, MAC/lease resources — the commercial DDI platform is full DDI,
 Bind9-Manager is DNS-only. **Deferred as v2 seams** (already reserved in `entities.md`):
 RBAC / users-groups / access rights, and DNSSEC signing keys — no login page means no RBAC.
 
-**Intentional divergence:** in BAM, zones live under views (`/views/{id}/zones`). Our
+**Intentional divergence:** in the reference DDI model, zones live under views (`/views/{id}/zones`). Our
 contract keeps a flat `configurations/:id/zones?view=` list, which is simpler for this UI.
 Noted so it reads as a choice, not an oversight.
 

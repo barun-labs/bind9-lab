@@ -1,15 +1,15 @@
 # DDI API Parity — Gap Analysis (Plane #31)
 
-**Goal:** Bring the Bind9-Manager API up to the surface a DDI product (BlueCat BAM) exposes for DNS
+**Goal:** Bring the Bind9-Manager API up to the surface a reference DDI product exposes for DNS
 management, by finding the endpoints we lack and closing the well-scoped ones.
 
 ## How the gaps were found
 
-The BlueCat BAM API could not be enumerated live this pass — BAM is read-only and its `/api/v2/sessions`
-login is the user's to run, and no `$BAM_TOKEN` was set. So the comparison is grounded in *our own
+The reference DDI API could not be enumerated live this pass — it is read-only and its `/api/v2/sessions`
+login is the user's to run, and no `$DDI_API_TOKEN` was set. So the comparison is grounded in *our own
 code*: every Placeholder screen in `app/src/router.tsx` is a feature with a UI stub and no backing API,
 and the route list from `app.ts` shows which entities have partial (read-only or list-only) coverage.
-Cross-referenced against BlueCat's DDI object model (Configuration → View → Zone → Record, plus
+Cross-referenced against the commercial DDI platform's DDI object model (Configuration → View → Zone → Record, plus
 Deployment Roles/Options, IPAM blocks/networks, TSIG keys, RPZ, server groups, snapshots).
 
 ## Where we already have parity
@@ -26,7 +26,7 @@ deployment. These are not gaps.
   POST / PATCH / DELETE, mirroring the view CRUD pattern and its validation. External hosts are
   config-scoped FQDNs referenced by records.
 - **Configuration CRUD.** Today list + get only. Add create, rename/patch, clone, delete. Clone is the
-  high-value one (BAM's "duplicate configuration") — copy views/zones/records/servers into a new config.
+  high-value one (the reference DDI platform's "duplicate configuration") — copy views/zones/records/servers into a new config.
 - **Server Groups CRUD.** `groups` is a Placeholder; the model already has `Server.serverGroupId` and
   `resolveOption` honors `SERVER_GROUP` scope, so the entity is half-wired. Add the table + CRUD.
 - **TSIG Keys CRUD.** `keys` is a Placeholder. Keys are referenced by ACL `KEY_NAME` entries and
@@ -37,7 +37,7 @@ deployment. These are not gaps.
 
 **Needs its own design spec before implementation — larger subsystems:**
 
-- **Network Blocks / reverse-zone IPAM.** `blocks` is a Placeholder. This is BlueCat's core: IP4/IP6
+- **Network Blocks / reverse-zone IPAM.** `blocks` is a Placeholder. This is the commercial DDI platform's core: IP4/IP6
   blocks and networks, and auto-generation of reverse (`in-addr.arpa` / `ip6.arpa`) zones and PTRs
   from forward A/AAAA records. Substantial; own spec.
 - **Response Policy Zones (RPZ).** `rpz` is a Placeholder. RPZ rules + the `response-policy` clause in

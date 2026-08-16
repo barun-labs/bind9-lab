@@ -951,7 +951,7 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     return reply.status(200).send(result);
   });
 
-  // --- SERVER GROUPS ROUTES (BLUECAT GAP #53) ---
+  // --- SERVER GROUPS ROUTES (DDI PARITY GAP #53) ---
 
   // GET /api/v1/configurations/:configId/groups - List server groups for a configuration
   app.get('/api/v1/configurations/:configId/groups', async (req, reply) => {
@@ -1582,7 +1582,7 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     return reply.status(200).send(result);
   });
 
-  // --- TSIG KEYS ROUTES (BLUECAT GAP #52) ---
+  // --- TSIG KEYS ROUTES (DDI PARITY GAP #52) ---
 
   // GET /api/v1/configurations/:configId/tsig-keys - List TSIG keys for a configuration (secrets omitted)
   app.get('/api/v1/configurations/:configId/tsig-keys', async (req, reply) => {
@@ -1692,7 +1692,7 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     return reply.status(200).send(result);
   });
 
-  // --- RECORD TEMPLATES ROUTES (BLUECAT GAP #55) ---
+  // --- RECORD TEMPLATES ROUTES (DDI PARITY GAP #55) ---
 
   // GET /api/v1/configurations/:configId/record-templates - List record templates
   app.get('/api/v1/configurations/:configId/record-templates', async (req, reply) => {
