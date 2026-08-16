@@ -11,6 +11,7 @@ import type {
   AclEntryType,
   TsigKey,
   TsigAlgorithm,
+  ServerGroup,
   ListEnvelope,
   RecordType,
   SyncState,
@@ -810,6 +811,96 @@ export function updateExternalHost(
  */
 export function deleteExternalHost(db: Database.Database, id: string): { deleted: true } {
   db.prepare('DELETE FROM external_hosts WHERE id = ?').run(id);
+  return { deleted: true };
+}
+
+/**
+ * Live member count for a server group: servers in the config whose
+ * serverGroupId equals the group id. Not stored — recomputed on every read.
+ */
+function memberCountForGroup(db: Database.Database, configId: string, groupId: string): number {
+  return listServers(db, configId).filter((s) => s.serverGroupId === groupId).length;
+}
+
+/**
+ * List server groups for a configuration.
+ */
+export function listServerGroups(db: Database.Database, configId: string): ServerGroup[] {
+  const rows = db.prepare('SELECT data FROM server_groups WHERE configurationId = ?').all(configId) as { data: string }[];
+  return rows.map((r) => {
+    const g = JSON.parse(r.data) as ServerGroup;
+    return { ...g, memberCount: memberCountForGroup(db, configId, g.id) };
+  });
+}
+
+/**
+ * Get server group by ID.
+ */
+export function getServerGroup(db: Database.Database, id: string): ServerGroup | null {
+  const row = db.prepare('SELECT data FROM server_groups WHERE id = ?').get(id) as { data: string } | undefined;
+  if (!row) return null;
+  const g = JSON.parse(row.data) as ServerGroup;
+  return { ...g, memberCount: memberCountForGroup(db, g.configurationId, g.id) };
+}
+
+/**
+ * Create a new server group for a configuration.
+ */
+export function createServerGroup(
+  db: Database.Database,
+  configId: string,
+  input: { name: string; description?: string }
+): ServerGroup {
+  const group: ServerGroup = {
+    id: 'sg-' + randomBytes(6).toString('hex'),
+    configurationId: configId,
+    name: input.name,
+    description: input.description,
+    memberCount: 0,
+  };
+  db.prepare('INSERT INTO server_groups (id, configurationId, data) VALUES (?, ?, ?)').run(
+    group.id,
+    configId,
+    JSON.stringify(group)
+  );
+  return { ...group, memberCount: memberCountForGroup(db, configId, group.id) };
+}
+
+/**
+ * Update an existing server group.
+ */
+export function updateServerGroup(
+  db: Database.Database,
+  id: string,
+  patch: { name?: string; description?: string }
+): ServerGroup {
+  const existing = getServerGroup(db, id);
+  if (!existing) {
+    throw new Error(`Server group ${id} not found`);
+  }
+
+  const updated: ServerGroup = {
+    ...existing,
+    id: existing.id,
+    configurationId: existing.configurationId,
+    name: typeof patch.name === 'string' ? patch.name : existing.name,
+    description: patch.description !== undefined ? patch.description : existing.description,
+  };
+
+  db.prepare('UPDATE server_groups SET configurationId = ?, data = ? WHERE id = ?').run(
+    updated.configurationId,
+    JSON.stringify(updated),
+    id
+  );
+
+  return { ...updated, memberCount: memberCountForGroup(db, updated.configurationId, id) };
+}
+
+/**
+ * Delete a server group by ID.
+ */
+export function deleteServerGroup(db: Database.Database, id: string): { deleted: true } {
+  db.prepare('DELETE FROM server_groups WHERE id = ?').run(id);
   return { deleted: true };
 }
 

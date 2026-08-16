@@ -41,6 +41,7 @@ export interface AclEntry {
 export interface Acl { id: string; configurationId: string; name: string; entries: AclEntry[]; usedByCount: number; }
 export type TsigAlgorithm = 'hmac-sha256' | 'hmac-sha512' | 'hmac-sha384' | 'hmac-sha224' | 'hmac-sha1' | 'hmac-md5';
 export interface TsigKey { id: string; configurationId: string; name: string; algorithm: TsigAlgorithm; secret?: string; usedByCount: number; }
+export interface ServerGroup { id: string; configurationId: string; name: string; description?: string; memberCount: number; }
 export type OptionScope = 'VIEW' | 'ZONE';
 export type InheritMode = 'INHERIT' | 'OVERRIDE' | 'DISABLE';
 export interface DeploymentOptionRow { id: string; configurationId: string; scope: OptionScope; scopeId: string; key: string; value: unknown | null; disabled: boolean; }

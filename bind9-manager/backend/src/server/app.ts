@@ -36,6 +36,11 @@ import {
   createExternalHost,
   updateExternalHost,
   deleteExternalHost,
+  listServerGroups,
+  getServerGroup,
+  createServerGroup,
+  updateServerGroup,
+  deleteServerGroup,
   listServers,
   getServer,
   upsertServer,
@@ -173,6 +178,14 @@ function renderServerText(model: ConfigModel, serverId: string): string {
 // so reject anything that could break out of that context: letters/digits/dot/
 // hyphen only, no empty or hyphen-edged labels, no '..', at most one trailing
 // (root-anchored) dot.
+// A server-group description is free text (the name becomes an identifier, the
+// description does not) — trim and cap the length; only the type is enforced.
+function normalizeDescription(value: unknown): { ok: true; value?: string } | { ok: false } {
+  if (value === undefined) return { ok: true }; // not provided
+  if (typeof value !== 'string') return { ok: false };
+  return { ok: true, value: value.trim().slice(0, 256) };
+}
+
 function isValidExternalFqdn(fqdn: string): boolean {
   if (typeof fqdn !== 'string' || fqdn.length < 1 || fqdn.length > 253) return false;
   if (!/^[A-Za-z0-9.-]+$/.test(fqdn)) return false;
@@ -707,6 +720,114 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       return reply.status(409).send({ error: { code: 'HAS_DEPENDENTS', message: 'External host is referenced by records' } });
     }
     const result = deleteExternalHost(db, hostId);
+    return reply.status(200).send(result);
+  });
+
+  // --- SERVER GROUPS ROUTES (BLUECAT GAP #53) ---
+
+  // GET /api/v1/configurations/:configId/groups - List server groups for a configuration
+  app.get('/api/v1/configurations/:configId/groups', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    return reply.status(200).send(listServerGroups(db, configId));
+  });
+
+  // GET /api/v1/configurations/:configId/groups/:groupId - Get single server group (scope-checked)
+  app.get('/api/v1/configurations/:configId/groups/:groupId', async (req, reply) => {
+    const { configId, groupId } = req.params as { configId: string; groupId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const group = getServerGroup(db, groupId);
+    if (!group || group.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Server group not found' } });
+    }
+    return reply.status(200).send(group);
+  });
+
+  // POST /api/v1/configurations/:configId/groups - Create a server group (requires edit)
+  app.post('/api/v1/configurations/:configId/groups', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const name = typeof body.name === 'string' ? body.name : '';
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be [A-Za-z0-9._-]' } });
+    }
+    const description = normalizeDescription(body.description);
+    if (!description.ok) {
+      return reply.status(422).send({ error: { code: 'INVALID_DESCRIPTION', message: 'description must be a string' } });
+    }
+    const dup = listServerGroups(db, configId).find((g) => g.name.toLowerCase() === name.toLowerCase());
+    if (dup) {
+      return reply.status(409).send({ error: { code: 'CONFLICT', message: 'A server group with this name already exists' } });
+    }
+    const group = createServerGroup(db, configId, { name, description: description.value });
+    return reply.status(201).send(group);
+  });
+
+  // PATCH /api/v1/configurations/:configId/groups/:groupId - Update a server group (scope-checked, requires edit)
+  app.patch('/api/v1/configurations/:configId/groups/:groupId', async (req, reply) => {
+    const { configId, groupId } = req.params as { configId: string; groupId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getServerGroup(db, groupId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Server group not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const patch: { name?: string; description?: string } = {};
+    if (body.name !== undefined) {
+      if (typeof body.name !== 'string' || !/^[A-Za-z0-9._-]+$/.test(body.name)) {
+        return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be [A-Za-z0-9._-]' } });
+      }
+      const dup = listServerGroups(db, configId).find(
+        (g) => g.id !== groupId && g.name.toLowerCase() === body.name.toLowerCase()
+      );
+      if (dup) {
+        return reply.status(409).send({ error: { code: 'CONFLICT', message: 'A server group with this name already exists' } });
+      }
+      patch.name = body.name;
+    }
+    if (body.description !== undefined) {
+      const description = normalizeDescription(body.description);
+      if (!description.ok) {
+        return reply.status(422).send({ error: { code: 'INVALID_DESCRIPTION', message: 'description must be a string' } });
+      }
+      patch.description = description.value;
+    }
+    const updated = updateServerGroup(db, groupId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/configurations/:configId/groups/:groupId - Delete a server group (scope-checked, requires edit)
+  app.delete('/api/v1/configurations/:configId/groups/:groupId', async (req, reply) => {
+    const { configId, groupId } = req.params as { configId: string; groupId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getServerGroup(db, groupId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Server group not found' } });
+    }
+    const hasMembers = listServers(db, configId).some((s) => s.serverGroupId === groupId);
+    if (hasMembers) {
+      return reply.status(409).send({ error: { code: 'HAS_DEPENDENTS', message: 'Server group has members' } });
+    }
+    const result = deleteServerGroup(db, groupId);
     return reply.status(200).send(result);
   });
 
