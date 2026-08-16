@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { User, RoleAssignment, ApiKey } from '../../../shared/entities';
 import { hashPassword, randomToken, sha256, verifyPassword } from './crypto';
@@ -290,4 +291,106 @@ export function listApiKeys(db: Database.Database, ownerUserId?: string): ApiKey
 export function deleteApiKey(db: Database.Database, id: string): boolean {
   const result = db.prepare('DELETE FROM api_keys WHERE id = ?').run(id);
   return result.changes > 0;
+}
+
+/**
+ * List all users (never including salt/hash).
+ */
+export function listUsers(db: Database.Database): User[] {
+  const rows = db.prepare('SELECT id, username, displayName, isActive, roles FROM users').all() as {
+    id: string;
+    username: string;
+    displayName: string;
+    isActive: number;
+    roles: string;
+  }[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    username: row.username,
+    displayName: row.displayName,
+    isActive: Boolean(row.isActive),
+    roles: safeParseJson<RoleAssignment[]>(row.roles, []),
+  }));
+}
+
+export interface CreateUserInput {
+  username: string;
+  displayName: string;
+  password: string;
+  roles: RoleAssignment[];
+}
+
+/**
+ * Create a user. Password is hashed with scrypt before storage;
+ * the returned User never includes pwSalt/pwHash.
+ */
+export function createUser(db: Database.Database, input: CreateUserInput): User {
+  const id = 'usr-' + randomBytes(6).toString('hex');
+  const { salt, hash } = hashPassword(input.password);
+  const createdAt = new Date().toISOString();
+
+  db.prepare(`
+    INSERT INTO users (id, username, displayName, isActive, roles, pwSalt, pwHash, createdAt)
+    VALUES (?, ?, ?, 1, ?, ?, ?, ?)
+  `).run(id, input.username, input.displayName, JSON.stringify(input.roles), salt, hash, createdAt);
+
+  const created = getUserById(db, id);
+  if (!created) {
+    throw new Error('createUser: failed to read back inserted row');
+  }
+  return created;
+}
+
+export interface UpdateUserPatch {
+  displayName?: string;
+  isActive?: boolean;
+  roles?: RoleAssignment[];
+  password?: string;
+}
+
+/**
+ * Update a user. username is immutable and never accepted here.
+ * Throws if the user does not exist. Returned User never includes pwSalt/pwHash.
+ */
+export function updateUser(db: Database.Database, id: string, patch: UpdateUserPatch): User {
+  const existing = db.prepare('SELECT id FROM users WHERE id = ?').get(id) as { id: string } | undefined;
+  if (!existing) {
+    throw new Error(`updateUser: user ${id} not found`);
+  }
+
+  if (patch.displayName !== undefined) {
+    db.prepare('UPDATE users SET displayName = ? WHERE id = ?').run(patch.displayName, id);
+  }
+  if (patch.isActive !== undefined) {
+    db.prepare('UPDATE users SET isActive = ? WHERE id = ?').run(patch.isActive ? 1 : 0, id);
+  }
+  if (patch.roles !== undefined) {
+    db.prepare('UPDATE users SET roles = ? WHERE id = ?').run(JSON.stringify(patch.roles), id);
+  }
+  if (patch.password !== undefined) {
+    const { salt, hash } = hashPassword(patch.password);
+    db.prepare('UPDATE users SET pwSalt = ?, pwHash = ? WHERE id = ?').run(salt, hash, id);
+  }
+
+  const updated = getUserById(db, id);
+  if (!updated) {
+    throw new Error(`updateUser: failed to read back user ${id} after update`);
+  }
+  return updated;
+}
+
+/**
+ * Count active users holding at least one admin role, for the last-admin guard.
+ */
+export function countActiveAdmins(db: Database.Database): number {
+  return listUsers(db).filter((u) => u.isActive && u.roles.some((r) => r.role === 'admin')).length;
+}
+
+/**
+ * Soft-delete: set isActive = false. Never hard-deletes — api_keys/sessions
+ * reference the user id.
+ */
+export function deactivateUser(db: Database.Database, id: string): User {
+  return updateUser(db, id, { isActive: false });
 }

@@ -1,7 +1,8 @@
-import fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import fastify, { type FastifyInstance, type FastifyServerOptions, type FastifyRequest, type FastifyReply } from 'fastify';
 import type Database from 'better-sqlite3';
-import type { View, ChangeSetItem, ChangeSetObjectType, RecordTemplateEntry } from '../../../shared/entities';
+import type { View, ChangeSetItem, ChangeSetObjectType, RecordTemplateEntry, RoleAssignment } from '../../../shared/entities';
 import { load } from 'js-yaml';
+import { validatePassword } from './crypto';
 import {
   login,
   resolveSession,
@@ -11,6 +12,13 @@ import {
   listApiKeys,
   deleteApiKey,
   safeParseJson,
+  listUsers,
+  getUserById,
+  getUserByUsername,
+  createUser,
+  updateUser,
+  deactivateUser,
+  countActiveAdmins,
 } from './authStore';
 import { authorize, type Actor } from './authorize';
 import {
@@ -215,6 +223,27 @@ function validateRecordTemplateEntries(value: unknown): RecordTemplateEntry[] | 
     if (ttl !== undefined && (typeof ttl !== 'number' || !Number.isFinite(ttl) || ttl < 0)) return null;
   }
   return value as RecordTemplateEntry[];
+}
+
+const USER_ROLE_NAMES = ['viewer', 'editor', 'admin'];
+
+// Each role's configurationId must reference a real configuration, so this
+// takes db to validate against getConfiguration.
+function validateUserRoles(db: Database.Database, value: unknown): RoleAssignment[] | null {
+  if (!Array.isArray(value)) return null;
+  const roles: RoleAssignment[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') return null;
+    const configurationId = (entry as { configurationId?: unknown }).configurationId;
+    const role = (entry as { role?: unknown }).role;
+    const canDeploy = (entry as { canDeploy?: unknown }).canDeploy;
+    if (typeof configurationId !== 'string' || !configurationId) return null;
+    if (typeof role !== 'string' || !USER_ROLE_NAMES.includes(role)) return null;
+    if (typeof canDeploy !== 'boolean') return null;
+    if (!getConfiguration(db, configurationId)) return null;
+    roles.push({ configurationId, role: role as RoleAssignment['role'], canDeploy });
+  }
+  return roles;
 }
 
 function isValidExternalFqdn(fqdn: string): boolean {
@@ -2714,6 +2743,149 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     return reply
       .status(200)
       .send(listServers(db, lab.configurationId).filter((s) => s.id.startsWith('srv-' + lab.id + '-')));
+  });
+
+  // --- USERS ROUTES (admin-only; mirrors the api-keys/configurations admin-gate idiom) ---
+
+  const requireAdmin = (req: FastifyRequest, reply: FastifyReply): boolean => {
+    const isAdmin = (req.actor.user.roles ?? []).some((r) => authorize(req.actor, 'admin', r.configurationId));
+    if (!isAdmin) {
+      reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    return isAdmin;
+  };
+
+  // GET /api/v1/users - list all users (admin-only, secret-free)
+  app.get('/api/v1/users', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    return reply.status(200).send(listUsers(db));
+  });
+
+  // GET /api/v1/users/:userId - get one user (admin-only, secret-free)
+  app.get('/api/v1/users/:userId', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    const { userId } = req.params as { userId: string };
+    const user = getUserById(db, userId);
+    if (!user) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+    }
+    return reply.status(200).send(user);
+  });
+
+  // POST /api/v1/users - create a user (admin-only)
+  app.post('/api/v1/users', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+
+    const body = (req.body ?? {}) as any;
+
+    const username = typeof body.username === 'string' ? body.username : '';
+    if (!/^[A-Za-z0-9._-]+$/.test(username) || username.length < 1 || username.length > 64) {
+      return reply.status(422).send({
+        error: { code: 'INVALID_USERNAME', message: 'Username must be 1-64 characters of letters, digits, dot, underscore, or hyphen' },
+      });
+    }
+    if (getUserByUsername(db, username)) {
+      return reply.status(409).send({ error: { code: 'CONFLICT', message: 'A user with this username already exists' } });
+    }
+
+    const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
+    if (!displayName || displayName.length > 128) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'Display name must be 1-128 characters' } });
+    }
+
+    const passwordReason = validatePassword(typeof body.password === 'string' ? body.password : '');
+    if (passwordReason) {
+      return reply.status(422).send({ error: { code: 'WEAK_PASSWORD', message: passwordReason } });
+    }
+
+    const roles = validateUserRoles(db, body.roles ?? []);
+    if (!roles) {
+      return reply.status(422).send({ error: { code: 'INVALID_ROLE', message: 'Invalid role assignment' } });
+    }
+
+    const user = createUser(db, { username, displayName, password: body.password, roles });
+    return reply.status(201).send(user);
+  });
+
+  // PATCH /api/v1/users/:userId - update displayName/isActive/roles/password (admin-only; username is immutable)
+  app.patch('/api/v1/users/:userId', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+
+    const { userId } = req.params as { userId: string };
+    const target = getUserById(db, userId);
+    if (!target) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+    }
+
+    const body = (req.body ?? {}) as any;
+    const patch: { displayName?: string; isActive?: boolean; roles?: RoleAssignment[]; password?: string } = {};
+
+    if (body.displayName !== undefined) {
+      const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
+      if (!displayName || displayName.length > 128) {
+        return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'Display name must be 1-128 characters' } });
+      }
+      patch.displayName = displayName;
+    }
+
+    if (body.isActive !== undefined) {
+      patch.isActive = Boolean(body.isActive);
+    }
+
+    if (body.roles !== undefined) {
+      const roles = validateUserRoles(db, body.roles);
+      if (!roles) {
+        return reply.status(422).send({ error: { code: 'INVALID_ROLE', message: 'Invalid role assignment' } });
+      }
+      patch.roles = roles;
+    }
+
+    if (body.password !== undefined) {
+      const passwordReason = validatePassword(typeof body.password === 'string' ? body.password : '');
+      if (passwordReason) {
+        return reply.status(422).send({ error: { code: 'WEAK_PASSWORD', message: passwordReason } });
+      }
+      patch.password = body.password;
+    }
+
+    // LAST_ADMIN guard: simulate the change and refuse to drop the last active admin.
+    const wasActiveAdmin = target.isActive && target.roles.some((r) => r.role === 'admin');
+    const nextIsActive = patch.isActive !== undefined ? patch.isActive : target.isActive;
+    const nextRoles = patch.roles !== undefined ? patch.roles : target.roles;
+    const willBeActiveAdmin = nextIsActive && nextRoles.some((r) => r.role === 'admin');
+    if (wasActiveAdmin && !willBeActiveAdmin && countActiveAdmins(db) === 1) {
+      return reply.status(409).send({ error: { code: 'LAST_ADMIN', message: 'Cannot remove the last active admin' } });
+    }
+
+    // SELF_DEACTIVATION guard: an admin may not deactivate their own account.
+    if (patch.isActive === false && userId === req.actor.user.id) {
+      return reply.status(409).send({ error: { code: 'SELF_DEACTIVATION', message: 'An admin cannot deactivate their own account' } });
+    }
+
+    const updated = updateUser(db, userId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/users/:userId - soft-deactivate a user (admin-only; same LAST_ADMIN/SELF_DEACTIVATION guards as PATCH isActive:false)
+  app.delete('/api/v1/users/:userId', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+
+    const { userId } = req.params as { userId: string };
+    const target = getUserById(db, userId);
+    if (!target) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'User not found' } });
+    }
+
+    const wasActiveAdmin = target.isActive && target.roles.some((r) => r.role === 'admin');
+    if (wasActiveAdmin && countActiveAdmins(db) === 1) {
+      return reply.status(409).send({ error: { code: 'LAST_ADMIN', message: 'Cannot deactivate the last active admin' } });
+    }
+    if (userId === req.actor.user.id) {
+      return reply.status(409).send({ error: { code: 'SELF_DEACTIVATION', message: 'An admin cannot deactivate their own account' } });
+    }
+
+    deactivateUser(db, userId);
+    return reply.status(200).send({ deactivated: true });
   });
 
   // Serve the built React frontend (bind9-manager/app/dist) on every other
