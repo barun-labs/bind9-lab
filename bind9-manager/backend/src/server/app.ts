@@ -46,6 +46,12 @@ import {
   createAcl,
   updateAcl,
   deleteAcl,
+  listTsigKeys,
+  getTsigKey,
+  createTsigKey,
+  updateTsigKey,
+  deleteTsigKey,
+  TSIG_ALGORITHMS,
   listDeploymentOptions,
   getDeploymentOption,
   createDeploymentOption,
@@ -1036,6 +1042,116 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'ACL not found' } });
     }
     const result = deleteAcl(db, aclId);
+    return reply.status(200).send(result);
+  });
+
+  // --- TSIG KEYS ROUTES (BLUECAT GAP #52) ---
+
+  // GET /api/v1/configurations/:configId/tsig-keys - List TSIG keys for a configuration (secrets omitted)
+  app.get('/api/v1/configurations/:configId/tsig-keys', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    return reply.status(200).send(listTsigKeys(db, configId));
+  });
+
+  // GET /api/v1/configurations/:configId/tsig-keys/:keyId - Get single TSIG key (scope-checked, secret omitted)
+  app.get('/api/v1/configurations/:configId/tsig-keys/:keyId', async (req, reply) => {
+    const { configId, keyId } = req.params as { configId: string; keyId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const key = getTsigKey(db, keyId);
+    if (!key || key.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'TSIG key not found' } });
+    }
+    return reply.status(200).send(key);
+  });
+
+  // POST /api/v1/configurations/:configId/tsig-keys - Create a TSIG key (requires edit); returns the secret once
+  app.post('/api/v1/configurations/:configId/tsig-keys', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const name = typeof body.name === 'string' ? body.name : '';
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be a DNS-safe name ([A-Za-z0-9._-])' } });
+    }
+    const algorithm = typeof body.algorithm === 'string' ? body.algorithm : '';
+    if (!TSIG_ALGORITHMS.includes(algorithm)) {
+      return reply.status(422).send({ error: { code: 'INVALID_ALGORITHM', message: `algorithm must be one of: ${TSIG_ALGORITHMS.join(', ')}` } });
+    }
+    const dup = listTsigKeys(db, configId).find((k) => k.name.toLowerCase() === name.toLowerCase());
+    if (dup) {
+      return reply.status(409).send({ error: { code: 'CONFLICT', message: 'A TSIG key with this name already exists' } });
+    }
+    // Any client-supplied secret is ignored; createTsigKey generates it server-side.
+    const key = createTsigKey(db, configId, { name, algorithm });
+    return reply.status(201).send(key);
+  });
+
+  // PATCH /api/v1/configurations/:configId/tsig-keys/:keyId - Update a TSIG key (scope-checked, requires edit)
+  app.patch('/api/v1/configurations/:configId/tsig-keys/:keyId', async (req, reply) => {
+    const { configId, keyId } = req.params as { configId: string; keyId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getTsigKey(db, keyId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'TSIG key not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const patch: { name?: string; algorithm?: string } = {};
+    if (body.name !== undefined) {
+      if (typeof body.name !== 'string' || !/^[A-Za-z0-9._-]+$/.test(body.name)) {
+        return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be a DNS-safe name ([A-Za-z0-9._-])' } });
+      }
+      const dup = listTsigKeys(db, configId).find(
+        (k) => k.id !== keyId && k.name.toLowerCase() === body.name.toLowerCase()
+      );
+      if (dup) {
+        return reply.status(409).send({ error: { code: 'CONFLICT', message: 'A TSIG key with this name already exists' } });
+      }
+      patch.name = body.name;
+    }
+    if (body.algorithm !== undefined) {
+      if (typeof body.algorithm !== 'string' || !TSIG_ALGORITHMS.includes(body.algorithm)) {
+        return reply.status(422).send({ error: { code: 'INVALID_ALGORITHM', message: `algorithm must be one of: ${TSIG_ALGORITHMS.join(', ')}` } });
+      }
+      patch.algorithm = body.algorithm;
+    }
+    const updated = updateTsigKey(db, keyId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/configurations/:configId/tsig-keys/:keyId - Delete a TSIG key (scope-checked, requires edit)
+  app.delete('/api/v1/configurations/:configId/tsig-keys/:keyId', async (req, reply) => {
+    const { configId, keyId } = req.params as { configId: string; keyId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getTsigKey(db, keyId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'TSIG key not found' } });
+    }
+    const referenced = listAcls(db, configId).some((acl) =>
+      acl.entries.some((e) => e.type === 'KEY_NAME' && e.value === existing.name)
+    );
+    if (referenced) {
+      return reply.status(409).send({ error: { code: 'HAS_DEPENDENTS', message: 'TSIG key is referenced by an ACL' } });
+    }
+    const result = deleteTsigKey(db, keyId);
     return reply.status(200).send(result);
   });
 

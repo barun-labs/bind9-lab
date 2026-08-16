@@ -9,6 +9,8 @@ import type {
   Acl,
   AclEntry,
   AclEntryType,
+  TsigKey,
+  TsigAlgorithm,
   ListEnvelope,
   RecordType,
   SyncState,
@@ -266,6 +268,121 @@ export function updateAcl(db: Database.Database, id: string, patch: { name?: str
  */
 export function deleteAcl(db: Database.Database, id: string): { deleted: true } {
   db.prepare('DELETE FROM acls WHERE id = ?').run(id);
+  return { deleted: true };
+}
+
+export const TSIG_ALGORITHMS: readonly string[] = [
+  'hmac-sha256',
+  'hmac-sha512',
+  'hmac-sha384',
+  'hmac-sha224',
+  'hmac-sha1',
+  'hmac-md5',
+];
+
+/** Full stored TSIG key record: every TsigKey field plus the non-optional secret. */
+type TsigKeyRecord = TsigKey & { secret: string };
+
+/**
+ * Strip the secret from a stored TSIG key. The secret is generated server-side
+ * and is only ever returned in the create response; list/get/patch omit it.
+ */
+function stripTsigSecret(key: TsigKeyRecord): TsigKey {
+  const { secret: _secret, ...rest } = key;
+  return rest;
+}
+
+/**
+ * List TSIG keys for a configuration (secret omitted).
+ */
+export function listTsigKeys(db: Database.Database, configId: string): TsigKey[] {
+  const rows = db.prepare('SELECT data FROM tsig_keys WHERE configurationId = ?').all(configId) as { data: string }[];
+  return rows.map((r) => stripTsigSecret(JSON.parse(r.data) as TsigKeyRecord));
+}
+
+/**
+ * Get TSIG key by ID (secret omitted).
+ */
+export function getTsigKey(db: Database.Database, id: string): TsigKey | null {
+  const row = db.prepare('SELECT data FROM tsig_keys WHERE id = ?').get(id) as { data: string } | undefined;
+  if (!row) return null;
+  return stripTsigSecret(JSON.parse(row.data) as TsigKeyRecord);
+}
+
+/**
+ * Get TSIG key by ID including the secret. Internal only — used by update to
+ * preserve the secret across writes.
+ */
+export function getTsigKeyWithSecret(db: Database.Database, id: string): TsigKeyRecord | null {
+  const row = db.prepare('SELECT data FROM tsig_keys WHERE id = ?').get(id) as { data: string } | undefined;
+  if (!row) return null;
+  return JSON.parse(row.data) as TsigKeyRecord;
+}
+
+/**
+ * Create a new TSIG key for a configuration. The secret is generated
+ * server-side and returned in the full record — the only response that
+ * carries it.
+ */
+export function createTsigKey(
+  db: Database.Database,
+  configId: string,
+  input: { name: string; algorithm: string }
+): TsigKey {
+  const key: TsigKeyRecord = {
+    id: 'tsig-' + randomBytes(6).toString('hex'),
+    configurationId: configId,
+    name: input.name,
+    algorithm: input.algorithm as TsigAlgorithm,
+    secret: randomBytes(32).toString('base64'),
+    usedByCount: 0,
+  };
+  db.prepare('INSERT INTO tsig_keys (id, configurationId, data) VALUES (?, ?, ?)').run(
+    key.id,
+    configId,
+    JSON.stringify(key)
+  );
+  return key;
+}
+
+/**
+ * Update an existing TSIG key. name/algorithm merge over the stored record;
+ * id, configurationId and secret are immutable. Returns the record without
+ * the secret.
+ */
+export function updateTsigKey(
+  db: Database.Database,
+  id: string,
+  patch: { name?: string; algorithm?: string }
+): TsigKey {
+  const existing = getTsigKeyWithSecret(db, id);
+  if (!existing) {
+    throw new Error(`TSIG key ${id} not found`);
+  }
+
+  const updated: TsigKeyRecord = {
+    ...existing,
+    id: existing.id,
+    configurationId: existing.configurationId,
+    secret: existing.secret,
+    name: typeof patch.name === 'string' ? patch.name : existing.name,
+    algorithm: (typeof patch.algorithm === 'string' ? patch.algorithm : existing.algorithm) as TsigAlgorithm,
+  };
+
+  db.prepare('UPDATE tsig_keys SET configurationId = ?, data = ? WHERE id = ?').run(
+    updated.configurationId,
+    JSON.stringify(updated),
+    id
+  );
+
+  return stripTsigSecret(updated);
+}
+
+/**
+ * Delete a TSIG key by ID.
+ */
+export function deleteTsigKey(db: Database.Database, id: string): { deleted: true } {
+  db.prepare('DELETE FROM tsig_keys WHERE id = ?').run(id);
   return { deleted: true };
 }
 
