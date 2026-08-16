@@ -32,6 +32,10 @@ import {
   updateRecord,
   deleteRecord,
   listExternalHosts,
+  getExternalHost,
+  createExternalHost,
+  updateExternalHost,
+  deleteExternalHost,
   listServers,
   getServer,
   upsertServer,
@@ -157,6 +161,24 @@ function renderServerText(model: ConfigModel, serverId: string): string {
     parts.push(`# ---- ${filePath} ----\n${content}`);
   }
   return parts.join('\n');
+}
+
+// An external host FQDN is emitted into zone-file record data that BIND parses,
+// so reject anything that could break out of that context: letters/digits/dot/
+// hyphen only, no empty or hyphen-edged labels, no '..', at most one trailing
+// (root-anchored) dot.
+function isValidExternalFqdn(fqdn: string): boolean {
+  if (typeof fqdn !== 'string' || fqdn.length < 1 || fqdn.length > 253) return false;
+  if (!/^[A-Za-z0-9.-]+$/.test(fqdn)) return false;
+  let body = fqdn;
+  if (body.endsWith('.')) body = body.slice(0, -1); // strip at most one trailing dot
+  if (body.length === 0 || body.startsWith('.') || body.endsWith('.')) return false;
+  if (body.includes('..')) return false;
+  const labels = body.split('.');
+  for (const label of labels) {
+    if (label.length === 0 || label.startsWith('-') || label.endsWith('-')) return false;
+  }
+  return true;
 }
 
 export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyInstance {
@@ -610,6 +632,76 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     const start = (page - 1) * size;
     const data = items.slice(start, start + size);
     return reply.status(200).send({ data, page, size, total });
+  });
+
+  // POST /api/v1/configurations/:configId/external-hosts - Create an external host (requires edit)
+  app.post('/api/v1/configurations/:configId/external-hosts', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const fqdn = typeof body.fqdn === 'string' ? body.fqdn : '';
+    if (!isValidExternalFqdn(fqdn)) {
+      return reply.status(422).send({ error: { code: 'INVALID_FQDN', message: 'fqdn must be a valid DNS name' } });
+    }
+    const dup = listExternalHosts(db, configId).find(
+      (h) => h.fqdn.toLowerCase() === fqdn.toLowerCase()
+    );
+    if (dup) {
+      return reply.status(409).send({ error: { code: 'CONFLICT', message: 'An external host with this FQDN already exists' } });
+    }
+    const host = createExternalHost(db, configId, { fqdn });
+    return reply.status(201).send(host);
+  });
+
+  // PATCH /api/v1/configurations/:configId/external-hosts/:hostId - Update an external host (scope-checked, requires edit)
+  app.patch('/api/v1/configurations/:configId/external-hosts/:hostId', async (req, reply) => {
+    const { configId, hostId } = req.params as { configId: string; hostId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getExternalHost(db, hostId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'External host not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const patch: { fqdn?: string } = {};
+    if (body.fqdn !== undefined) {
+      if (typeof body.fqdn !== 'string' || !isValidExternalFqdn(body.fqdn)) {
+        return reply.status(422).send({ error: { code: 'INVALID_FQDN', message: 'fqdn must be a valid DNS name' } });
+      }
+      const dup = listExternalHosts(db, configId).find(
+        (h) => h.id !== hostId && h.fqdn.toLowerCase() === body.fqdn.toLowerCase()
+      );
+      if (dup) {
+        return reply.status(409).send({ error: { code: 'CONFLICT', message: 'An external host with this FQDN already exists' } });
+      }
+      patch.fqdn = body.fqdn;
+    }
+    const updated = updateExternalHost(db, hostId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/configurations/:configId/external-hosts/:hostId - Delete an external host (scope-checked, requires edit)
+  app.delete('/api/v1/configurations/:configId/external-hosts/:hostId', async (req, reply) => {
+    const { configId, hostId } = req.params as { configId: string; hostId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getExternalHost(db, hostId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'External host not found' } });
+    }
+    if (existing.referenceCount > 0) {
+      return reply.status(409).send({ error: { code: 'HAS_DEPENDENTS', message: 'External host is referenced by records' } });
+    }
+    const result = deleteExternalHost(db, hostId);
+    return reply.status(200).send(result);
   });
 
   // --- LAB CRUD ROUTES (DECLARATIVE-LAB TASK 1) ---

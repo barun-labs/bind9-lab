@@ -638,6 +638,65 @@ export function getExternalHost(
 }
 
 /**
+ * Create a new external host for a configuration.
+ */
+export function createExternalHost(
+  db: Database.Database,
+  configId: string,
+  input: { fqdn: string }
+): ExternalHost {
+  const host: ExternalHost = {
+    id: 'eh-' + randomBytes(6).toString('hex'),
+    configurationId: configId,
+    fqdn: input.fqdn,
+    referenceCount: 0,
+  };
+  db.prepare('INSERT INTO external_hosts (id, configurationId, data) VALUES (?, ?, ?)').run(
+    host.id,
+    configId,
+    JSON.stringify(host)
+  );
+  return host;
+}
+
+/**
+ * Update an existing external host.
+ */
+export function updateExternalHost(
+  db: Database.Database,
+  id: string,
+  patch: { fqdn?: string }
+): ExternalHost {
+  const existing = getExternalHost(db, id);
+  if (!existing) {
+    throw new Error(`External host ${id} not found`);
+  }
+
+  const updated: ExternalHost = {
+    ...existing,
+    ...patch,
+    id: existing.id,
+    configurationId: existing.configurationId,
+  };
+
+  db.prepare('UPDATE external_hosts SET configurationId = ?, data = ? WHERE id = ?').run(
+    updated.configurationId,
+    JSON.stringify(updated),
+    id
+  );
+
+  return updated;
+}
+
+/**
+ * Delete an external host by ID.
+ */
+export function deleteExternalHost(db: Database.Database, id: string): { deleted: true } {
+  db.prepare('DELETE FROM external_hosts WHERE id = ?').run(id);
+  return { deleted: true };
+}
+
+/**
  * List servers for a configuration.
  */
 export function listServers(db: Database.Database, configId: string): Server[] {
