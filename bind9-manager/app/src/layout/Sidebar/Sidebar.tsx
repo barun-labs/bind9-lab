@@ -233,6 +233,42 @@ export function Sidebar({
             </Link>
           );
         })}
+
+        {/* The docs are a separate static site served at /docs, so this is a
+            plain anchor (new tab), not a client-side route. */}
+        <a
+          href="/docs/"
+          target="_blank"
+          rel="noreferrer"
+          title={isExpanded ? undefined : 'Docs'}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '9px 16px',
+            margin: '8px 8px 0',
+            borderTop: '1px solid var(--color-divider)',
+            paddingTop: '13px',
+            color: 'var(--color-text)',
+            fontSize: '13px',
+            fontWeight: 500,
+            textDecoration: 'none',
+          }}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }} aria-hidden="true">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+          {isExpanded && (
+            <span style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              Docs
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none', opacity: 0.6 }} aria-hidden="true">
+                <path d="M7 17L17 7" />
+                <path d="M7 7h10v10" />
+              </svg>
+            </span>
+          )}
+        </a>
       </nav>
 
       <button

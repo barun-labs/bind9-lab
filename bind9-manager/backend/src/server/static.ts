@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fastifyStatic from '@fastify/static';
@@ -8,6 +9,13 @@ const DEFAULT_FRONTEND_DIST = path.resolve(
   fileURLToPath(new URL('../../../app/dist', import.meta.url))
 );
 
+// bind9-manager/backend/src/server/static.ts -> bind9-manager/docs-site/site
+// The built Zensical docs. Optional: if the dir is absent (docs not built on
+// this host), the mount is skipped and the app still boots.
+const DEFAULT_DOCS_DIR = path.resolve(
+  fileURLToPath(new URL('../../../docs-site/site', import.meta.url))
+);
+
 /**
  * Serves the built React frontend (bind9-manager/app/dist) from the same
  * Fastify instance that serves /api/v1/*. Static files and the SPA
@@ -16,8 +24,24 @@ const DEFAULT_FRONTEND_DIST = path.resolve(
  */
 export function registerFrontendStatic(
   app: FastifyInstance,
-  distDir: string = process.env.BIND9_FRONTEND_DIST ?? DEFAULT_FRONTEND_DIST
+  distDir: string = process.env.BIND9_FRONTEND_DIST ?? DEFAULT_FRONTEND_DIST,
+  docsDir: string = process.env.BIND9_DOCS_DIR ?? DEFAULT_DOCS_DIR
 ): void {
+  // The project documentation (a static Zensical site) at /docs. Registered
+  // first so /docs/* is served from the docs build, not the SPA. decorateReply
+  // is false because the frontend mount below owns reply.sendFile. Skipped when
+  // the docs have not been built on this host, so the app still boots.
+  const docsMounted = fs.existsSync(docsDir);
+  if (docsMounted) {
+    app.register(fastifyStatic, {
+      root: docsDir,
+      prefix: '/docs/',
+      decorateReply: false,
+      index: ['index.html'],
+      redirect: true, // /docs -> /docs/
+    });
+  }
+
   app.register(fastifyStatic, {
     root: distDir,
     prefix: '/',
@@ -27,9 +51,14 @@ export function registerFrontendStatic(
   // SPA fallback: any GET that isn't under /api/ and doesn't match a static
   // file (e.g. /login, /config/dns-lab on a hard refresh) gets index.html
   // so client-side routing can take over. Unmatched /api/ requests keep the
-  // normal JSON 404.
+  // normal JSON 404, and unmatched /docs/ requests 404 as docs (never the SPA).
   app.setNotFoundHandler((req, reply) => {
     const urlPath = req.url.split('?')[0];
+    if (req.method === 'GET' && urlPath.startsWith('/docs')) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Documentation page not found' },
+      });
+    }
     if (req.method === 'GET' && !urlPath.startsWith('/api/')) {
       return reply.status(200).sendFile('index.html', distDir);
     }
