@@ -5,6 +5,7 @@ import {
 } from 'react-router-dom';
 import { Chrome } from './layout/Chrome/Chrome';
 import { Placeholder } from './layout/Placeholder/Placeholder';
+import { Configurations } from './routes/Configurations/Configurations';
 import { ZoneRecords } from './routes/ZoneRecords/ZoneRecords';
 import { ApiKeys } from './routes/ApiKeys/ApiKeys';
 import { Users } from './routes/Users/Users';
@@ -66,12 +67,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'configurations',
-        element: (
-          <Placeholder
-            title="Configurations"
-            description="Each Configuration is a fully isolated DNS world — views, zones, records, blocks and servers don't cross between them."
-          />
-        ),
+        element: <Configurations />,
       },
       {
         path: 'config/:configId',

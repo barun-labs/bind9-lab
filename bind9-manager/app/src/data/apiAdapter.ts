@@ -251,6 +251,116 @@ export async function listConfigurations(
   return paginate(items, params?.page, params?.size);
 }
 
+export interface CreateConfigurationInput {
+  name: string;
+}
+
+export interface UpdateConfigurationPatch {
+  name?: string;
+  isActive?: boolean;
+}
+
+export async function createConfiguration(
+  store: StoreData,
+  input: CreateConfigurationInput
+): Promise<Configuration> {
+  if (isApiEnabled()) {
+    return apiFetch<Configuration>('/api/v1/configurations', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const now = new Date().toISOString();
+  const config: Configuration = {
+    id: 'cfg-' + Math.random().toString(16).slice(2, 10),
+    name: input.name,
+    isActive: true,
+    createdFromTemplateId: null,
+    createdAt: now,
+    updatedAt: now,
+    counts: { views: 0, zones: 0, records: 0, servers: 0 },
+  };
+  store.configurations.push(config);
+  return config;
+}
+
+export async function updateConfiguration(
+  store: StoreData,
+  configId: string,
+  patch: UpdateConfigurationPatch
+): Promise<Configuration> {
+  if (isApiEnabled()) {
+    return apiFetch<Configuration>(`/api/v1/configurations/${configId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  const config = store.configurations.find((c) => c.id === configId);
+  if (!config) {
+    throw new Error(`Configuration ${configId} not found`);
+  }
+  if (patch.name !== undefined) config.name = patch.name;
+  if (patch.isActive !== undefined) config.isActive = patch.isActive;
+  config.updatedAt = new Date().toISOString();
+  return config;
+}
+
+export async function deleteConfiguration(
+  store: StoreData,
+  configId: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: boolean }>(`/api/v1/configurations/${configId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ponytail: shallow delete only (matches deleteView/deleteAcl fixture
+  // fallback elsewhere in this file) — child rows aren't cascaded here since
+  // fixture mode has no FK constraints; add cascading if a demo needs it.
+  const index = store.configurations.findIndex((c) => c.id === configId);
+  if (index >= 0) store.configurations.splice(index, 1);
+  return { deleted: true };
+}
+
+export async function cloneConfiguration(
+  store: StoreData,
+  configId: string,
+  input: CreateConfigurationInput
+): Promise<Configuration> {
+  if (isApiEnabled()) {
+    return apiFetch<Configuration>(`/api/v1/configurations/${configId}/clone`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const source = store.configurations.find((c) => c.id === configId);
+  if (!source) {
+    throw new Error(`Configuration ${configId} not found`);
+  }
+  // ponytail: fixture-mode clone copies the configuration entry (with the
+  // source's counts, so the list reads plausibly) but not every child entity
+  // — the real backend deep-copies views/zones/records/servers/acls/tsig
+  // (see backend/src/server/entityStore.ts cloneConfiguration), which isn't
+  // worth replicating for a demo-only fallback with no test coverage. Add
+  // the full deep-copy here if fixture mode needs to browse a clone's contents.
+  const now = new Date().toISOString();
+  const cloned: Configuration = {
+    id: 'cfg-' + Math.random().toString(16).slice(2, 10),
+    name: input.name,
+    isActive: true,
+    createdFromTemplateId: null,
+    createdAt: now,
+    updatedAt: now,
+    counts: { ...source.counts },
+  };
+  store.configurations.push(cloned);
+  return cloned;
+}
+
 export interface CreateViewInput {
   name: string;
   order?: number;

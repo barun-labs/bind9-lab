@@ -152,6 +152,10 @@ export function useApi() {
   return useMemo(
     () => ({
       listConfigurations: (params?: api.ListParams) => api.listConfigurations(store, params),
+      createConfiguration: (input: api.CreateConfigurationInput) => api.createConfiguration(store, input),
+      updateConfiguration: (configId: string, patch: api.UpdateConfigurationPatch) => api.updateConfiguration(store, configId, patch),
+      deleteConfiguration: (configId: string) => api.deleteConfiguration(store, configId),
+      cloneConfiguration: (configId: string, input: api.CreateConfigurationInput) => api.cloneConfiguration(store, configId, input),
       listViews: (configId: string) => api.listViews(store, configId),
       createView: (configId: string, input: api.CreateViewInput) => api.createView(store, configId, input),
       updateView: (configId: string, id: string, patch: api.UpdateViewPatch) => api.updateView(store, configId, id, patch),
