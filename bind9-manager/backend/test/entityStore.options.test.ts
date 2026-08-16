@@ -99,12 +99,20 @@ describe('deployment options + roles store', () => {
     expect(model.roles).toHaveLength(1);
   });
 
-  it('golden: empty options/roles tables leave named.conf byte-identical to options:[]/roles:[]', () => {
+  it('golden: empty explicit options leave named.conf byte-identical to options:[]', () => {
     const db = openDb(':memory:');
     const model = buildConfigModel(db, 'dns-lab');
 
-    // Fresh seed has no deployment_options/deployment_roles rows.
-    expect(model.options).toEqual([]);
+    // Fresh seed has no explicit deployment_options rows; buildConfigModel
+    // synthesizes a VIEW-scope match-clients option from each view's field only.
+    expect(model.options).toHaveLength(3);
+    expect(model.options).toContainEqual({
+      scopeType: 'VIEW',
+      scopeId: 'view-internal',
+      key: 'match-clients',
+      value: ['10.0.0.0/8', '172.20.0.0/16'],
+      disabled: false,
+    });
     expect(model.roles).toEqual([]);
 
     // The pre-change buildConfigModel emitted options: [] and roles: [].
@@ -116,5 +124,49 @@ describe('deployment options + roles store', () => {
       expect(actual).toContain('options {');
       expect(actual).toBe(generateNamedConf(reference, server.id));
     }
+  });
+
+  it('synthesizes a VIEW-scope match-clients option from view.matchClients on a fresh seed', () => {
+    const db = openDb(':memory:');
+    const model = buildConfigModel(db, 'dns-lab');
+
+    const synthesized = model.options.filter((o) => o.key === 'match-clients');
+    expect(synthesized).toHaveLength(3);
+    expect(synthesized).toContainEqual({
+      scopeType: 'VIEW',
+      scopeId: 'view-internal',
+      key: 'match-clients',
+      value: ['10.0.0.0/8', '172.20.0.0/16'],
+      disabled: false,
+    });
+
+    const out = generateNamedConf(model, 'srv-pri');
+    expect(out).toContain('match-clients { 10.0.0.0/8; 172.20.0.0/16; };');
+  });
+
+  it('explicit match-clients option overrides view.matchClients', () => {
+    const db = openDb(':memory:');
+
+    // MUST-FAIL guard: without an override the emitted line reflects the field.
+    const baseline = generateNamedConf(buildConfigModel(db, 'dns-lab'), 'srv-pri');
+    expect(baseline).toContain('match-clients { 10.0.0.0/8; 172.20.0.0/16; };');
+
+    createDeploymentOption(db, 'dns-lab', {
+      scope: 'VIEW',
+      scopeId: 'view-internal',
+      key: 'match-clients',
+      value: ['192.0.2.1'],
+    });
+
+    const model = buildConfigModel(db, 'dns-lab');
+    const matches = model.options.filter(
+      (o) => o.scopeType === 'VIEW' && o.scopeId === 'view-internal' && o.key === 'match-clients',
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0].value).toEqual(['192.0.2.1']);
+
+    const out = generateNamedConf(model, 'srv-pri');
+    expect(out).toContain('match-clients { 192.0.2.1; };');
+    expect(out).not.toContain('match-clients { 10.0.0.0/8; 172.20.0.0/16; };');
   });
 });

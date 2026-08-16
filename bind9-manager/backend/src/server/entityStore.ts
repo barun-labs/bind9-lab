@@ -951,6 +951,25 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
     disabled: row.disabled,
   }));
 
+  // Synthesize a VIEW-scope match-clients option from each view's matchClients
+  // field unless an explicit deployment_options row already provides it
+  // (explicit rows win). Empty/undefined matchClients synthesize nothing; the
+  // renderer's existing ['any'] fallback covers that case.
+  for (const view of views) {
+    const hasExplicit = options.some(
+      (o) => o.scopeType === 'VIEW' && o.scopeId === view.id && o.key === 'match-clients',
+    );
+    if (!hasExplicit && view.matchClients && view.matchClients.length > 0) {
+      options.push({
+        scopeType: 'VIEW',
+        scopeId: view.id,
+        key: 'match-clients',
+        value: view.matchClients,
+        disabled: false,
+      });
+    }
+  }
+
   const roles = listDeploymentRoles(db, configId)
     .filter((row) => row.scope === 'ZONE')
     .map((row) => ({

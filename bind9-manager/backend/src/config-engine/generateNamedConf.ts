@@ -160,8 +160,13 @@ function renderView(
   const lines: string[] = [];
 
   // match-clients
+  const resolved = resolveOption(model, { serverId, viewId: view.id }, 'match-clients');
   const matchClients =
-    view.matchClients && view.matchClients.length > 0 ? view.matchClients : ['any'];
+    Array.isArray(resolved) && resolved.length > 0
+      ? resolved
+      : view.matchClients && view.matchClients.length > 0
+        ? view.matchClients
+        : ['any'];
   lines.push(`    match-clients ${formatAclList(matchClients)};`);
 
   // allow-*
