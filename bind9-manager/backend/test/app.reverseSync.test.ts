@@ -87,4 +87,33 @@ describe('reverse PTR auto-sync', () => {
     const anyLink = db.prepare('SELECT count(*) AS c FROM reverse_ptr_links').get() as { c: number };
     expect(anyLink.c).toBe(0);
   });
+
+  it('reconcile backfills PTRs for records that predate the block, and is idempotent', async () => {
+    const token = await loginAs();
+    // A second NETWORK created AFTER a forward record already exists.
+    const rec = JSON.parse((await app.inject({
+      method: 'POST', url: `/api/v1/zones/${fwdZoneId}/records`, headers: authHeader(token),
+      payload: { name: 'db', type: 'A', ttl: 3600, rdata: { type: 'A', address: '198.51.100.7' } },
+    })).body);
+    // No PTR yet: 198.51.100.0/24 is not a managed network.
+    expect(db.prepare("SELECT 1 FROM zones WHERE json_extract(data,'$.name') = ?").get('100.51.198.in-addr.arpa')).toBeUndefined();
+
+    const block = JSON.parse((await app.inject({
+      method: 'POST', url: '/api/v1/configurations/dns-lab/blocks', headers: authHeader(token),
+      payload: { name: 'late', cidr: '198.51.100.0/24', kind: 'NETWORK', viewId },
+    })).body);
+
+    const first = await app.inject({ method: 'POST', url: `/api/v1/configurations/dns-lab/blocks/${block.id}/reconcile`, headers: authHeader(token) });
+    expect(first.statusCode).toBe(200);
+    expect(JSON.parse(first.body).created).toBe(1);
+    expect(rec.id).toBeTruthy();
+
+    const zoneRow = db.prepare("SELECT data FROM zones WHERE json_extract(data,'$.name') = ?").get('100.51.198.in-addr.arpa') as { data: string };
+    const zone = JSON.parse(zoneRow.data);
+    expect(listRecords(db, zone.id).data.some((r: any) => r.type === 'PTR' && r.name === '7.100.51.198.in-addr.arpa')).toBe(true);
+
+    // idempotent: second reconcile creates nothing.
+    const second = await app.inject({ method: 'POST', url: `/api/v1/configurations/dns-lab/blocks/${block.id}/reconcile`, headers: authHeader(token) });
+    expect(JSON.parse(second.body).created).toBe(0);
+  });
 });

@@ -21,7 +21,7 @@ import {
   countActiveAdmins,
 } from './authStore';
 import { authorize, type Actor } from './authorize';
-import { reconcileReverseForRecord } from './reverseSync';
+import { reconcileReverseForRecord, reconcileBlock } from './reverseSync';
 import {
   listConfigurations,
   getConfiguration,
@@ -1696,6 +1696,21 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       return reply.status(422).send({ error: { code: 'HAS_CHILDREN', message: 'Delete or reparent child blocks first' } });
     }
     return reply.status(200).send(deleteBlock(db, blockId));
+  });
+
+  app.post('/api/v1/configurations/:configId/blocks/:blockId/reconcile', async (req, reply) => {
+    const { configId, blockId } = req.params as { configId: string; blockId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const block = getBlock(db, blockId);
+    if (!block || block.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Block not found' } });
+    }
+    if (block.kind !== 'NETWORK') {
+      return reply.status(422).send({ error: { code: 'NOT_A_NETWORK', message: 'Only a NETWORK can be reconciled' } });
+    }
+    return reply.status(200).send(reconcileBlock(db, blockId));
   });
 
   // --- DEPLOYMENT OPTIONS ROUTES (IA-4) ---
