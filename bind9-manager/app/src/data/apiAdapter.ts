@@ -26,6 +26,10 @@ import type {
   Acl,
   AclEntry,
   AclEvalResult,
+  ChangeSetResponse,
+  DiffLine,
+  DeployPreflight,
+  ChangeSetDeployJob,
 } from '../types/entities';
 export type {
   Lab,
@@ -1380,6 +1384,140 @@ export async function getDeployJob(
         },
       ],
     },
+  };
+}
+
+export interface CreateDeployJobInput {
+  changeSetItemIds: string[];
+  targetServerIds: string[];
+  warningAck?: boolean;
+}
+
+export class DeployPreflightError extends Error {
+  code: string;
+  preflight?: DeployPreflight;
+  constructor(code: string, message: string, preflight?: DeployPreflight) {
+    super(message);
+    this.name = 'DeployPreflightError';
+    this.code = code;
+    this.preflight = preflight;
+  }
+}
+
+export interface UnifiedDiff { mode: 'unified'; lines: DiffLine[]; }
+export interface SplitDiff { mode: 'split'; left: DiffLine[]; right: DiffLine[]; }
+export type ChangeSetDiff = UnifiedDiff | SplitDiff;
+
+export async function getChangeSet(
+  _store: StoreData,
+  configId: string
+): Promise<ChangeSetResponse> {
+  if (isApiEnabled()) {
+    return apiFetch<ChangeSetResponse>(`/api/v1/configurations/${configId}/change-set`);
+  }
+  return { items: [], groups: [] };
+}
+
+export async function getChangeSetDiff(
+  _store: StoreData,
+  configId: string,
+  mode: 'unified' | 'split',
+  serverId?: string
+): Promise<ChangeSetDiff> {
+  if (isApiEnabled()) {
+    const qs = buildQueryString({ mode, server: serverId });
+    return apiFetch<ChangeSetDiff>(`/api/v1/configurations/${configId}/change-set/diff${qs}`);
+  }
+  return mode === 'unified'
+    ? { mode: 'unified', lines: [] }
+    : { mode: 'split', left: [], right: [] };
+}
+
+export async function createDeployJob(
+  store: StoreData,
+  configId: string,
+  input: CreateDeployJobInput
+): Promise<{ jobId: string }> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<{ jobId: string }>(`/api/v1/configurations/${configId}/deploy-jobs`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+    } catch (err: any) {
+      const code = err?.error?.code;
+      const preflight = err?.error?.preflight;
+      if (code === 'PREFLIGHT_FAILED' || code === 'PREFLIGHT_WARNING_UNACK') {
+        throw new DeployPreflightError(code, err?.message ?? code, preflight);
+      }
+      throw err;
+    }
+  }
+
+  const job = syntheticChangeSetDeployJob(configId, input.changeSetItemIds, input.targetServerIds);
+  if (!store.deployJobs) store.deployJobs = [];
+  store.deployJobs.push(job);
+  return { jobId: job.id };
+}
+
+export async function getChangeSetDeployJob(
+  store: StoreData,
+  configId: string,
+  jobId: string
+): Promise<ChangeSetDeployJob | null> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<ChangeSetDeployJob>(
+        `/api/v1/configurations/${configId}/deploy-jobs/${jobId}`
+      );
+    } catch (err: any) {
+      if (err?.status === 404) return null;
+      throw err;
+    }
+  }
+  const job = (store.deployJobs || []).find(
+    (j) => j.id === jobId && j.configurationId === configId
+  );
+  return (job as ChangeSetDeployJob) ?? null;
+}
+
+export async function retryDeployJob(
+  _store: StoreData,
+  configId: string,
+  jobId: string,
+  serverId?: string
+): Promise<{ jobId: string }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ jobId: string }>(
+      `/api/v1/configurations/${configId}/deploy-jobs/${jobId}/retry`,
+      {
+        method: 'POST',
+        body: JSON.stringify(serverId ? { serverId } : {}),
+      }
+    );
+  }
+  return { jobId };
+}
+
+function syntheticChangeSetDeployJob(
+  configId: string,
+  changeSetItemIds: string[],
+  targetServerIds: string[]
+): ChangeSetDeployJob {
+  const now = new Date().toISOString();
+  return {
+    id: 'job-' + Math.random().toString(16).slice(2, 10),
+    configurationId: configId,
+    changeSetItemIds,
+    targetServerIds,
+    status: 'SUCCEEDED',
+    serverResults: targetServerIds.map((serverId) => ({
+      serverId,
+      outcome: 'SUCCEEDED',
+      startedAt: now,
+      finishedAt: now,
+    })),
+    createdAt: now,
   };
 }
 

@@ -180,6 +180,11 @@ export function useApi() {
       getLabStatistics: (labId: string) => api.getLabStatistics(store, labId),
       runQuery: (labId: string, input: { node: string; qname: string; qtype?: string; server?: string }) => api.runQuery(store, labId, input),
       getConfigHealth: (configId: string) => api.getConfigHealth(store, configId),
+      getChangeSet: (configId: string) => api.getChangeSet(store, configId),
+      getChangeSetDiff: (configId: string, mode: 'unified' | 'split', serverId?: string) => api.getChangeSetDiff(store, configId, mode, serverId),
+      createDeployJob: (configId: string, input: api.CreateDeployJobInput) => api.createDeployJob(store, configId, input),
+      getChangeSetDeployJob: (configId: string, jobId: string) => api.getChangeSetDeployJob(store, configId, jobId),
+      retryDeployJob: (configId: string, jobId: string, serverId?: string) => api.retryDeployJob(store, configId, jobId, serverId),
     }),
     [store]
   );

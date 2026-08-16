@@ -229,3 +229,21 @@ export interface Acl { id: string; configurationId: string; name: string; entrie
 export interface AclTraceStep { entryId: string; type: string; value: string|null; negated: boolean; matched: boolean; }
 export interface AclEvalResult { matched: boolean; decision: 'ALLOW'|'DENY'; trace: AclTraceStep[]; error?: string; }
 
+export type ChangeSetItemAction = 'CREATE'|'UPDATE'|'DELETE'|'DISABLE'|'ENABLE';
+export type ChangeSetObjectType = 'VIEW'|'ZONE'|'RECORD'|'ACL'|'SERVER';
+export interface ChangeSetItem { id:string; configurationId:string; objectType:ChangeSetObjectType;
+  objectId:string; objectLabel:string; groupKey:string; action:ChangeSetItemAction;
+  diff:{before:unknown|null; after:unknown|null}; createdBy:'user'; }
+export interface ChangeSetGroup { groupKey:string; objectType:ChangeSetObjectType; items:ChangeSetItem[]; }
+export interface ChangeSetResponse { items:ChangeSetItem[]; groups:ChangeSetGroup[]; }
+export interface DiffLine { kind:'context'|'add'|'del'; text:string; }
+export type DeployOutcome = 'SUCCEEDED'|'FAILED'|'PARTIAL'|'CANCELLED';
+export interface DeployPreflightCheck { serverId?:string; zoneId?:string; zoneName?:string;
+  result:'OK'|'WARN'|'FAIL'; detail:string; }
+export interface DeployPreflight { checkconf:DeployPreflightCheck[]; checkzone:DeployPreflightCheck[]; }
+export interface DeployServerResult { serverId:string; outcome:DeployOutcome; startedAt:string;
+  finishedAt?:string; stderr?:string; }
+export interface ChangeSetDeployJob { id:string; configurationId:string; changeSetItemIds:string[];
+  targetServerIds:string[]; status:'QUEUED'|'RUNNING'|'SUCCEEDED'|'FAILED'|'PARTIAL'|'CANCELLED';
+  preflight?:DeployPreflight; serverResults:DeployServerResult[]; warningAck?:boolean; createdAt:string; }
+

@@ -19,6 +19,7 @@ import { ZoneHealth } from './routes/ZoneHealth/ZoneHealth';
 import { Acls } from './routes/Acls/Acls';
 import { AclEditor } from './routes/Acls/AclEditor';
 import { AclEvaluator } from './routes/Acls/AclEvaluator';
+import { ReviewDeploy } from './routes/ReviewDeploy/ReviewDeploy';
 import { RequireAuth } from './auth/RequireAuth';
 
 export const routes: RouteObject[] = [
@@ -223,12 +224,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/review-deploy',
-        element: (
-          <Placeholder
-            title="Review & Deploy"
-            description="Review staged change diffs and deploy to target servers."
-          />
-        ),
+        element: <ReviewDeploy />,
       },
       {
         path: 'config/:configId/history',
