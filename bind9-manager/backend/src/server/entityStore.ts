@@ -66,20 +66,46 @@ function sortItems<T extends Record<string, any>>(items: T[], sort?: string): T[
 }
 
 /**
- * List all configurations.
+ * Live per-configuration object counts. The stored `counts` on a Configuration
+ * is a seed-time snapshot that goes stale as objects are created/deleted, so we
+ * recompute from the entity tables on every read. Records have no configId
+ * column, so they are counted through their zone.
  */
-export function listConfigurations(db: Database.Database): Configuration[] {
-  const rows = db.prepare('SELECT data FROM configurations').all() as { data: string }[];
-  return rows.map((r) => JSON.parse(r.data) as Configuration);
+function computeConfigCounts(
+  db: Database.Database,
+  configId: string,
+): Configuration['counts'] {
+  const count = (sql: string): number =>
+    (db.prepare(sql).get(configId) as { c: number }).c;
+  return {
+    views: count('SELECT COUNT(*) AS c FROM views WHERE configurationId = ?'),
+    zones: count('SELECT COUNT(*) AS c FROM zones WHERE configurationId = ?'),
+    servers: count('SELECT COUNT(*) AS c FROM servers WHERE configurationId = ?'),
+    records: count(
+      'SELECT COUNT(*) AS c FROM records WHERE zoneId IN (SELECT id FROM zones WHERE configurationId = ?)',
+    ),
+  };
 }
 
 /**
- * Get configuration by ID.
+ * List all configurations, each with live object counts.
+ */
+export function listConfigurations(db: Database.Database): Configuration[] {
+  const rows = db.prepare('SELECT data FROM configurations').all() as { data: string }[];
+  return rows.map((r) => {
+    const config = JSON.parse(r.data) as Configuration;
+    return { ...config, counts: computeConfigCounts(db, config.id) };
+  });
+}
+
+/**
+ * Get configuration by ID, with live object counts.
  */
 export function getConfiguration(db: Database.Database, id: string): Configuration | null {
   const row = db.prepare('SELECT data FROM configurations WHERE id = ?').get(id) as { data: string } | undefined;
   if (!row) return null;
-  return JSON.parse(row.data) as Configuration;
+  const config = JSON.parse(row.data) as Configuration;
+  return { ...config, counts: computeConfigCounts(db, id) };
 }
 
 /**

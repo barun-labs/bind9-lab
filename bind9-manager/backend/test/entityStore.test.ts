@@ -42,6 +42,21 @@ describe('entityStore (DAO + CRUD)', () => {
       });
     });
 
+    it('config counts are live: adding a record increments the records count, not the stale stored value', () => {
+      const db = openDb(':memory:');
+      const zone = getZone(db, 'zone-lab')!;
+      const configId = zone.configurationId;
+      const before = listConfigurations(db).find((c) => c.id === configId)!.counts.records;
+      createRecord(db, 'zone-lab', {
+        name: 'live-count-probe',
+        type: 'A',
+        ttl: 300,
+        rdata: { address: '10.9.9.9' },
+      });
+      const after = listConfigurations(db).find((c) => c.id === configId)!.counts.records;
+      expect(after).toBe(before + 1);
+    });
+
     it('seed present: listViews and listExternalHosts return fixtures for dns-lab', () => {
       const db = openDb(':memory:');
       const views = listViews(db, 'dns-lab');
