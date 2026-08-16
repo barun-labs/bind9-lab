@@ -32,6 +32,13 @@ export interface Configuration {
   counts: { views: number; zones: number; records: number; servers: number };
 }
 export interface ExternalHost { id: string; configurationId: string; fqdn: string; referenceCount: number; }
+export type AclEntryType = 'ADDRESS' | 'CIDR' | 'ACL_NAME' | 'KEY_NAME' | 'ANY' | 'NONE' | 'LOCALHOST' | 'LOCALNETS';
+export interface AclEntry {
+  id: string; order: number; type: AclEntryType;
+  value: string | null;   // address / CIDR / referenced ACL name / key name; null for ANY/NONE/LOCALHOST/LOCALNETS
+  negated: boolean;
+}
+export interface Acl { id: string; configurationId: string; name: string; entries: AclEntry[]; usedByCount: number; }
 export interface ApiKey {
   id: string;
   name: string;

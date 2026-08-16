@@ -37,6 +37,11 @@ import {
   upsertServer,
   deleteServerById,
   buildConfigModel,
+  listAcls,
+  getAcl,
+  createAcl,
+  updateAcl,
+  deleteAcl,
   type ZoneFilters,
   type RecordFilters,
 } from './entityStore';
@@ -56,6 +61,7 @@ import { snapshot } from './telemetry';
 import { statisticsSnapshot } from './statistics';
 import { runQuery, validateQuery } from './queryTool';
 import { analyzeHealth } from './healthEngine';
+import { evaluateAcl } from './aclEvaluator';
 import {
   generateClabTopology,
   validateTopology,
@@ -833,6 +839,97 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       return reply.status(409).send({ error: { code: 'HAS_DEPENDENTS', message: 'View has zones; delete them first' } });
     }
     const result = deleteView(db, viewId);
+    return reply.status(200).send(result);
+  });
+
+  // GET /api/v1/configurations/:configId/acls - List ACLs for a configuration
+  app.get('/api/v1/configurations/:configId/acls', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    return reply.status(200).send(listAcls(db, configId));
+  });
+
+  // GET /api/v1/configurations/:configId/acls/:aclId - Get single ACL (scope-checked)
+  app.get('/api/v1/configurations/:configId/acls/:aclId', async (req, reply) => {
+    const { configId, aclId } = req.params as { configId: string; aclId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const acl = getAcl(db, aclId);
+    if (!acl || acl.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'ACL not found' } });
+    }
+    return reply.status(200).send(acl);
+  });
+
+  // POST /api/v1/configurations/:configId/acls - Create an ACL (requires edit)
+  app.post('/api/v1/configurations/:configId/acls', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const name = typeof body.name === 'string' ? body.name : '';
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be a DNS-safe name ([A-Za-z0-9._-])' } });
+    }
+    const acl = createAcl(db, configId, { name, entries: body.entries });
+    return reply.status(201).send(acl);
+  });
+
+  // PATCH /api/v1/configurations/:configId/acls/:aclId - Update an ACL (scope-checked, requires edit)
+  app.patch('/api/v1/configurations/:configId/acls/:aclId', async (req, reply) => {
+    const { configId, aclId } = req.params as { configId: string; aclId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getAcl(db, aclId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'ACL not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    if (body.name !== undefined && (typeof body.name !== 'string' || !/^[A-Za-z0-9._-]+$/.test(body.name))) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be a DNS-safe name ([A-Za-z0-9._-])' } });
+    }
+    const patch: { name?: string; entries?: unknown } = {};
+    if (body.name !== undefined) patch.name = body.name;
+    if (body.entries !== undefined) patch.entries = body.entries;
+    const updated = updateAcl(db, aclId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/configurations/:configId/acls/:aclId - Delete an ACL (scope-checked, requires edit)
+  app.delete('/api/v1/configurations/:configId/acls/:aclId', async (req, reply) => {
+    const { configId, aclId } = req.params as { configId: string; aclId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getAcl(db, aclId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'ACL not found' } });
+    }
+    const result = deleteAcl(db, aclId);
+    return reply.status(200).send(result);
+  });
+
+  // POST /api/v1/configurations/:configId/acls/evaluate - Evaluate an ACL against a client IP (requires view)
+  app.post('/api/v1/configurations/:configId/acls/evaluate', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const target = typeof body.target === 'string' ? body.target : '';
+    if (!target) {
+      return reply.status(422).send({ error: { code: 'INVALID_TARGET', message: 'target is required' } });
+    }
+    const clientIp = typeof body.clientIp === 'string' ? body.clientIp : '';
+    if (!/^[0-9A-Fa-f:.]+$/.test(clientIp)) {
+      return reply.status(422).send({ error: { code: 'INVALID_IP', message: 'clientIp must be a plausible IP address' } });
+    }
+    const result = evaluateAcl(listAcls(db, configId), target, clientIp);
     return reply.status(200).send(result);
   });
 

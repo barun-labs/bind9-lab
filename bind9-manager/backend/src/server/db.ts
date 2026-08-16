@@ -124,6 +124,13 @@ export function openDb(path = ':memory:'): Database.Database {
       FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS acls (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS deploy_jobs (
       id TEXT PRIMARY KEY,
       data TEXT NOT NULL
@@ -138,6 +145,7 @@ export function openDb(path = ':memory:'): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_external_hosts_configId ON external_hosts(configurationId);
     CREATE INDEX IF NOT EXISTS idx_servers_configId ON servers(configurationId);
     CREATE INDEX IF NOT EXISTS idx_labs_configId ON labs(configurationId);
+    CREATE INDEX IF NOT EXISTS idx_acls_configId ON acls(configurationId);
   `);
 
   const adminCheck = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');

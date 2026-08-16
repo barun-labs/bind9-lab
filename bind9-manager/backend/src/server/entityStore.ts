@@ -6,6 +6,9 @@ import type {
   Zone,
   ResourceRecord,
   ExternalHost,
+  Acl,
+  AclEntry,
+  AclEntryType,
   ListEnvelope,
   RecordType,
   SyncState,
@@ -142,6 +145,98 @@ export function updateView(db: Database.Database, id: string, patch: Partial<Vie
  */
 export function deleteView(db: Database.Database, id: string): { deleted: true } {
   db.prepare('DELETE FROM views WHERE id = ?').run(id);
+  return { deleted: true };
+}
+
+const ACL_ENTRY_TYPES: readonly string[] = ['ADDRESS', 'CIDR', 'ACL_NAME', 'KEY_NAME', 'ANY', 'NONE', 'LOCALHOST', 'LOCALNETS'];
+
+/**
+ * Normalize raw ACL entry input into stored AclEntry[]: coerce to an array,
+ * assign ids/order, drop entries with an unknown type, coerce negated/value.
+ */
+function normalizeAclEntries(input: unknown): AclEntry[] {
+  if (!Array.isArray(input)) return [];
+  const entries: AclEntry[] = [];
+  let order = 0;
+  for (const raw of input) {
+    if (!raw || typeof raw !== 'object') continue;
+    const r = raw as Record<string, unknown>;
+    if (typeof r.type !== 'string' || !ACL_ENTRY_TYPES.includes(r.type)) continue;
+    entries.push({
+      id: typeof r.id === 'string' && r.id ? r.id : 'ae-' + randomBytes(4).toString('hex'),
+      order,
+      type: r.type as AclEntryType,
+      value: typeof r.value === 'string' ? r.value : null,
+      negated: Boolean(r.negated),
+    });
+    order++;
+  }
+  return entries;
+}
+
+/**
+ * List ACLs for a configuration.
+ */
+export function listAcls(db: Database.Database, configId: string): Acl[] {
+  const rows = db.prepare('SELECT data FROM acls WHERE configurationId = ?').all(configId) as { data: string }[];
+  return rows.map((r) => JSON.parse(r.data) as Acl);
+}
+
+/**
+ * Get ACL by ID.
+ */
+export function getAcl(db: Database.Database, id: string): Acl | null {
+  const row = db.prepare('SELECT data FROM acls WHERE id = ?').get(id) as { data: string } | undefined;
+  if (!row) return null;
+  return JSON.parse(row.data) as Acl;
+}
+
+/**
+ * Create a new ACL for a configuration.
+ */
+export function createAcl(db: Database.Database, configId: string, input: { name: string; entries?: unknown }): Acl {
+  const acl: Acl = {
+    id: 'acl-' + randomBytes(6).toString('hex'),
+    configurationId: configId,
+    name: input.name,
+    entries: normalizeAclEntries(input.entries),
+    usedByCount: 0,
+  };
+  db.prepare('INSERT INTO acls (id, configurationId, data) VALUES (?, ?, ?)').run(acl.id, configId, JSON.stringify(acl));
+  return acl;
+}
+
+/**
+ * Update an existing ACL.
+ */
+export function updateAcl(db: Database.Database, id: string, patch: { name?: string; entries?: unknown }): Acl {
+  const existing = getAcl(db, id);
+  if (!existing) {
+    throw new Error(`Acl ${id} not found`);
+  }
+
+  const updated: Acl = {
+    ...existing,
+    id: existing.id,
+    configurationId: existing.configurationId,
+    name: typeof patch.name === 'string' ? patch.name : existing.name,
+    entries: patch.entries !== undefined ? normalizeAclEntries(patch.entries) : existing.entries,
+  };
+
+  db.prepare('UPDATE acls SET configurationId = ?, data = ? WHERE id = ?').run(
+    updated.configurationId,
+    JSON.stringify(updated),
+    id
+  );
+
+  return updated;
+}
+
+/**
+ * Delete an ACL by ID.
+ */
+export function deleteAcl(db: Database.Database, id: string): { deleted: true } {
+  db.prepare('DELETE FROM acls WHERE id = ?').run(id);
   return { deleted: true };
 }
 
