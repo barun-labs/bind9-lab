@@ -145,6 +145,14 @@ export function openDb(path = ':memory:'): Database.Database {
       FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS reverse_ptr_links (
+      configurationId TEXT NOT NULL,
+      forwardRecordId TEXT PRIMARY KEY,
+      ptrRecordId     TEXT NOT NULL,
+      ptrZoneId       TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS tsig_keys (
       id TEXT PRIMARY KEY,
       configurationId TEXT NOT NULL,

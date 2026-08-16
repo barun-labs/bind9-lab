@@ -21,6 +21,7 @@ import {
   countActiveAdmins,
 } from './authStore';
 import { authorize, type Actor } from './authorize';
+import { reconcileReverseForRecord } from './reverseSync';
 import {
   listConfigurations,
   getConfiguration,
@@ -724,6 +725,7 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       });
     }
     const record = createRecord(db, zoneId, body);
+    reconcileReverseForRecord(db, record, 'CREATE');
     return reply.status(201).send(record);
   });
 
@@ -767,6 +769,7 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       }
     }
     const updated = updateRecord(db, id, body);
+    reconcileReverseForRecord(db, updated, 'UPDATE');
     return reply.status(200).send(updated);
   });
 
@@ -791,6 +794,7 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       });
     }
     const result = deleteRecord(db, id);
+    reconcileReverseForRecord(db, record, 'DELETE');
     return reply.status(200).send(result);
   });
 
