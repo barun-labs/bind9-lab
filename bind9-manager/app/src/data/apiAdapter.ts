@@ -49,6 +49,7 @@ export type {
 import type { StoreData } from './store';
 import { apiFetch, isApiEnabled, resolveUrl } from './http';
 import { generateClabYaml, parseClabYaml, validateClientTopology } from '../lib/clabYaml';
+import { ZONE_SCOPE_KEYS } from '../lib/optionKinds';
 
 
 export interface ListParams {
@@ -116,6 +117,47 @@ export interface DeploymentRoleRow {
   scopeId: string;
   serverId: string;
   role: string;
+  disabled?: boolean;
+}
+
+export type InheritanceMode = 'INHERIT' | 'OVERRIDE' | 'DISABLE';
+
+export interface EffectiveOption {
+  key: string;
+  mode: InheritanceMode;
+  effectiveValue: unknown;
+  inheritedValue: unknown;
+}
+
+export interface EffectiveRole {
+  serverId: string;
+  role: string;
+  mode: InheritanceMode;
+}
+
+export interface CreateDeploymentOptionInput {
+  scope: OptionScope;
+  scopeId: string;
+  key: string;
+  value?: unknown;
+  disabled?: boolean;
+}
+
+export interface UpdateDeploymentOptionPatch {
+  value?: unknown;
+  disabled?: boolean;
+}
+
+export interface CreateDeploymentRoleInput {
+  scope: OptionScope;
+  scopeId: string;
+  serverId: string;
+  role: string;
+  disabled?: boolean;
+}
+
+export interface UpdateDeploymentRolePatch {
+  role?: string;
   disabled?: boolean;
 }
 
@@ -700,6 +742,217 @@ export async function listDeploymentRoles(
   return (store.deploymentRoles || []).filter(
     (row: any) => (row.scope ?? row.scopeType) === scope && row.scopeId === scopeId
   ) as DeploymentRoleRow[];
+}
+
+export async function createDeploymentOption(
+  store: StoreData,
+  configId: string,
+  input: CreateDeploymentOptionInput
+): Promise<DeploymentOptionRow> {
+  if (isApiEnabled()) {
+    return apiFetch<DeploymentOptionRow>(`/api/v1/configurations/${configId}/options`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const row: DeploymentOptionRow = {
+    id: 'opt-' + Math.random().toString(16).slice(2, 10),
+    configurationId: configId,
+    scope: input.scope,
+    scopeId: input.scopeId,
+    key: input.key,
+    value: input.disabled ? null : input.value ?? null,
+    disabled: input.disabled ?? false,
+  };
+  if (!store.deploymentOptions) store.deploymentOptions = [];
+  store.deploymentOptions.push(row as any);
+  return row;
+}
+
+export async function updateDeploymentOption(
+  store: StoreData,
+  configId: string,
+  optionId: string,
+  patch: UpdateDeploymentOptionPatch
+): Promise<DeploymentOptionRow> {
+  if (isApiEnabled()) {
+    return apiFetch<DeploymentOptionRow>(`/api/v1/configurations/${configId}/options/${optionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  const row = (store.deploymentOptions || []).find((r: any) => r.id === optionId);
+  if (!row) {
+    throw new Error(`Deployment option with id ${optionId} not found`);
+  }
+  if (patch.value !== undefined) row.value = patch.value;
+  if (patch.disabled !== undefined) row.disabled = patch.disabled;
+  return row as DeploymentOptionRow;
+}
+
+export async function deleteDeploymentOption(
+  store: StoreData,
+  configId: string,
+  optionId: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    await apiFetch<void>(`/api/v1/configurations/${configId}/options/${optionId}`, {
+      method: 'DELETE',
+    });
+    return { deleted: true };
+  }
+
+  const arr = store.deploymentOptions || [];
+  const index = arr.findIndex((r: any) => r.id === optionId);
+  if (index >= 0) arr.splice(index, 1);
+  return { deleted: true };
+}
+
+// Resolved per-zone option modes. Real-API mode returns the backend's actual
+// precedence result (server/server-group/config scopes included).
+//
+// ponytail: fixture-mode fallback is best-effort — it only resolves ZONE and
+// VIEW rows, not the full server/server-group/config precedence chain the
+// backend implements in config-engine/resolve.ts. Good enough for offline
+// dev fixtures; the real API path above is what actually matters.
+export async function getEffectiveZoneOptions(
+  store: StoreData,
+  configId: string,
+  zoneId: string
+): Promise<EffectiveOption[]> {
+  if (isApiEnabled()) {
+    return apiFetch<EffectiveOption[]>(
+      `/api/v1/configurations/${configId}/zones/${zoneId}/effective-options`
+    );
+  }
+
+  const zone = store.zones.find((z) => z.id === zoneId);
+  const viewId = zone?.viewId ?? '';
+  const rows = (store.deploymentOptions || []) as any[];
+  const zoneRows = rows.filter((r) => (r.scope ?? r.scopeType) === 'ZONE' && r.scopeId === zoneId);
+  const viewRows = rows.filter((r) => (r.scope ?? r.scopeType) === 'VIEW' && r.scopeId === viewId);
+
+  const result: EffectiveOption[] = [];
+  for (const key of ZONE_SCOPE_KEYS) {
+    const zoneRow = zoneRows.find((r) => r.key === key);
+    const viewRow = viewRows.find((r) => r.key === key);
+    const inheritedValue = viewRow && !viewRow.disabled ? viewRow.value : undefined;
+
+    if (zoneRow?.disabled) {
+      result.push({ key, mode: 'DISABLE', effectiveValue: null, inheritedValue });
+    } else if (zoneRow) {
+      result.push({ key, mode: 'OVERRIDE', effectiveValue: zoneRow.value, inheritedValue });
+    } else if (inheritedValue !== undefined) {
+      result.push({ key, mode: 'INHERIT', effectiveValue: inheritedValue, inheritedValue });
+    }
+  }
+  return result;
+}
+
+export async function createDeploymentRole(
+  store: StoreData,
+  configId: string,
+  input: CreateDeploymentRoleInput
+): Promise<DeploymentRoleRow> {
+  if (isApiEnabled()) {
+    return apiFetch<DeploymentRoleRow>(`/api/v1/configurations/${configId}/roles`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const row: DeploymentRoleRow = {
+    id: 'role-' + Math.random().toString(16).slice(2, 10),
+    configurationId: configId,
+    scope: input.scope,
+    scopeId: input.scopeId,
+    serverId: input.serverId,
+    role: input.role,
+    disabled: input.disabled ?? false,
+  };
+  if (!store.deploymentRoles) store.deploymentRoles = [];
+  store.deploymentRoles.push(row as any);
+  return row;
+}
+
+export async function updateDeploymentRole(
+  store: StoreData,
+  configId: string,
+  roleId: string,
+  patch: UpdateDeploymentRolePatch
+): Promise<DeploymentRoleRow> {
+  if (isApiEnabled()) {
+    return apiFetch<DeploymentRoleRow>(`/api/v1/configurations/${configId}/roles/${roleId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  const row = (store.deploymentRoles || []).find((r: any) => r.id === roleId);
+  if (!row) {
+    throw new Error(`Deployment role with id ${roleId} not found`);
+  }
+  if (patch.role !== undefined) row.role = patch.role;
+  if (patch.disabled !== undefined) row.disabled = patch.disabled;
+  return row as DeploymentRoleRow;
+}
+
+export async function deleteDeploymentRole(
+  store: StoreData,
+  configId: string,
+  roleId: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    await apiFetch<void>(`/api/v1/configurations/${configId}/roles/${roleId}`, {
+      method: 'DELETE',
+    });
+    return { deleted: true };
+  }
+
+  const arr = store.deploymentRoles || [];
+  const index = arr.findIndex((r: any) => r.id === roleId);
+  if (index >= 0) arr.splice(index, 1);
+  return { deleted: true };
+}
+
+// ponytail: fixture-mode fallback, same caveat as getEffectiveZoneOptions —
+// resolves only ZONE/VIEW role rows, not the full backend precedence chain.
+export async function getEffectiveZoneRoles(
+  store: StoreData,
+  configId: string,
+  zoneId: string
+): Promise<EffectiveRole[]> {
+  if (isApiEnabled()) {
+    return apiFetch<EffectiveRole[]>(
+      `/api/v1/configurations/${configId}/zones/${zoneId}/effective-roles`
+    );
+  }
+
+  const zone = store.zones.find((z) => z.id === zoneId);
+  const viewId = zone?.viewId ?? '';
+  const rows = (store.deploymentRoles || []) as any[];
+  const zoneRows = rows.filter((r) => (r.scope ?? r.scopeType) === 'ZONE' && r.scopeId === zoneId);
+  const viewRows = rows.filter((r) => (r.scope ?? r.scopeType) === 'VIEW' && r.scopeId === viewId);
+  const serverIds = new Set<string>([
+    ...zoneRows.map((r) => r.serverId),
+    ...viewRows.map((r) => r.serverId),
+  ]);
+
+  const result: EffectiveRole[] = [];
+  for (const serverId of serverIds) {
+    const zoneRow = zoneRows.find((r) => r.serverId === serverId);
+    if (zoneRow) {
+      result.push({ serverId, role: zoneRow.role, mode: zoneRow.disabled ? 'DISABLE' : 'OVERRIDE' });
+      continue;
+    }
+    const viewRow = viewRows.find((r) => r.serverId === serverId);
+    if (viewRow && !viewRow.disabled) {
+      result.push({ serverId, role: viewRow.role, mode: 'INHERIT' });
+    }
+  }
+  return result;
 }
 
 export async function listApiKeys(

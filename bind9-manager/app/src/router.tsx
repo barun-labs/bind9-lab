@@ -17,6 +17,9 @@ import { ViewHub } from './routes/Views/ViewHub';
 import { ZonesInView } from './routes/Views/ZonesInView';
 import { ViewOptionsPanel } from './routes/Views/ViewOptionsPanel';
 import { ViewRolesPanel } from './routes/Views/ViewRolesPanel';
+import { ZoneHub } from './routes/Views/ZoneHub';
+import { ZoneOptionsPanel } from './routes/Views/ZoneOptionsPanel';
+import { ZoneRolesPanel } from './routes/Views/ZoneRolesPanel';
 import {
   RedirectToFirstViewZones,
   RedirectToFirstViewExternalHosts,
@@ -92,13 +95,26 @@ export const routes: RouteObject[] = [
             element: <ViewRolesPanel />,
           },
           {
-            // Zone hub is IA-7; for now, jump straight to the zone's records.
             path: 'zones/:zoneId',
-            element: <Navigate to="records" replace />,
-          },
-          {
-            path: 'zones/:zoneId/records',
-            element: <ZoneRecords />,
+            element: <ZoneHub />,
+            children: [
+              {
+                index: true,
+                element: <Navigate to="records" replace />,
+              },
+              {
+                path: 'records',
+                element: <ZoneRecords />,
+              },
+              {
+                path: 'options',
+                element: <ZoneOptionsPanel />,
+              },
+              {
+                path: 'roles',
+                element: <ZoneRolesPanel />,
+              },
+            ],
           },
         ],
       },

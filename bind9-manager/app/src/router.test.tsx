@@ -49,3 +49,15 @@ test('an old flat external-hosts path redirects to the nested view hub', async (
   renderRoute('/config/dns-lab/external-hosts');
   expect(await screen.findByRole('heading', { name: /external hosts/i })).toBeInTheDocument();
 });
+
+test('the zone hub renders its three tabs', async () => {
+  renderRoute('/config/dns-lab/views/view-internal/zones/zone-lab');
+  expect(await screen.findByRole('link', { name: 'Records' })).toBeInTheDocument();
+
+  // ViewHub (the ancestor route) also has "Deployment Options"/"Deployment
+  // Roles" tabs at view scope, so assert on the zone-scoped hrefs specifically.
+  const optionsLinks = screen.getAllByRole('link', { name: 'Deployment Options' });
+  expect(optionsLinks.some((el) => el.getAttribute('href')?.endsWith('/zones/zone-lab/options'))).toBe(true);
+  const rolesLinks = screen.getAllByRole('link', { name: 'Deployment Roles' });
+  expect(rolesLinks.some((el) => el.getAttribute('href')?.endsWith('/zones/zone-lab/roles'))).toBe(true);
+});
