@@ -54,6 +54,8 @@ import {
 import { parseInspect, destroy } from './deployEngine';
 import { snapshot } from './telemetry';
 import { statisticsSnapshot } from './statistics';
+import { runQuery, validateQuery } from './queryTool';
+import { analyzeHealth } from './healthEngine';
 import {
   generateClabTopology,
   validateTopology,
@@ -1380,6 +1382,53 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
 
     const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
     return reply.status(200).send(await statisticsSnapshot(lab, activeRunner, labDir));
+  });
+
+  // POST /api/v1/labs/:id/query - run `dig` inside a bind node (requires view; DNS-lab only)
+  app.post('/api/v1/labs/:id/query', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'view', lab.configurationId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+
+    if (!isDnsLab(lab)) {
+      return reply.status(422).send({
+        error: { code: 'NOT_A_DNS_LAB', message: 'Bind9-Manager only manages DNS labs (labs with a bind node).' },
+      });
+    }
+
+    const bindNodes = (lab.topology?.nodes || []).filter((n) => n && n.intent === 'bind').map((n) => n.name);
+    const v = validateQuery(req.body as any, bindNodes);
+    if (!v.ok) {
+      return reply.status(422).send({ error: { code: v.code, message: v.message } });
+    }
+    const result = await runQuery(lab, activeRunner, { ...(req.body as any), qtype: v.qtype });
+    return reply.status(200).send(result);
+  });
+
+  // GET /api/v1/configurations/:configId/health - static config health analysis (requires view)
+  app.get('/api/v1/configurations/:configId/health', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({
+        error: { code: 'FORBIDDEN', message: 'Forbidden' },
+      });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Configuration not found' },
+      });
+    }
+    const findings = analyzeHealth(buildConfigModel(db, configId));
+    return reply.status(200).send({ findings });
   });
 
   // GET /api/v1/labs/:id/telemetry/stream - Server-sent events, one snapshot every 2.5s (requires view)
