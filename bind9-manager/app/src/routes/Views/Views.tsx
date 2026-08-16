@@ -25,7 +25,6 @@ export function Views() {
   const [editingView, setEditingView] = useState<View | null>(null);
   const [name, setName] = useState<string>('');
   const [order, setOrder] = useState<string>('');
-  const [matchClients, setMatchClients] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
@@ -49,7 +48,6 @@ export function Views() {
   const resetForm = () => {
     setName('');
     setOrder('');
-    setMatchClients('');
     setModalError(null);
   };
 
@@ -63,7 +61,6 @@ export function Views() {
     setEditingView(view);
     setName(view.name);
     setOrder(String(view.order));
-    setMatchClients(view.matchClients?.join(', ') ?? '');
     setModalError(null);
     setIsModalOpen(true);
   }, []);
@@ -77,17 +74,14 @@ export function Views() {
   const parseForm = () => {
     const trimmedName = name.trim();
     const orderNum = order.trim() === '' ? undefined : Number(order.trim());
-    const clients = matchClients.trim() === ''
-      ? undefined
-      : matchClients.split(',').map((s) => s.trim()).filter(Boolean);
-    return { trimmedName, orderNum, clients };
+    return { trimmedName, orderNum };
   };
 
   const handleSubmit = async (e?: FormEvent) => {
     if (e) e.preventDefault();
     if (isSubmitting) return;
 
-    const { trimmedName, orderNum, clients } = parseForm();
+    const { trimmedName, orderNum } = parseForm();
     if (!trimmedName) return;
 
     setIsSubmitting(true);
@@ -98,14 +92,12 @@ export function Views() {
         const patch: UpdateViewPatch = {
           name: trimmedName,
           ...(orderNum !== undefined && !Number.isNaN(orderNum) ? { order: orderNum } : {}),
-          ...(clients ? { matchClients: clients } : {}),
         };
         await api.updateView(configId, editingView.id, patch);
       } else {
         const input: CreateViewInput = {
           name: trimmedName,
           ...(orderNum !== undefined && !Number.isNaN(orderNum) ? { order: orderNum } : {}),
-          ...(clients ? { matchClients: clients } : {}),
         };
         await api.createView(configId, input);
       }
@@ -159,11 +151,6 @@ export function Views() {
         key: 'order',
         header: 'Order',
         render: (v) => v.order,
-      },
-      {
-        key: 'matchClients',
-        header: 'Match clients',
-        render: (v) => (v.matchClients?.length ? v.matchClients.join(', ') : '—'),
       },
       {
         key: 'zones',
@@ -308,15 +295,9 @@ export function Views() {
             />
           </div>
 
-          <div className="field">
-            <label htmlFor="view-match-clients">Match clients</label>
-            <Input
-              id="view-match-clients"
-              placeholder="e.g. 10.0.0.0/8, 172.20.0.0/16"
-              value={matchClients}
-              onChange={(e) => setMatchClients(e.target.value)}
-            />
-          </div>
+          <p style={{ margin: 0, fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+            Match-clients is set per view under its <strong>Options</strong> tab, not here.
+          </p>
         </form>
       </Modal>
     </div>

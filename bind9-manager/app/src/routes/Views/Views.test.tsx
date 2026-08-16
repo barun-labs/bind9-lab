@@ -73,12 +73,11 @@ describe('Views', () => {
     vi.clearAllMocks();
   });
 
-  test('renders one row per view with name, order, match clients and zone count', async () => {
+  test('renders one row per view with name, order and zone count', async () => {
     renderViews();
 
     expect(await screen.findByText('internal')).toBeInTheDocument();
     expect(screen.getByText('external')).toBeInTheDocument();
-    expect(screen.getByText('10.0.0.0/8')).toBeInTheDocument();
     expect(screen.getByText('6')).toBeInTheDocument();
   });
 
@@ -93,6 +92,8 @@ describe('Views', () => {
     renderViews();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add View' }));
+
+    expect(screen.queryByLabelText('Match clients')).toBeNull();
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'newview' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create View' }));
