@@ -26,6 +26,10 @@ import type {
   Acl,
   AclEntry,
   AclEvalResult,
+  TsigKey,
+  ServerGroup,
+  RecordTemplate,
+  RecordTemplateEntry,
   ChangeSetResponse,
   DiffLine,
   DeployPreflight,
@@ -446,6 +450,254 @@ export async function evaluateAcl(
   }
 
   return { matched: false, decision: 'DENY', trace: [] };
+}
+
+export interface CreateTsigKeyInput {
+  name: string;
+  algorithm: TsigKey['algorithm'];
+}
+
+export async function listTsigKeys(
+  store: StoreData,
+  configId: string
+): Promise<TsigKey[]> {
+  if (isApiEnabled()) {
+    return apiFetch<TsigKey[]>(`/api/v1/configurations/${configId}/tsig-keys`);
+  }
+
+  return store.tsigKeys
+    .filter((k) => k.configurationId === configId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function createTsigKey(
+  store: StoreData,
+  configId: string,
+  input: CreateTsigKeyInput
+): Promise<TsigKey> {
+  if (isApiEnabled()) {
+    return apiFetch<TsigKey>(`/api/v1/configurations/${configId}/tsig-keys`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  // Mirror createApiKey: the secret is generated once and NOT retained on the
+  // stored record, so a later listTsigKeys/getTsigKey never leaks it.
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const secret = btoa(String.fromCharCode(...bytes));
+
+  const storedKey: TsigKey = {
+    id: 'tsig-' + Math.random().toString(16).slice(2, 10),
+    configurationId: configId,
+    name: input.name,
+    algorithm: input.algorithm,
+    usedByCount: 0,
+  };
+  store.tsigKeys.push(storedKey);
+
+  return { ...storedKey, secret };
+}
+
+// ponytail: no updateTsigKey — the backend PATCH exists but nothing in the UI
+// needs to rename/re-algorithm a key today; add when a screen wants it.
+export async function deleteTsigKey(
+  store: StoreData,
+  configId: string,
+  keyId: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: boolean }>(`/api/v1/configurations/${configId}/tsig-keys/${keyId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  const index = store.tsigKeys.findIndex((k) => k.id === keyId && k.configurationId === configId);
+  if (index >= 0) store.tsigKeys.splice(index, 1);
+  return { deleted: true };
+}
+
+export interface CreateServerGroupInput {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateServerGroupPatch {
+  name?: string;
+  description?: string;
+}
+
+export async function listServerGroups(
+  store: StoreData,
+  configId: string
+): Promise<ServerGroup[]> {
+  if (isApiEnabled()) {
+    return apiFetch<ServerGroup[]>(`/api/v1/configurations/${configId}/groups`);
+  }
+
+  return store.serverGroups
+    .filter((g) => g.configurationId === configId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getServerGroup(
+  store: StoreData,
+  configId: string,
+  groupId: string
+): Promise<ServerGroup | null> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<ServerGroup>(`/api/v1/configurations/${configId}/groups/${groupId}`);
+    } catch (err: any) {
+      if (err?.status === 404) return null;
+      throw err;
+    }
+  }
+
+  return store.serverGroups.find((g) => g.id === groupId && g.configurationId === configId) ?? null;
+}
+
+export async function createServerGroup(
+  store: StoreData,
+  configId: string,
+  input: CreateServerGroupInput
+): Promise<ServerGroup> {
+  if (isApiEnabled()) {
+    return apiFetch<ServerGroup>(`/api/v1/configurations/${configId}/groups`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const group: ServerGroup = {
+    id: 'grp-' + Math.random().toString(16).slice(2, 10),
+    configurationId: configId,
+    name: input.name,
+    description: input.description,
+    memberCount: 0,
+  };
+  store.serverGroups.push(group);
+  return group;
+}
+
+export async function updateServerGroup(
+  store: StoreData,
+  configId: string,
+  groupId: string,
+  patch: UpdateServerGroupPatch
+): Promise<ServerGroup> {
+  if (isApiEnabled()) {
+    return apiFetch<ServerGroup>(`/api/v1/configurations/${configId}/groups/${groupId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  const group = store.serverGroups.find((g) => g.id === groupId && g.configurationId === configId);
+  if (!group) {
+    throw new Error(`Server group with id ${groupId} not found`);
+  }
+  if (patch.name !== undefined) group.name = patch.name;
+  if (patch.description !== undefined) group.description = patch.description;
+  return group;
+}
+
+export async function deleteServerGroup(
+  store: StoreData,
+  configId: string,
+  groupId: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: boolean }>(`/api/v1/configurations/${configId}/groups/${groupId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  const index = store.serverGroups.findIndex((g) => g.id === groupId && g.configurationId === configId);
+  if (index >= 0) store.serverGroups.splice(index, 1);
+  return { deleted: true };
+}
+
+export interface CreateRecordTemplateInput {
+  name: string;
+  description?: string;
+  entries?: RecordTemplateEntry[];
+}
+
+export interface UpdateRecordTemplatePatch {
+  name?: string;
+  description?: string;
+  entries?: RecordTemplateEntry[];
+}
+
+export async function listRecordTemplates(
+  store: StoreData,
+  configId: string
+): Promise<RecordTemplate[]> {
+  if (isApiEnabled()) {
+    return apiFetch<RecordTemplate[]>(`/api/v1/configurations/${configId}/record-templates`);
+  }
+
+  return store.recordTemplates
+    .filter((t) => t.configurationId === configId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getRecordTemplate(
+  store: StoreData,
+  configId: string,
+  templateId: string
+): Promise<RecordTemplate | null> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<RecordTemplate>(`/api/v1/configurations/${configId}/record-templates/${templateId}`);
+    } catch (err: any) {
+      if (err?.status === 404) return null;
+      throw err;
+    }
+  }
+
+  return store.recordTemplates.find((t) => t.id === templateId && t.configurationId === configId) ?? null;
+}
+
+export async function createRecordTemplate(
+  store: StoreData,
+  configId: string,
+  input: CreateRecordTemplateInput
+): Promise<RecordTemplate> {
+  if (isApiEnabled()) {
+    return apiFetch<RecordTemplate>(`/api/v1/configurations/${configId}/record-templates`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const template: RecordTemplate = {
+    id: 'tpl-' + Math.random().toString(16).slice(2, 10),
+    configurationId: configId,
+    name: input.name,
+    description: input.description,
+    entries: input.entries ?? [],
+  };
+  store.recordTemplates.push(template);
+  return template;
+}
+
+export async function deleteRecordTemplate(
+  store: StoreData,
+  configId: string,
+  templateId: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: boolean }>(`/api/v1/configurations/${configId}/record-templates/${templateId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  const index = store.recordTemplates.findIndex((t) => t.id === templateId && t.configurationId === configId);
+  if (index >= 0) store.recordTemplates.splice(index, 1);
+  return { deleted: true };
 }
 
 export async function listZones(

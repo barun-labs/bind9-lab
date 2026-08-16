@@ -33,6 +33,11 @@ import { ZoneHealth } from './routes/ZoneHealth/ZoneHealth';
 import { Acls } from './routes/Acls/Acls';
 import { AclEditor } from './routes/Acls/AclEditor';
 import { AclEvaluator } from './routes/Acls/AclEvaluator';
+import { TsigKeys } from './routes/TsigKeys/TsigKeys';
+import { ServerGroups } from './routes/ServerGroups/ServerGroups';
+import { ServerGroupDetail } from './routes/ServerGroups/ServerGroupDetail';
+import { RecordTemplates } from './routes/RecordTemplates/RecordTemplates';
+import { RecordTemplateDetail } from './routes/RecordTemplates/RecordTemplateDetail';
 import { ReviewDeploy } from './routes/ReviewDeploy/ReviewDeploy';
 import { RequireAuth } from './auth/RequireAuth';
 
@@ -180,21 +185,11 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/groups',
-        element: (
-          <Placeholder
-            title="Server Groups"
-            description="Logical server clusters and deployment synchronization."
-          />
-        ),
+        element: <ServerGroups />,
       },
       {
         path: 'config/:configId/groups/:groupId',
-        element: (
-          <Placeholder
-            title="Server Group Detail"
-            description="Server group members and group-wide options."
-          />
-        ),
+        element: <ServerGroupDetail />,
       },
       {
         path: 'config/:configId/acls',
@@ -210,21 +205,15 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/keys',
-        element: (
-          <Placeholder
-            title="TSIG Keys"
-            description="Transaction signature secret keys for authentication and zone transfers."
-          />
-        ),
+        element: <TsigKeys />,
       },
       {
         path: 'config/:configId/templates',
-        element: (
-          <Placeholder
-            title="Record Templates"
-            description="Standardized DNS record sets for new zone provisioning."
-          />
-        ),
+        element: <RecordTemplates />,
+      },
+      {
+        path: 'config/:configId/templates/:templateId',
+        element: <RecordTemplateDetail />,
       },
       {
         path: 'config/:configId/health',

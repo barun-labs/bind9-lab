@@ -11,6 +11,9 @@ import type {
   Lab,
   TelemetrySnapshot,
   Acl,
+  TsigKey,
+  ServerGroup,
+  RecordTemplate,
 } from '../types/entities';
 import { seedUsers } from './users.seed';
 import fixtures from '../../public/fixtures.json';
@@ -68,6 +71,9 @@ export interface StoreData {
   configurations: Configuration[];
   views: View[];
   acls: Acl[];
+  tsigKeys: TsigKey[];
+  serverGroups: ServerGroup[];
+  recordTemplates: RecordTemplate[];
   zones: Zone[];
   records: ResourceRecord[];
   externalHosts: ExternalHost[];
@@ -91,6 +97,9 @@ export function makeStore(initialData?: Partial<StoreData>): StoreData {
     configurations: cloned.configurations ?? [],
     views: cloned.views ?? [],
     acls: cloned.acls ?? [],
+    tsigKeys: cloned.tsigKeys ?? [],
+    serverGroups: cloned.serverGroups ?? [],
+    recordTemplates: cloned.recordTemplates ?? [],
     zones: cloned.zones ?? [],
     records: cloned.records ?? [],
     externalHosts: cloned.externalHosts ?? [],
@@ -145,6 +154,18 @@ export function useApi() {
       updateAcl: (configId: string, aclId: string, patch: api.UpdateAclPatch) => api.updateAcl(store, configId, aclId, patch),
       deleteAcl: (configId: string, aclId: string) => api.deleteAcl(store, configId, aclId),
       evaluateAcl: (configId: string, input: { target: string; clientIp: string }) => api.evaluateAcl(store, configId, input),
+      listTsigKeys: (configId: string) => api.listTsigKeys(store, configId),
+      createTsigKey: (configId: string, input: api.CreateTsigKeyInput) => api.createTsigKey(store, configId, input),
+      deleteTsigKey: (configId: string, keyId: string) => api.deleteTsigKey(store, configId, keyId),
+      listServerGroups: (configId: string) => api.listServerGroups(store, configId),
+      getServerGroup: (configId: string, groupId: string) => api.getServerGroup(store, configId, groupId),
+      createServerGroup: (configId: string, input: api.CreateServerGroupInput) => api.createServerGroup(store, configId, input),
+      updateServerGroup: (configId: string, groupId: string, patch: api.UpdateServerGroupPatch) => api.updateServerGroup(store, configId, groupId, patch),
+      deleteServerGroup: (configId: string, groupId: string) => api.deleteServerGroup(store, configId, groupId),
+      listRecordTemplates: (configId: string) => api.listRecordTemplates(store, configId),
+      getRecordTemplate: (configId: string, templateId: string) => api.getRecordTemplate(store, configId, templateId),
+      createRecordTemplate: (configId: string, input: api.CreateRecordTemplateInput) => api.createRecordTemplate(store, configId, input),
+      deleteRecordTemplate: (configId: string, templateId: string) => api.deleteRecordTemplate(store, configId, templateId),
       listZones: (configId: string, filters?: api.ZoneFilters) => api.listZones(store, configId, filters),
       getZone: (zoneId: string) => api.getZone(store, zoneId),
       listRecords: (zoneId: string, filters?: api.RecordFilters) => api.listRecords(store, zoneId, filters),

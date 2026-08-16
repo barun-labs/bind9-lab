@@ -231,6 +231,12 @@ export interface Acl { id: string; configurationId: string; name: string; entrie
 export interface AclTraceStep { entryId: string; type: string; value: string|null; negated: boolean; matched: boolean; }
 export interface AclEvalResult { matched: boolean; decision: 'ALLOW'|'DENY'; trace: AclTraceStep[]; error?: string; }
 
+export type TsigAlgorithm = 'hmac-sha256'|'hmac-sha512'|'hmac-sha384'|'hmac-sha224'|'hmac-sha1'|'hmac-md5';
+export interface TsigKey { id: string; configurationId: string; name: string; algorithm: TsigAlgorithm; secret?: string; usedByCount: number; }
+export interface ServerGroup { id: string; configurationId: string; name: string; description?: string; memberCount: number; }
+export interface RecordTemplateEntry { name: string; type: RecordType; ttl?: number; rdata: Record<string, unknown>; disabled?: boolean; }
+export interface RecordTemplate { id: string; configurationId: string; name: string; description?: string; entries: RecordTemplateEntry[]; }
+
 export type ChangeSetItemAction = 'CREATE'|'UPDATE'|'DELETE'|'DISABLE'|'ENABLE';
 export type ChangeSetObjectType = 'VIEW'|'ZONE'|'RECORD'|'ACL'|'SERVER';
 export interface ChangeSetItem { id:string; configurationId:string; objectType:ChangeSetObjectType;
