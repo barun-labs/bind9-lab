@@ -53,13 +53,27 @@ function filesForServers(model: ConfigModel): ServerFiles[] {
   }));
 }
 
-// BIND servers are model servers that also exist as linux nodes in the topology,
-// so `${lab}-${node}` is a real container name.
-function bindServers(model: ConfigModel, topology: TopologyModel): ServerFiles[] {
-  const linuxNodes = new Set(
-    topology.nodes.filter((node) => node.kind === 'linux').map((node) => node.name),
-  );
-  return filesForServers(model).filter((entry) => linuxNodes.has(entry.serverId));
+interface BindServerFiles {
+  nodeName: string; // topology node name — used for container name, config dir, NODE_ID
+  serverId: string; // model server id — used only to generate config content
+  files: Record<string, string>;
+}
+
+// A linux topology node is a BIND node iff a model server maps to it. Prefer
+// the explicit nodeName link (lab-created servers: id = srv-<lab.id>-<node>,
+// nodeName = <node>), falling back to id === node name for legacy configs
+// whose server id IS the node name (e.g. src/fixtures/anycastModel.ts).
+function bindServers(model: ConfigModel, topology: TopologyModel): BindServerFiles[] {
+  const out: BindServerFiles[] = [];
+  for (const node of topology.nodes) {
+    if (node.kind !== 'linux') continue;
+    const server =
+      model.servers.find((s) => s.nodeName === node.name) ??
+      model.servers.find((s) => s.id === node.name);
+    if (!server) continue; // a linux node with no BIND server (e.g. a router) is skipped
+    out.push({ nodeName: node.name, serverId: server.id, files: generateServerConfig(model, server.id) });
+  }
+  return out;
 }
 
 // containerlab's `kind: bridge` node references a Linux bridge on the HOST
@@ -141,9 +155,9 @@ function buildPlan(
   const plan: string[] = [`mkdir -p ${labDir}`];
   plan.push(`write ${labDir}/topo.clab.yml`);
 
-  for (const { serverId, files } of filesForServers(model)) {
+  for (const { nodeName, files } of bindServers(model, topology)) {
     for (const filePath of Object.keys(files)) {
-      plan.push(`write ${labDir}/configs/${serverId}/${filePath}`);
+      plan.push(`write ${labDir}/configs/${nodeName}/${filePath}`);
     }
   }
 
@@ -151,9 +165,9 @@ function buildPlan(
   plan.push(`containerlab deploy -t ${labDir}/topo.clab.yml --reconfigure`);
   plan.push(...provisionCommands(topology));
 
-  for (const { serverId } of bindServers(model, topology)) {
+  for (const { nodeName } of bindServers(model, topology)) {
     plan.push(
-      `docker exec clab-${topology.name}-${serverId} rndc reload (or start named if not running)`,
+      `docker exec clab-${topology.name}-${nodeName} rndc reload (or start named if not running)`,
     );
   }
 
@@ -168,9 +182,9 @@ function buildDeployScript(
   const lines: string[] = ['#!/usr/bin/env bash'];
 
   const dirs = new Set<string>([labDir]);
-  for (const { serverId, files } of filesForServers(model)) {
+  for (const { nodeName, files } of bindServers(model, topology)) {
     for (const filePath of Object.keys(files)) {
-      const full = `${labDir}/configs/${serverId}/${filePath}`;
+      const full = `${labDir}/configs/${nodeName}/${filePath}`;
       dirs.add(path.posix.dirname(full));
     }
   }
@@ -184,11 +198,11 @@ function buildDeployScript(
     )}`,
   );
 
-  for (const { serverId, files } of filesForServers(model)) {
+  for (const { nodeName, files } of bindServers(model, topology)) {
     for (const [filePath, content] of Object.entries(files)) {
       lines.push(
         `echo '${b64(content)}' | base64 -d > ${shellQuote(
-          `${labDir}/configs/${serverId}/${filePath}`,
+          `${labDir}/configs/${nodeName}/${filePath}`,
         )}`,
       );
     }
@@ -202,13 +216,13 @@ function buildDeployScript(
 
   lines.push(...provisionCommands(topology));
 
-  for (const { serverId } of bindServers(model, topology)) {
+  for (const { nodeName } of bindServers(model, topology)) {
     // containerlab prefixes every container it creates with `clab-`, so the
-    // real container name is `clab-<topology.name>-<serverId>`, not
-    // `<topology.name>-<serverId>`.
-    const container = `clab-${topology.name}-${serverId}`;
+    // real container name is `clab-<topology.name>-<nodeName>`, not
+    // `<topology.name>-<nodeName>`.
+    const container = `clab-${topology.name}-${nodeName}`;
     const c = shellQuote(container);
-    lines.push(`NODE_ID=${shellQuote(serverId)}`);
+    lines.push(`NODE_ID=${shellQuote(nodeName)}`);
     lines.push(`echo "${NODE_BEGIN} $NODE_ID"`);
     // The dnsnode:1.0 entrypoint only starts dropbear, not named, and never
     // prepares /var/log for it. Prime the directories named needs before
@@ -233,13 +247,13 @@ function buildDeployScript(
 
 function parseDeployed(
   stdout: string,
-  bindNodes: ServerFiles[],
+  bindNodes: BindServerFiles[],
 ): { serverId: string; ok: boolean; output: string }[] {
   const outputLines = stdout.split('\n');
 
-  return bindNodes.map(({ serverId }) => {
-    const beginMarker = `${NODE_BEGIN} ${serverId}`;
-    const endMarker = `${NODE_END} ${serverId} `;
+  return bindNodes.map(({ nodeName }) => {
+    const beginMarker = `${NODE_BEGIN} ${nodeName}`;
+    const endMarker = `${NODE_END} ${nodeName} `;
 
     let capturing = false;
     let ok = false;
@@ -260,7 +274,10 @@ function parseDeployed(
       }
     }
 
-    return { serverId, ok, output: chunks.join('\n').trim() };
+    // The returned serverId is the NODE NAME, not the model server id — a
+    // lab-created server's id is srv-<lab.id>-<node>, but the deploy marker
+    // (and reconcileServersRuntime's matching lookup) is keyed on the node.
+    return { serverId: nodeName, ok, output: chunks.join('\n').trim() };
   });
 }
 
