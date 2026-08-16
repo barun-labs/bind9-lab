@@ -65,7 +65,7 @@ import {
 
 describe('ipv4', () => {
   it('parses a valid CIDR and rejects malformed input', () => {
-    expect(parseCidr('10.20.1.0/24')).toEqual({ network: 169738496, prefix: 24 });
+    expect(parseCidr('10.20.1.0/24')).toEqual({ network: 169083136, prefix: 24 });
     // must-fail control: a broken parser that returned an object here would fail these.
     expect(parseCidr('10.20.1.0/33')).toBeNull();
     expect(parseCidr('256.0.0.0/8')).toBeNull();
