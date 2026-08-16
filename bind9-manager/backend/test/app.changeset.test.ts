@@ -156,6 +156,45 @@ describe('change-set review & deploy API', () => {
     expect(Array.isArray(s.diff.right)).toBe(true);
   });
 
+  it('GET rendered-config: 200 with per-server text, 403 without view, 404 for unknown config', async () => {
+    createUserWithRole('usr-other', 'other-user', [
+      { configurationId: 'other-config', role: 'admin', canDeploy: true },
+    ]);
+    const denied = await app.inject({
+      method: 'GET',
+      url: '/api/v1/configurations/dns-lab/rendered-config',
+      headers: { authorization: `Bearer ${await loginAs('other-user', 'password123')}` },
+    });
+    expect(denied.statusCode).toBe(403);
+
+    const header = { authorization: `Bearer ${await loginAs('admin', 'admin')}` };
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/configurations/dns-lab/rendered-config',
+      headers: header,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data.length).toBeGreaterThan(0);
+    for (const el of body.data) {
+      expect(typeof el.serverId).toBe('string');
+      expect(typeof el.hostname).toBe('string');
+      expect(typeof el.text).toBe('string');
+      expect(el.text).toContain('# ----');
+    }
+
+    createUserWithRole('usr-ghost', 'ghost-user', [
+      { configurationId: 'ghost-config', role: 'admin', canDeploy: true },
+    ]);
+    const missing = await app.inject({
+      method: 'GET',
+      url: '/api/v1/configurations/ghost-config/rendered-config',
+      headers: { authorization: `Bearer ${await loginAs('ghost-user', 'password123')}` },
+    });
+    expect(missing.statusCode).toBe(404);
+  });
+
   it('POST deploy-jobs: preflight OK + push OK -> 201, job SUCCEEDED, baseline replaced (change set cleared)', async () => {
     const token = await loginAs('admin', 'admin');
     const header = { authorization: `Bearer ${token}` };

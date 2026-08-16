@@ -2353,6 +2353,28 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     return reply.status(200).send({ mode, serverId, before, after, diff });
   });
 
+  // GET /api/v1/configurations/:configId/rendered-config - render current per-server config text (requires view)
+  app.get('/api/v1/configurations/:configId/rendered-config', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+
+    const model = buildConfigModel(db, configId);
+    const listed = listServers(db, configId);
+    const rendered = (model.servers ?? []).map((s) => {
+      const match = listed.find((x) => x.id === s.id);
+      const hostname = (match?.hostname ?? s.hostname ?? s.id) as string;
+      return { serverId: s.id, hostname, text: renderServerText(model, s.id) };
+    });
+
+    return reply.status(200).send({ data: rendered });
+  });
+
   // POST /api/v1/configurations/:configId/deploy-jobs - preflight + run a change-set deploy (requires deploy)
   app.post('/api/v1/configurations/:configId/deploy-jobs', async (req, reply) => {
     const { configId } = req.params as { configId: string };
