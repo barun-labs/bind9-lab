@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Outlet, useParams, useLocation, useNavigate } from 'react-router-dom';
 import { ConfigurationSwitcher } from '../../components/ConfigurationSwitcher/ConfigurationSwitcher';
 import { ViewSwitcher } from '../../components/ViewSwitcher/ViewSwitcher';
@@ -6,8 +7,9 @@ import { Breadcrumb, type BreadcrumbItem } from '../../components/Breadcrumb/Bre
 import { Button } from '../../components/Button/Button';
 import { Sidebar } from '../Sidebar/Sidebar';
 import { ThemeSwitcher } from '../../theme/ThemeSwitcher';
-import { useStore } from '../../data/store';
+import { useStore, useApi } from '../../data/store';
 import { useAuth } from '../../auth/AuthProvider';
+import type { Configuration } from '../../types/entities';
 
 export function Chrome() {
   const { configId, zoneId, viewId, blockId, groupId, aclId, snapshotId, policyId } = useParams();
@@ -18,7 +20,25 @@ export function Chrome() {
   const store = useStore();
   const currentConfigId = configId ?? 'dns-lab';
 
-  const configs = store.configurations;
+  const api = useApi();
+  const [configs, setConfigs] = useState<Configuration[]>(store.configurations);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listConfigurations()
+      .then((res) => {
+        if (!cancelled) setConfigs(res.data);
+      })
+      .catch(() => {
+        // keep the seeded list if the fetch fails
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+  // ponytail: one-shot fetch on mount. The switcher won't live-refresh after a create/rename/delete
+  // on the Configurations screen until the next full load; acceptable for now, add a refetch trigger
+  // if that becomes annoying.
   const currentConfig = configs.find((c) => c.id === currentConfigId) ?? configs[0];
 
   const views = store.views.filter((v) => v.configurationId === currentConfigId);
