@@ -2,35 +2,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600&display=swap');
 
 :root {
-  --color-bg: #f2f2f3;
-  --color-surface: #e9e9ea;
-  --color-text: #1d1f20;
-  --color-accent: #5980a6;
+  /* tokens.css is the source of truth for every color, neutral/accent ramp, and
+     shadow — INCLUDING their [data-theme="dark"] variants. This file loads after
+     it, so any color token redeclared here on :root would override dark mode
+     (it has no dark variant here). Only tokens tokens.css does NOT own live below:
+     the secondary accent-2 ramp, the heading weight, fonts/spacing/radius. */
+
   --color-accent-2: #728fab;
-  --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
-
-  /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
-     same step of any role matches the others in visual value. */
-  --color-neutral-100: #f5f5f8;
-  --color-neutral-200: #e7e7ea;
-  --color-neutral-300: #d4d4d7;
-  --color-neutral-400: #b7b7ba;
-  --color-neutral-500: #98989b;
-  --color-neutral-600: #7a7a7d;
-  --color-neutral-700: #5d5d60;
-  --color-neutral-800: #424244;
-  --color-neutral-900: #2b2b2d;
-
-  --color-accent-100: #eef6ff;
-  --color-accent-200: #d6ebff;
-  --color-accent-300: #b5d9fd;
-  --color-accent-400: #94bce3;
-  --color-accent-500: #749dc4;
-  --color-accent-600: #597ea3;
-  --color-accent-700: #416180;
-  --color-accent-800: #2c455d;
-  --color-accent-900: #1d2d3d;
-
   --color-accent-2-100: #eef6ff;
   --color-accent-2-200: #d6ebff;
   --color-accent-2-300: #bdd8f2;
@@ -40,6 +18,9 @@
   --color-accent-2-700: #486077;
   --color-accent-2-800: #314457;
   --color-accent-2-900: #1f2d3a;
+  /* ponytail: accent-2 has no dark variant (tokens.css defines none), so the
+     .tag-accent-2 chip stays a light chip in dark mode — pre-existing, minor.
+     Add a [data-theme="dark"] accent-2 ramp to tokens.css if it ever matters. */
 
   --font-heading: "Barlow Condensed", system-ui, sans-serif;
   --font-heading-weight: 600;
@@ -55,12 +36,6 @@
   --radius-sm: 2px;
   --radius-md: 4px;
   --radius-lg: 7px;
-
-  /* Elevation — derived from the ground: soft ink-tinted shadows on a
-     light theme, a hairline edge + ambient darkness on a dark one. */
-  --shadow-sm: 0 1px 2px color-mix(in srgb, #2b2b2d 14%, transparent);
-  --shadow-md: 0 3px 10px color-mix(in srgb, #2b2b2d 16%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
 }
 
 body {
