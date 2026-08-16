@@ -152,6 +152,8 @@ export function useApi() {
       getLab: (id: string) => api.getLab(store, id),
       listServers: (configId: string) => api.listServers(store, configId),
       getServer: (configId: string, id: string) => api.getServer(store, configId, id),
+      createServer: (configId: string, input: api.CreateServerInput) => api.createServer(store, configId, input),
+      deleteServer: (configId: string, id: string) => api.deleteServer(store, configId, id),
       createLab: (input: api.CreateLabInput) => api.createLab(store, input),
       updateLab: (id: string, patch: api.UpdateLabPatch) => api.updateLab(store, id, patch),
       deleteLab: (id: string) => api.deleteLab(store, id),

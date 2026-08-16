@@ -708,6 +708,57 @@ export async function getServer(store: StoreData, configId: string, id: string):
   return ((store.servers || []).find((s: any) => s.id === id && s.configurationId === configId) as Server) ?? null;
 }
 
+export interface CreateServerInput {
+  hostname: string;
+  name?: string;
+  mgmtAddress?: string;
+  image?: string;
+  nodeName?: string;
+  adminState?: 'ENABLED' | 'DISABLED';
+  serviceInterfaces?: { address: string; port?: number }[];
+}
+
+export async function createServer(
+  store: StoreData,
+  configId: string,
+  input: CreateServerInput
+): Promise<Server> {
+  if (isApiEnabled()) {
+    return apiFetch<Server>(`/api/v1/configurations/${configId}/servers`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const id = 'srv-' + Math.random().toString(16).slice(2, 18);
+  const server: any = {
+    id,
+    configurationId: configId,
+    syncState: 'PENDING',
+    adminState: input.adminState ?? 'ENABLED',
+    ...input,
+    name: input.name ?? input.hostname,
+  };
+  (store.servers as any[]).push(server);
+  return server as Server;
+}
+
+export async function deleteServer(
+  store: StoreData,
+  configId: string,
+  id: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: boolean }>(`/api/v1/configurations/${configId}/servers/${id}`, {
+      method: 'DELETE',
+    });
+  }
+  const arr = store.servers as any[];
+  const i = arr.findIndex((s) => s.id === id && s.configurationId === configId);
+  if (i >= 0) arr.splice(i, 1);
+  return { deleted: true };
+}
+
 export async function listLabs(
   store: StoreData,
   configId: string,

@@ -1,9 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { StoreProvider } from '../../data/store';
 import { AuthProvider } from '../../auth/AuthProvider';
 import { seedUsers } from '../../data/users.seed';
 import type { User } from '../../types/entities';
+import * as apiAdapter from '../../data/apiAdapter';
 import { Servers } from './Servers';
 
 vi.mock('../../data/apiAdapter', async (importOriginal) => {
@@ -29,8 +30,18 @@ vi.mock('../../data/apiAdapter', async (importOriginal) => {
         syncState: 'NODE_ABSENT',
       },
     ]),
+    createServer: vi.fn(async () => ({
+      id: 'srv-3',
+      configurationId: 'dns-lab',
+      hostname: 'bind-c',
+      syncState: 'PENDING',
+    })),
+    deleteServer: vi.fn(async () => ({ deleted: true })),
   };
 });
+
+const createServerMock = vi.mocked(apiAdapter.createServer);
+const deleteServerMock = vi.mocked(apiAdapter.deleteServer);
 
 function renderServers(userToLogin?: User) {
   const defaultUser = seedUsers.find((u) => u.username === 'admin')!;
@@ -58,6 +69,7 @@ function renderServers(userToLogin?: User) {
 describe('Servers', () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.clearAllMocks();
   });
 
   test('renders one row per server with hostname and node', async () => {
@@ -77,5 +89,30 @@ describe('Servers', () => {
 
     const nodeAbsentPill = screen.getByRole('img', { name: 'NODE_ABSENT' });
     expect(nodeAbsentPill).toHaveClass('status-pill-node-absent');
+  });
+
+  test('opens Add Server modal and submits createServer with the hostname', async () => {
+    renderServers();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Server' }));
+
+    fireEvent.change(screen.getByLabelText('Hostname'), { target: { value: 'bind-c' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Server' }));
+
+    expect(createServerMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      'dns-lab',
+      expect.objectContaining({ hostname: 'bind-c' })
+    );
+  });
+
+  test('deleting a row confirms and calls deleteServer with the server id', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderServers();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete server bind-a' }));
+
+    expect(deleteServerMock).toHaveBeenCalledWith(expect.any(Object), 'dns-lab', 'srv-1');
+    confirmSpy.mockRestore();
   });
 });
