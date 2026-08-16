@@ -132,7 +132,10 @@ export function useApi() {
   return useMemo(
     () => ({
       listConfigurations: (params?: api.ListParams) => api.listConfigurations(store, params),
-      listViews: (configId: string, params?: api.ListParams) => api.listViews(store, configId, params),
+      listViews: (configId: string) => api.listViews(store, configId),
+      createView: (configId: string, input: api.CreateViewInput) => api.createView(store, configId, input),
+      updateView: (configId: string, id: string, patch: api.UpdateViewPatch) => api.updateView(store, configId, id, patch),
+      deleteView: (configId: string, id: string) => api.deleteView(store, configId, id),
       listZones: (configId: string, filters?: api.ZoneFilters) => api.listZones(store, configId, filters),
       getZone: (zoneId: string) => api.getZone(store, zoneId),
       listRecords: (zoneId: string, filters?: api.RecordFilters) => api.listRecords(store, zoneId, filters),

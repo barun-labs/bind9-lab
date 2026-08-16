@@ -12,6 +12,8 @@ import { Login } from './routes/Login/Login';
 import { Labs } from './routes/Labs/Labs';
 import { LabEditor } from './routes/Labs/LabEditor';
 import { Servers } from './routes/Servers/Servers';
+import { Views } from './routes/Views/Views';
+import { ExternalHosts } from './routes/ExternalHosts/ExternalHosts';
 import { RequireAuth } from './auth/RequireAuth';
 
 export const routes: RouteObject[] = [
@@ -46,12 +48,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/views',
-        element: (
-          <Placeholder
-            title="Views"
-            description="DNS views define distinct query contexts with independent ACLs and zones."
-          />
-        ),
+        element: <Views />,
       },
       {
         path: 'config/:configId/views/:viewId',
@@ -86,12 +83,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/external-hosts',
-        element: (
-          <Placeholder
-            title="External Hosts"
-            description="Known target hosts outside the managed zones."
-          />
-        ),
+        element: <ExternalHosts />,
       },
       {
         path: 'config/:configId/blocks',

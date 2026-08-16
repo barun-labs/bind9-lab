@@ -166,37 +166,92 @@ export async function listConfigurations(
   return paginate(items, params?.page, params?.size);
 }
 
+export interface CreateViewInput {
+  name: string;
+  order?: number;
+  matchClients?: string[];
+}
+
+export interface UpdateViewPatch {
+  name?: string;
+  order?: number;
+  matchClients?: string[];
+}
+
 export async function listViews(
   store: StoreData,
-  configId: string,
-  params?: ListParams
-): Promise<ListEnvelope<View>> {
+  configId: string
+): Promise<View[]> {
   if (isApiEnabled()) {
-    try {
-      const qs = buildQueryString({
-        q: params?.q,
-        page: params?.page,
-        size: params?.size,
-        sort: params?.sort,
-      });
-      return await apiFetch<ListEnvelope<View>>(`/api/v1/configurations/${configId}/views${qs}`);
-    } catch (err: any) {
-      if (err?.status !== 404) {
-        throw err;
-      }
-      // Fall back to fixture store if views endpoint is not present
-    }
+    return apiFetch<View[]>(`/api/v1/configurations/${configId}/views`);
   }
 
-  let items = store.views.filter((v) => v.configurationId === configId);
-  if (params?.q && params.q.trim()) {
-    const qLower = params.q.trim().toLowerCase();
-    items = items.filter(
-      (v) => v.name.toLowerCase().includes(qLower) || v.id.toLowerCase().includes(qLower)
-    );
+  return store.views
+    .filter((v) => v.configurationId === configId)
+    .sort((a, b) => a.order - b.order);
+}
+
+export async function createView(
+  store: StoreData,
+  configId: string,
+  input: CreateViewInput
+): Promise<View> {
+  if (isApiEnabled()) {
+    return apiFetch<View>(`/api/v1/configurations/${configId}/views`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   }
-  items = applySort(items, params?.sort || 'order:asc');
-  return paginate(items, params?.page, params?.size);
+
+  const view: View = {
+    id: 'view-' + Math.random().toString(16).slice(2, 10),
+    configurationId: configId,
+    name: input.name,
+    order: input.order ?? 0,
+    matchClients: input.matchClients ?? [],
+    zoneCount: 0,
+  };
+  store.views.push(view);
+  return view;
+}
+
+export async function updateView(
+  store: StoreData,
+  configId: string,
+  id: string,
+  patch: UpdateViewPatch
+): Promise<View> {
+  if (isApiEnabled()) {
+    return apiFetch<View>(`/api/v1/configurations/${configId}/views/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  const view = store.views.find((v) => v.id === id && v.configurationId === configId);
+  if (!view) {
+    throw new Error(`View with id ${id} not found`);
+  }
+  if (patch.name !== undefined) view.name = patch.name;
+  if (patch.order !== undefined) view.order = patch.order;
+  if (patch.matchClients !== undefined) view.matchClients = patch.matchClients;
+  return view;
+}
+
+export async function deleteView(
+  store: StoreData,
+  configId: string,
+  id: string
+): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: boolean }>(`/api/v1/configurations/${configId}/views/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  const index = store.views.findIndex((v) => v.id === id && v.configurationId === configId);
+  if (index >= 0) store.views.splice(index, 1);
+  return { deleted: true };
 }
 
 export async function listZones(
