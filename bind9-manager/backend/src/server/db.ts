@@ -136,6 +136,19 @@ export function openDb(path = ':memory:'): Database.Database {
       data TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS deployed_baselines (
+      configurationId TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS changeset_deploy_jobs (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sessions_userId ON sessions(userId);
     CREATE INDEX IF NOT EXISTS idx_api_keys_ownerUserId ON api_keys(ownerUserId);
     CREATE INDEX IF NOT EXISTS idx_views_configId ON views(configurationId);
@@ -146,6 +159,7 @@ export function openDb(path = ':memory:'): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_servers_configId ON servers(configurationId);
     CREATE INDEX IF NOT EXISTS idx_labs_configId ON labs(configurationId);
     CREATE INDEX IF NOT EXISTS idx_acls_configId ON acls(configurationId);
+    CREATE INDEX IF NOT EXISTS idx_changeset_deploy_jobs_configId ON changeset_deploy_jobs(configurationId);
   `);
 
   const adminCheck = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');

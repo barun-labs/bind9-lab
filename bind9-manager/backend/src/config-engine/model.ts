@@ -1,4 +1,4 @@
-import type { Configuration, View, Zone, ResourceRecord, ExternalHost } from '../../../shared/entities';
+import type { Configuration, View, Zone, ResourceRecord, ExternalHost, Acl } from '../../../shared/entities';
 
 export type ServerRole = 'PRIMARY' | 'SECONDARY' | 'FORWARDER' | 'STUB' | 'RECURSIVE';
 
@@ -34,6 +34,7 @@ export interface ConfigModel {
   zones: Zone[];
   records: ResourceRecord[];
   servers: Server[];
+  acls?: Acl[];
   roles: DeploymentRole[];
   options: DeploymentOption[];
   externalHosts?: ExternalHost[];

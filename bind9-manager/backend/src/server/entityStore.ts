@@ -686,6 +686,7 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
 
   const servers = listServers(db, configId);
   const externalHosts = listExternalHosts(db, configId);
+  const acls = listAcls(db, configId);
 
   return {
     configuration,
@@ -693,6 +694,7 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
     zones,
     records,
     servers,
+    acls,
     roles: [],
     options: [],
     externalHosts,

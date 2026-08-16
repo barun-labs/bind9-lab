@@ -53,3 +53,34 @@ export interface ApiKey {
 
 export interface ListEnvelope<T> { data: T[]; page: number; size: number; total: number; }
 export interface ApiError { error: { code: string; message: string; field?: string; details?: unknown }; }
+
+export type ChangeSetItemAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'DISABLE' | 'ENABLE';
+export type ChangeSetObjectType = 'VIEW' | 'ZONE' | 'RECORD' | 'ACL' | 'SERVER';
+export interface ChangeSetItem {
+  id: string;                 // deterministic + stable: `cs-${objectType}-${objectId}`
+  configurationId: string;
+  objectType: ChangeSetObjectType;
+  objectId: string;
+  objectLabel: string;        // human label: zone name, record fqdn, view name, acl name, server id
+  groupKey: string;           // UI grouping key: zone name for RECORD/ZONE, else objectType
+  action: ChangeSetItemAction;
+  diff: { before: unknown | null; after: unknown | null };
+  createdBy: 'user';
+}
+export type DeployOutcome = 'SUCCEEDED' | 'FAILED' | 'PARTIAL' | 'CANCELLED';
+export interface DeployPreflightCheck { serverId?: string; zoneId?: string; zoneName?: string;
+  result: 'OK' | 'WARN' | 'FAIL'; detail: string; }
+export interface DeployPreflight { checkconf: DeployPreflightCheck[]; checkzone: DeployPreflightCheck[]; }
+export interface DeployServerResult { serverId: string; outcome: DeployOutcome;
+  startedAt: string; finishedAt?: string; stderr?: string; }
+export interface ChangeSetDeployJob {
+  id: string;                 // `csdj-`+randomBytes(6).hex
+  configurationId: string;
+  changeSetItemIds: string[];
+  targetServerIds: string[];
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'PARTIAL' | 'CANCELLED';
+  preflight?: DeployPreflight;
+  serverResults: DeployServerResult[];
+  warningAck?: boolean;
+  createdAt: string;
+}

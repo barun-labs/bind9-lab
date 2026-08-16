@@ -1,6 +1,6 @@
 import fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type Database from 'better-sqlite3';
-import type { View } from '../../../shared/entities';
+import type { View, ChangeSetItem, ChangeSetObjectType } from '../../../shared/entities';
 import { load } from 'js-yaml';
 import {
   login,
@@ -75,6 +75,7 @@ import {
   generateServerConfig,
   validateConfig,
   type Runner,
+  type ConfigModel,
 } from '../config-engine';
 import { shellQuote } from '../config-engine/shellQuote';
 import {
@@ -82,6 +83,13 @@ import {
   getDeployJob,
   listDeployJobs,
 } from './deployJobs';
+import { computeChangeSet, diffLines, splitDiff } from './changeSet';
+import {
+  getBaselineModel,
+  createDeployJob,
+  getDeployJob as getChangeSetDeployJob,
+} from './changeSetStore';
+import { runChangeSetDeploy, runPreflight } from './changeSetDeploy';
 import { registerFrontendStatic } from './static';
 
 declare module 'fastify' {
@@ -124,6 +132,18 @@ const defaultFallbackRunner: Runner = (bashScript: string) => {
 
 export function setDefaultAppRunner(runner: Runner | undefined): void {
   defaultAppRunner = runner;
+}
+
+// Render one server's generated file set as a single diffable text blob, with
+// a stable file order and a per-file header line so the diff is legible.
+function renderServerText(model: ConfigModel, serverId: string): string {
+  const files = generateServerConfig(model, serverId);
+  const parts: string[] = [];
+  const entries = Object.entries(files).sort(([a], [b]) => a.localeCompare(b));
+  for (const [filePath, content] of entries) {
+    parts.push(`# ---- ${filePath} ----\n${content}`);
+  }
+  return parts.join('\n');
 }
 
 export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyInstance {
@@ -931,6 +951,195 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     }
     const result = evaluateAcl(listAcls(db, configId), target, clientIp);
     return reply.status(200).send(result);
+  });
+
+  // --- CHANGE-SET REVIEW & DEPLOY ROUTES ---
+
+  // GET /api/v1/configurations/:configId/change-set - computed pending change set (requires view)
+  app.get('/api/v1/configurations/:configId/change-set', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+
+    const model = buildConfigModel(db, configId);
+    const baseline = getBaselineModel(db, configId);
+    const items = computeChangeSet(model, baseline);
+
+    const groupsMap = new Map<string, { groupKey: string; objectType: ChangeSetObjectType; items: ChangeSetItem[] }>();
+    for (const item of items) {
+      const key = `${item.groupKey}::${item.objectType}`;
+      const existing = groupsMap.get(key);
+      if (existing) {
+        existing.items.push(item);
+      } else {
+        groupsMap.set(key, { groupKey: item.groupKey, objectType: item.objectType, items: [item] });
+      }
+    }
+
+    return reply.status(200).send({ items, groups: [...groupsMap.values()] });
+  });
+
+  // GET /api/v1/configurations/:configId/change-set/diff - render current vs baseline per-server diff (requires view)
+  app.get('/api/v1/configurations/:configId/change-set/diff', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+
+    const model = buildConfigModel(db, configId);
+    const baseline = getBaselineModel(db, configId);
+    const query = (req.query as any) || {};
+    const mode = query.mode === 'split' ? 'split' : 'unified';
+    const serverId =
+      typeof query.server === 'string' && query.server ? query.server : model.servers?.[0]?.id;
+    if (!serverId) {
+      return reply.status(422).send({ error: { code: 'NO_SERVERS', message: 'Configuration has no servers' } });
+    }
+
+    const before = baseline ? renderServerText(baseline, serverId) : '';
+    const after = renderServerText(model, serverId);
+    const lines = diffLines(before, after);
+    const diff = mode === 'split' ? splitDiff(lines) : lines;
+
+    return reply.status(200).send({ mode, serverId, before, after, diff });
+  });
+
+  // POST /api/v1/configurations/:configId/deploy-jobs - preflight + run a change-set deploy (requires deploy)
+  app.post('/api/v1/configurations/:configId/deploy-jobs', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'deploy', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+
+    const labs = listLabs(db, configId);
+    if (labs.length === 0) {
+      return reply.status(422).send({ error: { code: 'NO_LAB_FOR_CONFIG', message: 'Configuration has no lab' } });
+    }
+    const lab = labs[0];
+    if (!isDnsLab(lab)) {
+      return reply.status(422).send({ error: { code: 'NOT_A_DNS_LAB', message: 'Bind9-Manager only manages DNS labs (labs with a bind node).' } });
+    }
+
+    const body = (req.body ?? {}) as any;
+    const changeSetItemIds = Array.isArray(body.changeSetItemIds)
+      ? body.changeSetItemIds.filter((x: unknown) => typeof x === 'string')
+      : [];
+    const targetServerIds = Array.isArray(body.targetServerIds)
+      ? body.targetServerIds.filter((x: unknown) => typeof x === 'string')
+      : [];
+    if (targetServerIds.length === 0) {
+      return reply.status(422).send({ error: { code: 'EMPTY_TARGETS', message: 'targetServerIds must not be empty' } });
+    }
+    // Every target must be a real server in this config. A target id becomes a
+    // container name and a filesystem path in the push script; shellQuote stops
+    // shell metachars but NOT path traversal, so an unvalidated body id like
+    // '../../etc' would be an arbitrary-write vector. Deriving from the model
+    // means the id is always a server-generated, charset-validated one.
+    const knownServerIds = new Set(buildConfigModel(db, configId).servers.map((s) => s.id));
+    const unknownTargets = targetServerIds.filter((id: string) => !knownServerIds.has(id));
+    if (unknownTargets.length > 0) {
+      return reply.status(422).send({ error: { code: 'UNKNOWN_SERVER', message: `Unknown target server(s): ${unknownTargets.join(', ')}` } });
+    }
+    const warningAck = body.warningAck === true;
+
+    const pre = await runPreflight(db, configId, targetServerIds, activeRunner);
+    if (pre.hasFail) {
+      return reply.status(422).send({ error: { code: 'PREFLIGHT_FAILED', message: 'Pre-flight validation failed', details: pre.preflight } });
+    }
+    if (pre.hasWarn && !warningAck) {
+      return reply.status(422).send({ error: { code: 'PREFLIGHT_WARNING_UNACK', message: 'Pre-flight warnings require acknowledgment', details: pre.preflight } });
+    }
+
+    const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
+    const job = createDeployJob(db, configId, { changeSetItemIds, targetServerIds, warningAck });
+    await runChangeSetDeploy(db, configId, lab, job, { run: activeRunner, labDir, targetServerIds, warningAck });
+    return reply.status(201).send({ jobId: job.id });
+  });
+
+  // GET /api/v1/configurations/:configId/deploy-jobs/:jobId - a change-set deploy job (requires view)
+  app.get('/api/v1/configurations/:configId/deploy-jobs/:jobId', async (req, reply) => {
+    const { configId, jobId } = req.params as { configId: string; jobId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const job = getChangeSetDeployJob(db, jobId);
+    if (!job || job.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Deploy job not found' } });
+    }
+    return reply.status(200).send(job);
+  });
+
+  // POST /api/v1/configurations/:configId/deploy-jobs/:jobId/retry - retry failed servers (requires deploy)
+  app.post('/api/v1/configurations/:configId/deploy-jobs/:jobId/retry', async (req, reply) => {
+    const { configId, jobId } = req.params as { configId: string; jobId: string };
+    if (!authorize(req.actor, 'deploy', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const existing = getChangeSetDeployJob(db, jobId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Deploy job not found' } });
+    }
+
+    const labs = listLabs(db, configId);
+    if (labs.length === 0) {
+      return reply.status(422).send({ error: { code: 'NO_LAB_FOR_CONFIG', message: 'Configuration has no lab' } });
+    }
+    const lab = labs[0];
+    if (!isDnsLab(lab)) {
+      return reply.status(422).send({ error: { code: 'NOT_A_DNS_LAB', message: 'Bind9-Manager only manages DNS labs (labs with a bind node).' } });
+    }
+
+    const body = (req.body ?? {}) as any;
+    const failedIds = existing.serverResults
+      .filter((r) => r.outcome === 'FAILED')
+      .map((r) => r.serverId);
+    const targetServerIds =
+      typeof body.serverId === 'string' && body.serverId ? [body.serverId] : failedIds;
+    if (targetServerIds.length === 0) {
+      return reply.status(422).send({ error: { code: 'NOTHING_TO_RETRY', message: 'No failed servers to retry' } });
+    }
+    // Same allowlist as the create route: a retry body.serverId is fresh
+    // untrusted input that reaches the push path, so it must be a real server.
+    const knownRetryServerIds = new Set(buildConfigModel(db, configId).servers.map((s) => s.id));
+    const unknownRetry = targetServerIds.filter((id: string) => !knownRetryServerIds.has(id));
+    if (unknownRetry.length > 0) {
+      return reply.status(422).send({ error: { code: 'UNKNOWN_SERVER', message: `Unknown target server(s): ${unknownRetry.join(', ')}` } });
+    }
+    const warningAck = existing.warningAck === true || body.warningAck === true;
+
+    const pre = await runPreflight(db, configId, targetServerIds, activeRunner);
+    if (pre.hasFail) {
+      return reply.status(422).send({ error: { code: 'PREFLIGHT_FAILED', message: 'Pre-flight validation failed', details: pre.preflight } });
+    }
+    if (pre.hasWarn && !warningAck) {
+      return reply.status(422).send({ error: { code: 'PREFLIGHT_WARNING_UNACK', message: 'Pre-flight warnings require acknowledgment', details: pre.preflight } });
+    }
+
+    const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
+    const job = createDeployJob(db, configId, {
+      changeSetItemIds: existing.changeSetItemIds,
+      targetServerIds,
+      warningAck,
+    });
+    await runChangeSetDeploy(db, configId, lab, job, { run: activeRunner, labDir, targetServerIds, warningAck });
+    return reply.status(201).send({ jobId: job.id });
   });
 
   // POST /api/v1/configurations/:configId/zones - Create a zone (requires edit)
