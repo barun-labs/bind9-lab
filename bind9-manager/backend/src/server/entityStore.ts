@@ -16,7 +16,7 @@ import type {
   DeploymentOptionRow,
   DeploymentRoleRow,
 } from '../../../shared/entities';
-import type { Server, ServerRole, DeploymentOption, ConfigModel } from '../config-engine/model';
+import type { Server, ServerRole, DeploymentRole, DeploymentOption, ConfigModel } from '../config-engine/model';
 
 export interface ZoneFilters {
   view?: string;
@@ -827,7 +827,7 @@ function roleRowToModel(row: DeploymentRoleDbRow): DeploymentRoleRow {
   };
 }
 
-function getDeploymentRole(db: Database.Database, id: string): DeploymentRoleRow | null {
+export function getDeploymentRole(db: Database.Database, id: string): DeploymentRoleRow | null {
   const row = db.prepare('SELECT id, configurationId, scopeType, scopeId, serverId, role, disabled FROM deployment_roles WHERE id = ?').get(id) as DeploymentRoleDbRow | undefined;
   if (!row) return null;
   return roleRowToModel(row);
@@ -971,14 +971,33 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
     }
   }
 
-  const roles = listDeploymentRoles(db, configId)
-    .filter((row) => row.scope === 'ZONE')
-    .map((row) => ({
-      id: row.id,
-      serverId: row.serverId,
-      zoneId: row.scopeId,
-      role: row.role as ServerRole,
-    }));
+  // Raw explicit VIEW/ZONE role rows (each with id) are the diffable form the
+  // change set uses. `roles` below is the flattened per-zone render matrix:
+  // a VIEW row inherits to every zone in the view; a ZONE row overrides it for
+  // its zone; a ZONE disabled row suppresses the role for that zone entirely.
+  const roleRows = listDeploymentRoles(db, configId);
+
+  const roles: DeploymentRole[] = [];
+  for (const zone of zones) {
+    const zoneRows = roleRows.filter((r) => r.scope === 'ZONE' && r.scopeId === zone.id);
+    const viewRows = roleRows.filter((r) => r.scope === 'VIEW' && r.scopeId === zone.viewId);
+    const candidateServerIds = new Set<string>([
+      ...zoneRows.map((r) => r.serverId),
+      ...viewRows.map((r) => r.serverId),
+    ]);
+    for (const serverId of candidateServerIds) {
+      const zoneRow = zoneRows.find((r) => r.serverId === serverId);
+      if (zoneRow) {
+        if (zoneRow.disabled) continue; // explicit suppress beats view inheritance
+        roles.push({ serverId, zoneId: zone.id, role: zoneRow.role as ServerRole });
+        continue;
+      }
+      const viewRow = viewRows.find((r) => r.serverId === serverId);
+      if (viewRow && !viewRow.disabled) {
+        roles.push({ serverId, zoneId: zone.id, role: viewRow.role as ServerRole });
+      }
+    }
+  }
 
   return {
     configuration,
@@ -988,6 +1007,7 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
     servers,
     acls,
     roles,
+    roleRows,
     options,
     externalHosts,
   };

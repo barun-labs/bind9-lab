@@ -1,4 +1,4 @@
-import type { Configuration, View, Zone, ResourceRecord, ExternalHost, Acl } from '../../../shared/entities';
+import type { Configuration, View, Zone, ResourceRecord, ExternalHost, Acl, DeploymentRoleRow } from '../../../shared/entities';
 
 export type ServerRole = 'PRIMARY' | 'SECONDARY' | 'FORWARDER' | 'STUB' | 'RECURSIVE';
 
@@ -39,6 +39,9 @@ export interface ConfigModel {
   servers: Server[];
   acls?: Acl[];
   roles: DeploymentRole[];
+  // Raw explicit VIEW/ZONE role rows (with ids), the diffable form. `roles`
+  // holds the flattened per-zone render entries built from these rows.
+  roleRows?: DeploymentRoleRow[];
   options: DeploymentOption[];
   externalHosts?: ExternalHost[];
 }

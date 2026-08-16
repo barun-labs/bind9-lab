@@ -75,7 +75,8 @@ describe('deployment options + roles store', () => {
       serverId: 'srv-pri',
       role: 'PRIMARY',
     });
-    // VIEW-scope role must be ignored by buildConfigModel (later slice).
+    // IA-5: a VIEW-scope role inherits to every zone in that view; the ZONE
+    // row above overrides srv-pri for zone-lab (same server+zone → one entry).
     createDeploymentRole(db, 'dns-lab', {
       scope: 'VIEW',
       scopeId: 'view-internal',
@@ -96,7 +97,14 @@ describe('deployment options + roles store', () => {
       zoneId: 'zone-lab',
       role: 'PRIMARY',
     }));
-    expect(model.roles).toHaveLength(1);
+
+    const internalZoneIds = model.zones
+      .filter((z) => z.viewId === 'view-internal')
+      .map((z) => z.id);
+    const priZoneIds = model.roles
+      .filter((r) => r.serverId === 'srv-pri' && r.role === 'PRIMARY')
+      .map((r) => r.zoneId);
+    expect(priZoneIds.slice().sort()).toEqual(internalZoneIds.slice().sort());
   });
 
   it('golden: empty explicit options leave named.conf byte-identical to options:[]', () => {

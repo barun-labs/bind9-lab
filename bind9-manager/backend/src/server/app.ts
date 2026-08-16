@@ -47,6 +47,11 @@ import {
   createDeploymentOption,
   updateDeploymentOption,
   deleteDeploymentOption,
+  listDeploymentRoles,
+  getDeploymentRole,
+  createDeploymentRole,
+  updateDeploymentRole,
+  deleteDeploymentRole,
   type ZoneFilters,
   type RecordFilters,
 } from './entityStore';
@@ -80,11 +85,12 @@ import {
   generateServerConfig,
   validateConfig,
   effectiveZoneOptions,
+  effectiveZoneRoles,
   type Runner,
   type ConfigModel,
 } from '../config-engine';
 import { shellQuote } from '../config-engine/shellQuote';
-import { OPTION_ALLOWLIST, validateOptionValue } from './deploymentOptions';
+import { OPTION_ALLOWLIST, SERVER_ROLES, validateOptionValue } from './deploymentOptions';
 import {
   startDeployJob,
   getDeployJob,
@@ -1088,6 +1094,124 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Zone not found' } });
     }
     return reply.status(200).send(effectiveZoneOptions(buildConfigModel(db, configId), zone.viewId, zoneId));
+  });
+
+  // --- DEPLOYMENT ROLES ROUTES (IA-5) ---
+
+  // GET /api/v1/configurations/:configId/roles - List deployment roles (optional ?scope=&scopeId= filter)
+  app.get('/api/v1/configurations/:configId/roles', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const query = (req.query as any) || {};
+    let rows = listDeploymentRoles(db, configId);
+    const scope = String(query.scope ?? '').toUpperCase();
+    if (scope === 'VIEW' || scope === 'ZONE') {
+      rows = rows.filter((r) => r.scope === scope);
+      if (query.scopeId !== undefined) {
+        const scopeId = String(query.scopeId);
+        rows = rows.filter((r) => r.scopeId === scopeId);
+      }
+    }
+    return reply.status(200).send(rows);
+  });
+
+  // POST /api/v1/configurations/:configId/roles - Create a deployment role (requires edit)
+  app.post('/api/v1/configurations/:configId/roles', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const scope = body.scope;
+    const scopeId = typeof body.scopeId === 'string' ? body.scopeId : '';
+    const serverId = typeof body.serverId === 'string' ? body.serverId : '';
+    const role = typeof body.role === 'string' ? body.role : '';
+    const disabled = body.disabled === true;
+
+    if (scope !== 'VIEW' && scope !== 'ZONE') {
+      return reply.status(422).send({ error: { code: 'INVALID_SCOPE', message: 'scope must be VIEW or ZONE' } });
+    }
+    if (!SERVER_ROLES.includes(role)) {
+      return reply.status(422).send({ error: { code: 'INVALID_ROLE', message: `role must be one of ${SERVER_ROLES.join(', ')}` } });
+    }
+    if (scope === 'VIEW') {
+      const view = getView(db, scopeId);
+      if (!view || view.configurationId !== configId) {
+        return reply.status(422).send({ error: { code: 'INVALID_SCOPE_ID', message: 'scopeId must reference a view in this configuration' } });
+      }
+    } else {
+      const zone = getZone(db, scopeId);
+      if (!zone || zone.configurationId !== configId) {
+        return reply.status(422).send({ error: { code: 'INVALID_SCOPE_ID', message: 'scopeId must reference a zone in this configuration' } });
+      }
+    }
+    const serverExists = listServers(db, configId).some((s) => s.id === serverId);
+    if (!serverExists) {
+      return reply.status(422).send({ error: { code: 'INVALID_SERVER_ID', message: 'serverId must reference a server in this configuration' } });
+    }
+    const dup = listDeploymentRoles(db, configId).find(
+      (r) => r.scope === scope && r.scopeId === scopeId && r.serverId === serverId,
+    );
+    if (dup) {
+      return reply.status(409).send({ error: { code: 'CONFLICT', message: `A role for this server already exists at ${scope} scope` } });
+    }
+    const created = createDeploymentRole(db, configId, { scope, scopeId, serverId, role, disabled });
+    return reply.status(201).send(created);
+  });
+
+  // PATCH /api/v1/configurations/:configId/roles/:roleId - Update role/disabled (requires edit)
+  app.patch('/api/v1/configurations/:configId/roles/:roleId', async (req, reply) => {
+    const { configId, roleId } = req.params as { configId: string; roleId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getDeploymentRole(db, roleId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Deployment role not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    if (!body || typeof body !== 'object') {
+      return reply.status(400).send({ error: { code: 'BAD_REQUEST', message: 'Invalid request body' } });
+    }
+    const patch: { role?: string; disabled?: boolean } = {};
+    if (body.role !== undefined) {
+      if (!SERVER_ROLES.includes(body.role)) {
+        return reply.status(422).send({ error: { code: 'INVALID_ROLE', message: `role must be one of ${SERVER_ROLES.join(', ')}` } });
+      }
+      patch.role = body.role;
+    }
+    if (body.disabled !== undefined) patch.disabled = Boolean(body.disabled);
+    const updated = updateDeploymentRole(db, roleId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/configurations/:configId/roles/:roleId - Delete a deployment role (requires edit)
+  app.delete('/api/v1/configurations/:configId/roles/:roleId', async (req, reply) => {
+    const { configId, roleId } = req.params as { configId: string; roleId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getDeploymentRole(db, roleId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Deployment role not found' } });
+    }
+    deleteDeploymentRole(db, roleId);
+    return reply.status(204).send();
+  });
+
+  // GET /api/v1/configurations/:configId/zones/:zoneId/effective-roles - Resolved per-zone role matrix (requires view)
+  app.get('/api/v1/configurations/:configId/zones/:zoneId/effective-roles', async (req, reply) => {
+    const { configId, zoneId } = req.params as { configId: string; zoneId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const zone = getZone(db, zoneId);
+    if (!zone || zone.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Zone not found' } });
+    }
+    return reply.status(200).send(effectiveZoneRoles(buildConfigModel(db, configId), zone.viewId, zoneId));
   });
 
   // --- CHANGE-SET REVIEW & DEPLOY ROUTES ---

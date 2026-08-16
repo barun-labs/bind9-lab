@@ -1,6 +1,10 @@
 import { isIP } from 'node:net';
 import type { OptionScope } from '../../../shared/entities';
 
+// Valid BIND server roles for the deployment-role matrix. Single source of
+// truth shared by the API routes and validation so the two can never drift.
+export const SERVER_ROLES: readonly string[] = ['PRIMARY', 'SECONDARY', 'FORWARDER', 'STUB', 'RECURSIVE'];
+
 // Single source of truth for which deployment-option keys exist, at which
 // scopes, and what their value shapes are. Both the API routes and the
 // config-engine effectiveZoneOptions helper consume this map so the two can

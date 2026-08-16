@@ -98,6 +98,47 @@ export function effectiveZoneOptions(
   return result;
 }
 
+/**
+ * Resolve the effective role a server plays for one zone, with the source
+ * mode. Mirror of effectiveZoneOptions for the role matrix:
+ * - OVERRIDE: explicit ZONE row (role from that row)
+ * - DISABLE:  zone row with disabled=true suppresses any role for that server
+ * - INHERIT:  no zone row, role from the view's row
+ */
+export function effectiveZoneRoles(
+  model: ConfigModel,
+  viewId: string,
+  zoneId: string,
+): { serverId: string; role: ServerRole; mode: 'OVERRIDE' | 'DISABLE' | 'INHERIT' }[] {
+  const zoneRows = (model.roleRows ?? []).filter(
+    (r) => r.scope === 'ZONE' && r.scopeId === zoneId,
+  );
+  const viewRows = (model.roleRows ?? []).filter(
+    (r) => r.scope === 'VIEW' && r.scopeId === viewId,
+  );
+  const serverIds = new Set<string>([
+    ...zoneRows.map((r) => r.serverId),
+    ...viewRows.map((r) => r.serverId),
+  ]);
+  const result: { serverId: string; role: ServerRole; mode: 'OVERRIDE' | 'DISABLE' | 'INHERIT' }[] = [];
+  for (const serverId of serverIds) {
+    const zoneRow = zoneRows.find((r) => r.serverId === serverId);
+    if (zoneRow) {
+      result.push({
+        serverId,
+        role: zoneRow.role as ServerRole,
+        mode: zoneRow.disabled ? 'DISABLE' : 'OVERRIDE',
+      });
+      continue;
+    }
+    const viewRow = viewRows.find((r) => r.serverId === serverId);
+    if (viewRow && !viewRow.disabled) {
+      result.push({ serverId, role: viewRow.role as ServerRole, mode: 'INHERIT' });
+    }
+  }
+  return result;
+}
+
 export function zonesForServer(
   model: ConfigModel,
   serverId: string,

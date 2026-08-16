@@ -180,9 +180,9 @@ export function computeChangeSet(
     },
     {
       type: 'ROLE',
-      current: (current.roles ?? []).filter((r) => r.id),
-      baseline: (baseline?.roles ?? []).filter((r) => r.id),
-      label: (r) => `${r.serverId as string}:${r.role as string}`,
+      current: current.roleRows ?? [],
+      baseline: baseline?.roleRows ?? [],
+      label: (r) => `${r.scope as string}:${r.scopeId as string}:${r.serverId as string}:${r.role as string}`,
       groupKey: () => 'ROLE',
     },
   ];
