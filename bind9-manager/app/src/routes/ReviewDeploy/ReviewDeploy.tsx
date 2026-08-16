@@ -256,7 +256,7 @@ export function ReviewDeploy() {
   const pendingCount = changeSet?.items.length ?? 0;
 
   const diffLines =
-    diff && diff.mode === 'unified' ? (diff as UnifiedDiff).lines : [];
+    diff && diff.mode === 'unified' ? ((diff as UnifiedDiff).lines ?? []) : [];
 
   const renderUnifiedDiff = () => (
     <div style={{ ...MONO, fontSize: '12px', lineHeight: 1.7, background: 'var(--color-surface)', border: '1px solid var(--color-divider)' }}>
@@ -274,8 +274,8 @@ export function ReviewDeploy() {
   );
 
   const renderSplitDiff = () => {
-    const left = diff && diff.mode === 'split' ? (diff as SplitDiff).left : [];
-    const right = diff && diff.mode === 'split' ? (diff as SplitDiff).right : [];
+    const left = diff && diff.mode === 'split' ? ((diff as SplitDiff).left ?? []) : [];
+    const right = diff && diff.mode === 'split' ? ((diff as SplitDiff).right ?? []) : [];
     const col = (lines: { kind: string; text: string }[], side: 'left' | 'right') => (
       <div style={{ background: 'var(--color-surface)' }}>
         <div style={{ padding: '4px 12px', fontSize: '10px', letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)', borderBottom: '1px solid var(--color-divider)' }}>

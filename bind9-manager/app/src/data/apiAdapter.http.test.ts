@@ -353,6 +353,49 @@ describe('apiAdapter HTTP real-backend path', () => {
     const notFoundJob = await api.getDeployJob(store, 'job-unknown');
     expect(notFoundJob).toBeNull();
   });
+
+  test('getChangeSetDiff normalizes unified backend shape', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({
+        mode: 'unified',
+        serverId: 's1',
+        before: 'a',
+        after: 'b',
+        diff: [{ kind: 'add', text: 'x' }],
+      }),
+    });
+
+    const store = makeStore();
+    const result = await api.getChangeSetDiff(store, 'cfg-1', 'unified', 's1');
+    expect(result).toEqual({ mode: 'unified', lines: [{ kind: 'add', text: 'x' }] });
+  });
+
+  test('getChangeSetDiff normalizes split backend shape', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({
+        mode: 'split',
+        serverId: 's1',
+        diff: {
+          left: [{ kind: 'del', text: 'old' }],
+          right: [{ kind: 'add', text: 'new' }],
+        },
+      }),
+    });
+
+    const store = makeStore();
+    const result = await api.getChangeSetDiff(store, 'cfg-1', 'split', 's1');
+    expect(result).toEqual({
+      mode: 'split',
+      left: [{ kind: 'del', text: 'old' }],
+      right: [{ kind: 'add', text: 'new' }],
+    });
+  });
 });
 
 

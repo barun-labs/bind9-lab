@@ -2518,7 +2518,13 @@ export async function getChangeSetDiff(
 ): Promise<ChangeSetDiff> {
   if (isApiEnabled()) {
     const qs = buildQueryString({ mode, server: serverId });
-    return apiFetch<ChangeSetDiff>(`/api/v1/configurations/${configId}/change-set/diff${qs}`);
+    const res = await apiFetch<any>(
+      `/api/v1/configurations/${configId}/change-set/diff${qs}`
+    );
+    if (res && res.mode === 'split') {
+      return { mode: 'split', left: res.diff?.left ?? [], right: res.diff?.right ?? [] };
+    }
+    return { mode: 'unified', lines: Array.isArray(res?.diff) ? res.diff : (res?.lines ?? []) };
   }
   return mode === 'unified'
     ? { mode: 'unified', lines: [] }

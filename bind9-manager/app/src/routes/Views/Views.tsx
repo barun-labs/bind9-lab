@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import type { View } from '../../types/entities';
 import type { CreateViewInput, UpdateViewPatch } from '../../data/apiAdapter';
 import { useApi } from '../../data/store';
@@ -141,7 +141,18 @@ export function Views() {
         key: 'name',
         header: 'Name',
         render: (v) => (
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>{v.name}</span>
+          <Link
+            to={`/config/${configId}/views/${v.id}`}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '13px',
+              color: 'var(--color-accent-800)',
+              textDecoration: 'none',
+              fontWeight: 500,
+            }}
+          >
+            {v.name}
+          </Link>
         ),
       },
       {

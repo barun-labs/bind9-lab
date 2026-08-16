@@ -82,6 +82,13 @@ describe('Views', () => {
     expect(screen.getByText('6')).toBeInTheDocument();
   });
 
+  test('renders view name as a link into the view', async () => {
+    renderViews();
+
+    const link = await screen.findByRole('link', { name: 'internal' });
+    expect(link.getAttribute('href')).toBe('/config/dns-lab/views/view-1');
+  });
+
   test('opens Add View modal and submits createView with the name', async () => {
     renderViews();
 
