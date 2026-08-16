@@ -5,6 +5,8 @@ import { listServers, upsertServer, deleteServerById, getServer } from './entity
 import type { Server } from '../config-engine/model';
 import type { DeployResult, RuntimeNode } from './deployEngine';
 
+export type LabLifecycleState = 'NEVER_DEPLOYED' | 'DEPLOYED' | 'DESTROYED';
+
 export interface Lab {
   id: string;
   name: string;
@@ -12,6 +14,9 @@ export interface Lab {
   topology: TopologyModel;
   createdAt: string;
   updatedAt: string;
+  lifecycleState?: LabLifecycleState;
+  lastDeployedAt?: string;
+  lastDestroyedAt?: string;
 }
 
 export interface CreateLabInput {
@@ -205,6 +210,54 @@ export function getLab(db: Database.Database, id: string): Lab | null {
   return JSON.parse(row.data) as Lab;
 }
 
+/** True iff this lab is a DNS lab (has at least one bind node). Bind9-Manager only
+ *  deploys/destroys/streams DNS labs — never other containerlabs. */
+export function isDnsLab(lab: Lab): boolean {
+  return (lab.topology?.nodes || []).some((n) => n && n.intent === 'bind');
+}
+
+/** Persist a lifecycle transition on the lab JSON blob. Sets lastDeployedAt on DEPLOYED
+ *  and lastDestroyedAt on DESTROYED. Returns the updated lab, or null if the lab is gone.
+ *  Does NOT reconcile servers. */
+export function setLabLifecycle(
+  db: Database.Database,
+  id: string,
+  state: LabLifecycleState,
+  now?: string,
+): Lab | null {
+  const existing = getLab(db, id);
+  if (!existing) return null;
+  const ts = getIsoTimestamp(now);
+  const updated: Lab = {
+    ...existing,
+    lifecycleState: state,
+    updatedAt: ts,
+    ...(state === 'DEPLOYED' ? { lastDeployedAt: ts } : {}),
+    ...(state === 'DESTROYED' ? { lastDestroyedAt: ts } : {}),
+  };
+  db.prepare('UPDATE labs SET data = ? WHERE id = ?').run(JSON.stringify(updated), id);
+  return updated;
+}
+
+/** Mark every bind node's Server row NODE_ABSENT and clear its runtime fields.
+ *  Used by destroy: the containers are gone, so unlike a deploy reconcile this
+ *  does NOT stamp lastDeployedAt (the servers were not deployed just now). */
+export function markLabServersAbsent(db: Database.Database, lab: Lab): void {
+  const bindNodes = (lab.topology?.nodes || []).filter((n) => n && n.intent === 'bind');
+  for (const node of bindNodes) {
+    const existing = getServer(db, 'srv-' + lab.id + '-' + node.name);
+    if (!existing) continue;
+    upsertServer(db, {
+      ...existing,
+      containerId: undefined,
+      runtimeAddress: undefined,
+      runtimeState: undefined,
+      syncState: 'NODE_ABSENT',
+      configurationId: existing.configurationId as string | undefined,
+    });
+  }
+}
+
 /**
  * Create a new lab and reconcile its bind servers.
  */
@@ -221,6 +274,7 @@ export function createLab(
     topology: input.topology,
     createdAt: timestamp,
     updatedAt: timestamp,
+    lifecycleState: 'NEVER_DEPLOYED',
   };
 
   db.prepare('INSERT INTO labs (id, configurationId, data) VALUES (?, ?, ?)').run(

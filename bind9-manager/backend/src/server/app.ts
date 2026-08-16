@@ -38,8 +38,11 @@ import {
   updateLab,
   deleteLab,
   reconcileServersRuntime,
+  isDnsLab,
+  setLabLifecycle,
+  markLabServersAbsent,
 } from './labStore';
-import { parseInspect } from './deployEngine';
+import { parseInspect, destroy } from './deployEngine';
 import { snapshot } from './telemetry';
 import {
   generateClabTopology,
@@ -1009,10 +1012,50 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       });
     }
 
+    if (!isDnsLab(lab)) {
+      return reply.status(422).send({
+        error: { code: 'NOT_A_DNS_LAB', message: 'Bind9-Manager only manages DNS labs (labs with a bind node).' },
+      });
+    }
+
     const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
 
     const job = startDeployJob(db, lab, { run: activeRunner, labDir });
     return reply.status(201).send({ jobId: job.id });
+  });
+
+  // POST /api/v1/labs/:id/destroy - Tear down the lab's containers (requires deploy permission)
+  app.post('/api/v1/labs/:id/destroy', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Lab not found' } });
+    }
+    if (!authorize(req.actor, 'deploy', lab.configurationId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    if (!isDnsLab(lab)) {
+      return reply.status(422).send({ error: { code: 'NOT_A_DNS_LAB', message: 'Bind9-Manager only manages DNS labs (labs with a bind node).' } });
+    }
+    const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
+    const result = await destroy(activeRunner, labDir);
+    if (!result.ok) {
+      return reply.status(502).send({ error: { code: 'DESTROY_FAILED', message: result.output.slice(0, 500) } });
+    }
+    // Containers are gone — this is irreversible. Record the outcome best-effort:
+    // never 500 after a successful destroy, or the caller can't tell it worked and
+    // a retry would just re-run destroy against already-gone containers.
+    let updated: typeof lab | null = lab;
+    try {
+      markLabServersAbsent(db, lab); // NODE_ABSENT, no bogus lastDeployedAt
+      updated = setLabLifecycle(db, id, 'DESTROYED') ?? lab;
+    } catch {
+      // persistence failed after the teardown already happened; still report success
+    }
+    return reply.status(200).send({
+      lab: updated,
+      servers: listServers(db, lab.configurationId).filter((s) => s.id.startsWith('srv-' + lab.id + '-')),
+    });
   });
 
   // GET /api/v1/deploy-jobs/:id - Get a deploy job status (requires view permission on the lab's configuration)
@@ -1057,6 +1100,12 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
     }
 
+    if (!isDnsLab(lab)) {
+      return reply.status(422).send({
+        error: { code: 'NOT_A_DNS_LAB', message: 'Bind9-Manager only manages DNS labs (labs with a bind node).' },
+      });
+    }
+
     const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
     return reply.status(200).send(await snapshot(lab, activeRunner, labDir));
   });
@@ -1073,6 +1122,12 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
 
     if (!authorize(req.actor, 'view', lab.configurationId)) {
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+
+    if (!isDnsLab(lab)) {
+      return reply.status(422).send({
+        error: { code: 'NOT_A_DNS_LAB', message: 'Bind9-Manager only manages DNS labs (labs with a bind node).' },
+      });
     }
 
     const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
@@ -1115,6 +1170,12 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
     }
 
+    if (!isDnsLab(lab)) {
+      return reply.status(422).send({
+        error: { code: 'NOT_A_DNS_LAB', message: 'Bind9-Manager only manages DNS labs (labs with a bind node).' },
+      });
+    }
+
     // Defence 1: charset — a `:node` param that is not a bare identifier
     // can never become a shell/container argument, no matter what follows.
     if (!/^[A-Za-z0-9_-]+$/.test(node)) {
@@ -1155,6 +1216,12 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
 
     if (!authorize(req.actor, 'view', lab.configurationId)) {
       return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+
+    if (!isDnsLab(lab)) {
+      return reply.status(422).send({
+        error: { code: 'NOT_A_DNS_LAB', message: 'Bind9-Manager only manages DNS labs (labs with a bind node).' },
+      });
     }
 
     const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;

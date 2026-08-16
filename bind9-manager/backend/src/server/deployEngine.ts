@@ -303,6 +303,18 @@ export function parseInspect(stdout: string): RuntimeNode[] {
   return nodes;
 }
 
+export interface DestroyResult { ok: boolean; output: string }
+
+export async function destroy(
+  run: Runner,
+  labDir: string,
+): Promise<DestroyResult> {
+  const res = await run(
+    `containerlab destroy -t ${shellQuote(labDir + '/topo.clab.yml')} --cleanup`,
+  );
+  return { ok: res.code === 0, output: (res.stdout || '') + (res.stderr ? '\n' + res.stderr : '') };
+}
+
 export async function deploy(
   model: ConfigModel,
   topology: TopologyModel,

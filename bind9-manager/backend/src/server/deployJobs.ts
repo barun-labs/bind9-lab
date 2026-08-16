@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { randomBytes } from 'node:crypto';
 import type { Lab } from './labStore';
-import { reconcileServersRuntime } from './labStore';
+import { reconcileServersRuntime, setLabLifecycle } from './labStore';
 import { buildConfigModel } from './entityStore';
 import { deploy, type DeployResult, type Runner } from './deployEngine';
 
@@ -63,6 +63,7 @@ export function startDeployJob(
         job.status = 'SUCCEEDED';
         try {
           reconcileServersRuntime(db, lab, result);
+          setLabLifecycle(db, lab.id, 'DEPLOYED');
         } catch {
           // reconcile is best-effort; the deploy already succeeded, never fail the job on it
         }
