@@ -6,6 +6,7 @@ import type {
   SyncState,
   ExternalHost,
   ListEnvelope,
+  Zone,
 } from '../../types/entities';
 import { useStore, useApi } from '../../data/store';
 import { useAuth } from '../../auth/AuthProvider';
@@ -183,6 +184,19 @@ export function ZoneRecordsInner() {
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [externalHosts, setExternalHosts] = useState<ExternalHost[]>([]);
+  const [apiZone, setApiZone] = useState<Zone | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getZone(zoneId)
+      .then((z) => {
+        if (!cancelled && z) setApiZone(z);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [api, zoneId]);
 
   // Load external hosts
   useEffect(() => {
@@ -220,7 +234,9 @@ export function ZoneRecordsInner() {
   }, [loadRecords, store.records]);
 
   // Zone info
-  const zone = store.zones.find((z) => z.id === zoneId) || {
+  const zone =
+    apiZone ??
+    store.zones.find((z) => z.id === zoneId) ?? {
     id: zoneId,
     configurationId: configId,
     viewId: 'view-internal',
@@ -849,6 +865,7 @@ export function ZoneRecordsInner() {
         </div>
 
         {/* SOA Summary Box */}
+        {soa ? (
         <div
           style={{
             display: 'flex',
@@ -938,6 +955,17 @@ export function ZoneRecordsInner() {
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px' }}>{allowTransferStr}</div>
           </div>
         </div>
+        ) : (
+          <div
+            style={{
+              marginTop: '12px',
+              fontSize: '12px',
+              color: 'color-mix(in srgb, var(--color-text) 55%, transparent)',
+            }}
+          >
+            No SOA record — {zone.type || 'this'} zone.
+          </div>
+        )}
 
         {/* Tab Switcher */}
         <div style={{ display: 'flex', gap: '2px', marginTop: '12px' }}>
