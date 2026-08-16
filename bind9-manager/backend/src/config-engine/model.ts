@@ -16,12 +16,14 @@ export interface Server {
 }
 
 export interface DeploymentRole {
+  id?: string;
   serverId: string;
   zoneId: string;
   role: ServerRole;
 }
 
 export interface DeploymentOption {
+  id?: string;
   scopeType: 'CONFIGURATION' | 'SERVER_GROUP' | 'SERVER' | 'VIEW' | 'ZONE';
   scopeId: string;
   key: string;

@@ -59,7 +59,7 @@ export interface ListEnvelope<T> { data: T[]; page: number; size: number; total:
 export interface ApiError { error: { code: string; message: string; field?: string; details?: unknown }; }
 
 export type ChangeSetItemAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'DISABLE' | 'ENABLE';
-export type ChangeSetObjectType = 'VIEW' | 'ZONE' | 'RECORD' | 'ACL' | 'SERVER';
+export type ChangeSetObjectType = 'VIEW' | 'ZONE' | 'RECORD' | 'ACL' | 'SERVER' | 'OPTION' | 'ROLE';
 export interface ChangeSetItem {
   id: string;                 // deterministic + stable: `cs-${objectType}-${objectId}`
   configurationId: string;

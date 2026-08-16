@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { computeChangeSet, diffLines, splitDiff } from '../src/server/changeSet';
+import { openDb } from '../src/server/db';
+import {
+  buildConfigModel,
+  createDeploymentOption,
+  createDeploymentRole,
+} from '../src/server/entityStore';
 import type { ConfigModel } from '../src/config-engine/model';
 
 function makeModel(overrides: Record<string, unknown> = {}): ConfigModel {
@@ -98,6 +104,77 @@ describe('computeChangeSet', () => {
   it('produces no items when current equals baseline', () => {
     const model = makeModel();
     expect(computeChangeSet(model, model)).toEqual([]);
+  });
+
+  it('diff: explicit option appears as CREATE vs a baseline without it, DELETE when removed', () => {
+    const db = openDb(':memory:');
+    const baseline = buildConfigModel(db, 'dns-lab');
+    const created = createDeploymentOption(db, 'dns-lab', {
+      scope: 'VIEW',
+      scopeId: 'view-internal',
+      key: 'recursion',
+      value: true,
+    });
+    const current = buildConfigModel(db, 'dns-lab');
+
+    const createdItems = computeChangeSet(current, baseline).filter((i) => i.objectType === 'OPTION');
+    expect(createdItems).toHaveLength(1);
+    expect(createdItems[0]).toMatchObject({
+      id: `cs-OPTION-${created.id}`,
+      objectType: 'OPTION',
+      objectId: created.id,
+      action: 'CREATE',
+      groupKey: 'OPTION',
+    });
+
+    const deletedItems = computeChangeSet(baseline, current).filter((i) => i.objectType === 'OPTION');
+    expect(deletedItems).toHaveLength(1);
+    expect(deletedItems[0]).toMatchObject({
+      id: `cs-OPTION-${created.id}`,
+      action: 'DELETE',
+    });
+    expect(deletedItems[0].diff.before).toMatchObject({ id: created.id });
+    expect(deletedItems[0].diff.after).toBeNull();
+  });
+
+  it('diff: explicit role appears as CREATE vs a baseline without it, DELETE when removed', () => {
+    const db = openDb(':memory:');
+    const baseline = buildConfigModel(db, 'dns-lab');
+    const created = createDeploymentRole(db, 'dns-lab', {
+      scope: 'ZONE',
+      scopeId: 'zone-lab',
+      serverId: 'srv-pri',
+      role: 'PRIMARY',
+    });
+    const current = buildConfigModel(db, 'dns-lab');
+
+    const createdItems = computeChangeSet(current, baseline).filter((i) => i.objectType === 'ROLE');
+    expect(createdItems).toHaveLength(1);
+    expect(createdItems[0]).toMatchObject({
+      id: `cs-ROLE-${created.id}`,
+      objectType: 'ROLE',
+      objectId: created.id,
+      action: 'CREATE',
+      groupKey: 'ROLE',
+    });
+
+    const deletedItems = computeChangeSet(baseline, current).filter((i) => i.objectType === 'ROLE');
+    expect(deletedItems).toHaveLength(1);
+    expect(deletedItems[0]).toMatchObject({
+      id: `cs-ROLE-${created.id}`,
+      action: 'DELETE',
+    });
+  });
+
+  it('CONTROL: synthesized match-clients option (no id) produces zero OPTION change-set items', () => {
+    const db = openDb(':memory:');
+    const model = buildConfigModel(db, 'dns-lab');
+    // Fresh seed has no explicit option rows, only synthesized match-clients.
+    expect(model.options.length).toBeGreaterThan(0);
+    expect(model.options.every((o) => !o.id)).toBe(true);
+
+    const items = computeChangeSet(model, null);
+    expect(items.filter((i) => i.objectType === 'OPTION')).toHaveLength(0);
   });
 });
 

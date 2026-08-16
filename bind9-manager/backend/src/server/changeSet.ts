@@ -16,6 +16,8 @@ const TYPE_ORDER: Record<ChangeSetObjectType, number> = {
   RECORD: 2,
   ACL: 3,
   SERVER: 4,
+  OPTION: 5,
+  ROLE: 6,
 };
 
 function json(v: unknown): string {
@@ -168,6 +170,20 @@ export function computeChangeSet(
       baseline: baseline?.servers ?? [],
       label: (s) => String(s.id),
       groupKey: () => 'SERVER',
+    },
+    {
+      type: 'OPTION',
+      current: (current.options ?? []).filter((o) => o.id),
+      baseline: (baseline?.options ?? []).filter((o) => o.id),
+      label: (o) => `${o.scopeType as string}:${o.key as string}`,
+      groupKey: () => 'OPTION',
+    },
+    {
+      type: 'ROLE',
+      current: (current.roles ?? []).filter((r) => r.id),
+      baseline: (baseline?.roles ?? []).filter((r) => r.id),
+      label: (r) => `${r.serverId as string}:${r.role as string}`,
+      groupKey: () => 'ROLE',
     },
   ];
 

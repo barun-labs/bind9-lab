@@ -16,7 +16,7 @@ import type {
   DeploymentOptionRow,
   DeploymentRoleRow,
 } from '../../../shared/entities';
-import type { Server, ServerRole, ConfigModel } from '../config-engine/model';
+import type { Server, ServerRole, DeploymentOption, ConfigModel } from '../config-engine/model';
 
 export interface ZoneFilters {
   view?: string;
@@ -943,7 +943,8 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
   const externalHosts = listExternalHosts(db, configId);
   const acls = listAcls(db, configId);
 
-  const options = listDeploymentOptions(db, configId).map((row) => ({
+  const options: DeploymentOption[] = listDeploymentOptions(db, configId).map((row) => ({
+    id: row.id,
     scopeType: row.scope,
     scopeId: row.scopeId,
     key: row.key,
@@ -973,6 +974,7 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
   const roles = listDeploymentRoles(db, configId)
     .filter((row) => row.scope === 'ZONE')
     .map((row) => ({
+      id: row.id,
       serverId: row.serverId,
       zoneId: row.scopeId,
       role: row.role as ServerRole,

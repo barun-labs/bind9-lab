@@ -84,18 +84,18 @@ describe('deployment options + roles store', () => {
     });
 
     const model = buildConfigModel(db, 'dns-lab');
-    expect(model.options).toContainEqual({
+    expect(model.options).toContainEqual(expect.objectContaining({
       scopeType: 'VIEW',
       scopeId: 'view-internal',
       key: 'recursion',
       value: false,
       disabled: false,
-    });
-    expect(model.roles).toContainEqual({
+    }));
+    expect(model.roles).toContainEqual(expect.objectContaining({
       serverId: 'srv-pri',
       zoneId: 'zone-lab',
       role: 'PRIMARY',
-    });
+    }));
     expect(model.roles).toHaveLength(1);
   });
 

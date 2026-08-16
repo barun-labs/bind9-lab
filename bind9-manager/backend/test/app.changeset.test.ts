@@ -4,7 +4,7 @@ import { openDb } from '../src/server/db';
 import { buildApp } from '../src/server/app';
 import { hashPassword } from '../src/server/crypto';
 import { createLab } from '../src/server/labStore';
-import { buildConfigModel } from '../src/server/entityStore';
+import { buildConfigModel, createDeploymentOption, createDeploymentRole } from '../src/server/entityStore';
 import { getBaselineModel, setBaselineModel } from '../src/server/changeSetStore';
 import type { Runner } from '../src/server/deployEngine';
 import type { TopologyModel } from '../src/config-engine/topology';
@@ -156,6 +156,20 @@ describe('change-set review & deploy API', () => {
     const header = { authorization: `Bearer ${token}` };
     const labId = dnsLabId();
     const serverId = `srv-${labId}-ns1`;
+
+    // An option + role edit must surface as pending OPTION/ROLE items, then
+    // clear from the change set once the deploy succeeds (baseline replaced).
+    createDeploymentOption(db, 'dns-lab', { scope: 'VIEW', scopeId: 'view-internal', key: 'recursion', value: false });
+    createDeploymentRole(db, 'dns-lab', { scope: 'ZONE', scopeId: 'zone-lab', serverId, role: 'PRIMARY' });
+
+    const pendingRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/configurations/dns-lab/change-set',
+      headers: header,
+    });
+    const pendingItems = JSON.parse(pendingRes.body).items;
+    expect(pendingItems.filter((i: any) => i.objectType === 'OPTION')).toHaveLength(1);
+    expect(pendingItems.filter((i: any) => i.objectType === 'ROLE')).toHaveLength(1);
 
     const res = await app.inject({
       method: 'POST',
