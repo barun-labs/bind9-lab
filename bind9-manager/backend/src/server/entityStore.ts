@@ -714,7 +714,7 @@ function optionRowToModel(row: DeploymentOptionDbRow): DeploymentOptionRow {
   };
 }
 
-function getDeploymentOption(db: Database.Database, id: string): DeploymentOptionRow | null {
+export function getDeploymentOption(db: Database.Database, id: string): DeploymentOptionRow | null {
   const row = db.prepare('SELECT id, configurationId, scopeType, scopeId, key, value, disabled FROM deployment_options WHERE id = ?').get(id) as DeploymentOptionDbRow | undefined;
   if (!row) return null;
   return optionRowToModel(row);

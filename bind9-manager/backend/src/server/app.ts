@@ -42,6 +42,11 @@ import {
   createAcl,
   updateAcl,
   deleteAcl,
+  listDeploymentOptions,
+  getDeploymentOption,
+  createDeploymentOption,
+  updateDeploymentOption,
+  deleteDeploymentOption,
   type ZoneFilters,
   type RecordFilters,
 } from './entityStore';
@@ -74,10 +79,12 @@ import { spawn } from 'node:child_process';
 import {
   generateServerConfig,
   validateConfig,
+  effectiveZoneOptions,
   type Runner,
   type ConfigModel,
 } from '../config-engine';
 import { shellQuote } from '../config-engine/shellQuote';
+import { OPTION_ALLOWLIST, validateOptionValue } from './deploymentOptions';
 import {
   startDeployJob,
   getDeployJob,
@@ -951,6 +958,136 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     }
     const result = evaluateAcl(listAcls(db, configId), target, clientIp);
     return reply.status(200).send(result);
+  });
+
+  // --- DEPLOYMENT OPTIONS ROUTES (IA-4) ---
+
+  // GET /api/v1/configurations/:configId/options - List deployment options (optional ?scope=&scopeId= filter)
+  app.get('/api/v1/configurations/:configId/options', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const query = (req.query as any) || {};
+    let rows = listDeploymentOptions(db, configId);
+    const scope = String(query.scope ?? '').toUpperCase();
+    if (scope === 'VIEW' || scope === 'ZONE') {
+      rows = rows.filter((r) => r.scope === scope);
+      if (query.scopeId !== undefined) {
+        const scopeId = String(query.scopeId);
+        rows = rows.filter((r) => r.scopeId === scopeId);
+      }
+    }
+    return reply.status(200).send(rows);
+  });
+
+  // POST /api/v1/configurations/:configId/options - Create a deployment option (requires edit)
+  app.post('/api/v1/configurations/:configId/options', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const scope = body.scope;
+    const scopeId = typeof body.scopeId === 'string' ? body.scopeId : '';
+    const key = typeof body.key === 'string' ? body.key : '';
+    const disabled = body.disabled === true;
+
+    if (scope !== 'VIEW' && scope !== 'ZONE') {
+      return reply.status(422).send({ error: { code: 'INVALID_SCOPE', message: 'scope must be VIEW or ZONE' } });
+    }
+    if (!(key in OPTION_ALLOWLIST)) {
+      return reply.status(422).send({ error: { code: 'UNKNOWN_OPTION_KEY', message: `Unknown option key: ${key}` } });
+    }
+    if (!OPTION_ALLOWLIST[key].scopes.includes(scope)) {
+      return reply.status(422).send({ error: { code: 'INVALID_SCOPE', message: `Option ${key} is not valid at ${scope} scope` } });
+    }
+    if (scope === 'VIEW') {
+      const view = getView(db, scopeId);
+      if (!view || view.configurationId !== configId) {
+        return reply.status(422).send({ error: { code: 'INVALID_SCOPE_ID', message: 'scopeId must reference a view in this configuration' } });
+      }
+    } else {
+      const zone = getZone(db, scopeId);
+      if (!zone || zone.configurationId !== configId) {
+        return reply.status(422).send({ error: { code: 'INVALID_SCOPE_ID', message: 'scopeId must reference a zone in this configuration' } });
+      }
+    }
+    const dup = listDeploymentOptions(db, configId).find(
+      (o) => o.scope === scope && o.scopeId === scopeId && o.key === key,
+    );
+    if (dup) {
+      return reply.status(409).send({ error: { code: 'CONFLICT', message: `Option ${key} already exists at ${scope} scope` } });
+    }
+    if (!disabled) {
+      const v = validateOptionValue(key, body.value);
+      if (!v.ok) {
+        return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: `Invalid value for ${key}`, field: v.field } });
+      }
+    }
+    const option = createDeploymentOption(db, configId, {
+      scope,
+      scopeId,
+      key,
+      value: disabled ? null : body.value,
+      disabled,
+    });
+    return reply.status(201).send(option);
+  });
+
+  // PATCH /api/v1/configurations/:configId/options/:optionId - Update value/disabled (requires edit)
+  app.patch('/api/v1/configurations/:configId/options/:optionId', async (req, reply) => {
+    const { configId, optionId } = req.params as { configId: string; optionId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getDeploymentOption(db, optionId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Deployment option not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    if (!body || typeof body !== 'object') {
+      return reply.status(400).send({ error: { code: 'BAD_REQUEST', message: 'Invalid request body' } });
+    }
+    const patch: { value?: unknown; disabled?: boolean } = {};
+    if (body.value !== undefined) patch.value = body.value;
+    if (body.disabled !== undefined) patch.disabled = Boolean(body.disabled);
+    const disabled = patch.disabled ?? existing.disabled;
+    if (body.value !== undefined && !disabled) {
+      const v = validateOptionValue(existing.key, body.value);
+      if (!v.ok) {
+        return reply.status(422).send({ error: { code: 'VALIDATION_ERROR', message: `Invalid value for ${existing.key}`, field: v.field } });
+      }
+    }
+    const updated = updateDeploymentOption(db, optionId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/configurations/:configId/options/:optionId - Delete a deployment option (requires edit)
+  app.delete('/api/v1/configurations/:configId/options/:optionId', async (req, reply) => {
+    const { configId, optionId } = req.params as { configId: string; optionId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getDeploymentOption(db, optionId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Deployment option not found' } });
+    }
+    deleteDeploymentOption(db, optionId);
+    return reply.status(204).send();
+  });
+
+  // GET /api/v1/configurations/:configId/zones/:zoneId/effective-options - Resolved per-zone options (requires view)
+  app.get('/api/v1/configurations/:configId/zones/:zoneId/effective-options', async (req, reply) => {
+    const { configId, zoneId } = req.params as { configId: string; zoneId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const zone = getZone(db, zoneId);
+    if (!zone || zone.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Zone not found' } });
+    }
+    return reply.status(200).send(effectiveZoneOptions(buildConfigModel(db, configId), zone.viewId, zoneId));
   });
 
   // --- CHANGE-SET REVIEW & DEPLOY ROUTES ---

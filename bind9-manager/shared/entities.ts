@@ -43,6 +43,7 @@ export type OptionScope = 'VIEW' | 'ZONE';
 export type InheritMode = 'INHERIT' | 'OVERRIDE' | 'DISABLE';
 export interface DeploymentOptionRow { id: string; configurationId: string; scope: OptionScope; scopeId: string; key: string; value: unknown | null; disabled: boolean; }
 export interface DeploymentRoleRow { id: string; configurationId: string; scope: OptionScope; scopeId: string; serverId: string; role: string; disabled: boolean; }
+export interface EffectiveOption { key: string; mode: InheritMode; effectiveValue: unknown | null; inheritedValue: unknown | null; }
 export interface ApiKey {
   id: string;
   name: string;

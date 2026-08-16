@@ -1,4 +1,6 @@
 import type { ConfigModel, DeploymentOption, ServerRole, View, Zone } from './model';
+import type { EffectiveOption } from '../../../shared/entities';
+import { ZONE_SCOPE_KEYS } from '../server/deploymentOptions';
 
 export function resolveOption(
   model: ConfigModel,
@@ -44,6 +46,56 @@ export function resolveOption(
   }
 
   return undefined;
+}
+
+/**
+ * Resolve the effective value of every ZONE-scope option for one zone.
+ * VIEW/ZONE rows resolve independent of server, so serverId defaults to the
+ * first server (or '') only to satisfy resolveOption's signature.
+ *
+ * A key appears in the result only when it has an explicit ZONE-scope row or
+ * resolves to a non-undefined inherited value.
+ */
+export function effectiveZoneOptions(
+  model: ConfigModel,
+  viewId: string,
+  zoneId: string,
+): EffectiveOption[] {
+  const serverId = model.servers?.[0]?.id ?? '';
+  const result: EffectiveOption[] = [];
+
+  for (const key of ZONE_SCOPE_KEYS) {
+    const zoneRow = model.options?.find(
+      (o) => o.scopeType === 'ZONE' && o.scopeId === zoneId && o.key === key,
+    );
+
+    if (zoneRow && zoneRow.disabled) {
+      result.push({
+        key,
+        mode: 'DISABLE',
+        effectiveValue: null,
+        inheritedValue: resolveOption(model, { serverId, viewId }, key),
+      });
+      continue;
+    }
+
+    if (zoneRow) {
+      result.push({
+        key,
+        mode: 'OVERRIDE',
+        effectiveValue: zoneRow.value,
+        inheritedValue: resolveOption(model, { serverId, viewId }, key),
+      });
+      continue;
+    }
+
+    const inheritedValue = resolveOption(model, { serverId, viewId }, key);
+    if (inheritedValue !== undefined) {
+      result.push({ key, mode: 'INHERIT', effectiveValue: inheritedValue, inheritedValue });
+    }
+  }
+
+  return result;
 }
 
 export function zonesForServer(
