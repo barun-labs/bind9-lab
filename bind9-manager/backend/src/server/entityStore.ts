@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { randomBytes } from 'node:crypto';
 import type {
   Configuration,
   View,
@@ -96,6 +97,55 @@ export function getView(db: Database.Database, id: string): View | null {
 }
 
 /**
+ * Create a new view for a configuration.
+ */
+export function createView(db: Database.Database, configId: string, input: { name: string; order?: number; matchClients?: string[] }): View {
+  const view: View = {
+    id: 'view-' + randomBytes(6).toString('hex'),
+    configurationId: configId,
+    name: input.name,
+    order: typeof input.order === 'number' ? input.order : listViews(db, configId).length,
+    matchClients: Array.isArray(input.matchClients) ? input.matchClients.filter((c) => typeof c === 'string') : [],
+    zoneCount: 0,
+  };
+  db.prepare('INSERT INTO views (id, configurationId, data) VALUES (?, ?, ?)').run(view.id, configId, JSON.stringify(view));
+  return view;
+}
+
+/**
+ * Update an existing view.
+ */
+export function updateView(db: Database.Database, id: string, patch: Partial<View>): View {
+  const existing = getView(db, id);
+  if (!existing) {
+    throw new Error(`View ${id} not found`);
+  }
+
+  const updated: View = {
+    ...existing,
+    ...patch,
+    id: existing.id,
+    configurationId: existing.configurationId,
+  };
+
+  db.prepare('UPDATE views SET configurationId = ?, data = ? WHERE id = ?').run(
+    updated.configurationId,
+    JSON.stringify(updated),
+    id
+  );
+
+  return updated;
+}
+
+/**
+ * Delete a view by ID.
+ */
+export function deleteView(db: Database.Database, id: string): { deleted: true } {
+  db.prepare('DELETE FROM views WHERE id = ?').run(id);
+  return { deleted: true };
+}
+
+/**
  * List zones for a configuration with optional filtering, sorting, and pagination.
  */
 export function listZones(
@@ -152,6 +202,58 @@ export function getZone(db: Database.Database, id: string): Zone | null {
   const row = db.prepare('SELECT data FROM zones WHERE id = ?').get(id) as { data: string } | undefined;
   if (!row) return null;
   return JSON.parse(row.data) as Zone;
+}
+
+/**
+ * Create a new zone in a view, bumping the parent view's zoneCount.
+ */
+export function createZone(
+  db: Database.Database,
+  configId: string,
+  input: { viewId: string; name: string; type?: string; soa?: any; allowTransfer?: string[]; allowUpdate?: string[] }
+): Zone {
+  const soa = input.soa && typeof input.soa === 'object'
+    ? {
+        primaryNs: typeof input.soa.primaryNs === 'string' ? input.soa.primaryNs : '',
+        adminEmail: typeof input.soa.adminEmail === 'string' ? input.soa.adminEmail : '',
+        serial: typeof input.soa.serial === 'number' ? input.soa.serial : 1,
+        refresh: typeof input.soa.refresh === 'number' ? input.soa.refresh : 3600,
+        retry: typeof input.soa.retry === 'number' ? input.soa.retry : 600,
+        expire: typeof input.soa.expire === 'number' ? input.soa.expire : 604800,
+        minimum: typeof input.soa.minimum === 'number' ? input.soa.minimum : 3600,
+      }
+    : { primaryNs: '', adminEmail: '', serial: 1, refresh: 3600, retry: 600, expire: 604800, minimum: 3600 };
+
+  const zone: Zone = {
+    id: 'zone-' + randomBytes(6).toString('hex'),
+    configurationId: configId,
+    viewId: input.viewId,
+    name: input.name,
+    type: (input.type ?? 'PRIMARY') as Zone['type'],
+    soa,
+    allowTransfer: Array.isArray(input.allowTransfer) ? input.allowTransfer : undefined,
+    allowUpdate: Array.isArray(input.allowUpdate) ? input.allowUpdate : undefined,
+    recordCount: 0,
+    syncState: 'PENDING',
+  };
+
+  const createTx = db.transaction(() => {
+    db.prepare('INSERT INTO zones (id, configurationId, viewId, data) VALUES (?, ?, ?, ?)').run(
+      zone.id,
+      configId,
+      input.viewId,
+      JSON.stringify(zone)
+    );
+    const view = getView(db, input.viewId);
+    if (view) {
+      const cnt = (db.prepare('SELECT count(*) as cnt FROM zones WHERE viewId = ?').get(input.viewId) as { cnt: number }).cnt;
+      view.zoneCount = cnt;
+      db.prepare('UPDATE views SET data = ? WHERE id = ?').run(JSON.stringify(view), input.viewId);
+    }
+  });
+  createTx();
+
+  return zone;
 }
 
 /**

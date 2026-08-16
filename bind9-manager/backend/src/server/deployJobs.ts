@@ -96,3 +96,10 @@ export function getDeployJob(
   if (!row) return null;
   return JSON.parse(row.data) as DeployJob;
 }
+
+export function listDeployJobs(db: Database.Database, limit = 50): DeployJob[] {
+  const rows = db.prepare('SELECT data FROM deploy_jobs').all() as { data: string }[];
+  const jobs = rows.map((r) => JSON.parse(r.data) as DeployJob);
+  jobs.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
+  return jobs.slice(0, limit);
+}

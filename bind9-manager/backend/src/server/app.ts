@@ -1,5 +1,6 @@
 import fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type Database from 'better-sqlite3';
+import type { View } from '../../../shared/entities';
 import { load } from 'js-yaml';
 import {
   login,
@@ -15,10 +16,16 @@ import { authorize, type Actor } from './authorize';
 import {
   listConfigurations,
   getConfiguration,
+  listViews,
+  getView,
+  createView,
+  updateView,
+  deleteView,
   listZones,
   getZone,
   updateZone,
   deleteZone,
+  createZone,
   listRecords,
   getRecord,
   createRecord,
@@ -64,6 +71,7 @@ import { shellQuote } from '../config-engine/shellQuote';
 import {
   startDeployJob,
   getDeployJob,
+  listDeployJobs,
 } from './deployJobs';
 import { registerFrontendStatic } from './static';
 
@@ -746,6 +754,142 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     return reply.status(200).send({ deleted: true });
   });
 
+  // GET /api/v1/configurations/:configId/views - List views for a configuration
+  app.get('/api/v1/configurations/:configId/views', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    return reply.status(200).send(listViews(db, configId));
+  });
+
+  // GET /api/v1/configurations/:configId/views/:viewId - Get single view (scope-checked)
+  app.get('/api/v1/configurations/:configId/views/:viewId', async (req, reply) => {
+    const { configId, viewId } = req.params as { configId: string; viewId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const view = getView(db, viewId);
+    if (!view || view.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'View not found' } });
+    }
+    return reply.status(200).send(view);
+  });
+
+  // POST /api/v1/configurations/:configId/views - Create a view (requires edit)
+  app.post('/api/v1/configurations/:configId/views', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const name = typeof body.name === 'string' ? body.name : '';
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be a DNS-safe name ([A-Za-z0-9._-])' } });
+    }
+    const view = createView(db, configId, { name, order: body.order, matchClients: body.matchClients });
+    return reply.status(201).send(view);
+  });
+
+  // PATCH /api/v1/configurations/:configId/views/:viewId - Update a view (scope-checked, requires edit)
+  app.patch('/api/v1/configurations/:configId/views/:viewId', async (req, reply) => {
+    const { configId, viewId } = req.params as { configId: string; viewId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getView(db, viewId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'View not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    if (body.name !== undefined && (typeof body.name !== 'string' || !/^[A-Za-z0-9._-]+$/.test(body.name))) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be a DNS-safe name ([A-Za-z0-9._-])' } });
+    }
+    const patch: Partial<View> = {};
+    if (body.name !== undefined) patch.name = body.name;
+    if (typeof body.order === 'number') patch.order = body.order;
+    if (Array.isArray(body.matchClients)) {
+      patch.matchClients = body.matchClients.filter((c: unknown) => typeof c === 'string');
+    }
+    const updated = updateView(db, viewId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/configurations/:configId/views/:viewId - Delete a view (scope-checked, requires edit)
+  app.delete('/api/v1/configurations/:configId/views/:viewId', async (req, reply) => {
+    const { configId, viewId } = req.params as { configId: string; viewId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getView(db, viewId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'View not found' } });
+    }
+    const zoneCount = (db.prepare('SELECT count(*) as cnt FROM zones WHERE viewId = ?').get(viewId) as { cnt: number }).cnt;
+    if (zoneCount > 0) {
+      return reply.status(409).send({ error: { code: 'HAS_DEPENDENTS', message: 'View has zones; delete them first' } });
+    }
+    const result = deleteView(db, viewId);
+    return reply.status(200).send(result);
+  });
+
+  // POST /api/v1/configurations/:configId/zones - Create a zone (requires edit)
+  app.post('/api/v1/configurations/:configId/zones', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const name = typeof body.name === 'string' ? body.name : '';
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be a DNS-safe name ([A-Za-z0-9._-])' } });
+    }
+    if (typeof body.viewId !== 'string') {
+      return reply.status(422).send({ error: { code: 'INVALID_VIEW', message: 'viewId must reference a view in this configuration' } });
+    }
+    const parentView = getView(db, body.viewId);
+    if (!parentView || parentView.configurationId !== configId) {
+      return reply.status(422).send({ error: { code: 'INVALID_VIEW', message: 'viewId must reference a view in this configuration' } });
+    }
+    const zone = createZone(db, configId, body);
+    return reply.status(201).send(zone);
+  });
+
+  // GET /api/v1/configurations/:configId/search - Search zones/records/views/servers/external hosts (requires view)
+  app.get('/api/v1/configurations/:configId/search', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const rawQ = (req.query as any)?.q ?? '';
+    const q = String(rawQ).toLowerCase().trim();
+    const empty = { zones: [], records: [], views: [], servers: [], externalHosts: [] };
+    if (!q) {
+      return reply.status(200).send({ q: '', results: empty });
+    }
+    const model = buildConfigModel(db, configId);
+    const cap = (arr: any[]): any[] => arr.slice(0, 25);
+    const results = {
+      zones: cap(model.zones.filter((z) => z.name.toLowerCase().includes(q) || z.id.toLowerCase().includes(q))),
+      records: cap(model.records.filter((r) => {
+        const rdataValues = r.rdata ? Object.values(r.rdata).join(' ') : '';
+        return r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q) || rdataValues.toLowerCase().includes(q);
+      })),
+      views: cap(model.views.filter((v) => v.name.toLowerCase().includes(q) || v.id.toLowerCase().includes(q))),
+      servers: cap(model.servers.filter((s) =>
+        String(s.hostname ?? '').toLowerCase().includes(q) ||
+        s.id.toLowerCase().includes(q) ||
+        String(s.nodeName ?? '').toLowerCase().includes(q)
+      )),
+      externalHosts: cap((model.externalHosts ?? []).filter((h) => h.fqdn.toLowerCase().includes(q) || h.id.toLowerCase().includes(q))),
+    };
+    return reply.status(200).send({ q: String(rawQ), results });
+  });
+
   // PATCH /api/v1/labs/:id - Update a lab (requires edit)
   app.patch('/api/v1/labs/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
@@ -1142,6 +1286,23 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       lab: updated,
       servers: listServers(db, lab.configurationId).filter((s) => s.id.startsWith('srv-' + lab.id + '-')),
     });
+  });
+
+  // GET /api/v1/deploy-jobs - List deploy jobs the actor may view (optional ?labId= filter)
+  app.get('/api/v1/deploy-jobs', async (req, reply) => {
+    const query = (req.query as any) || {};
+    let jobs = listDeployJobs(db);
+    if (query.labId) {
+      const labId = String(query.labId);
+      jobs = jobs.filter((j) => j.labId === labId);
+    }
+    // Scope to jobs whose lab's configuration the actor can view — a deploy job
+    // is not config-scoped in storage, so authorize per job.
+    jobs = jobs.filter((j) => {
+      const lab = getLab(db, j.labId);
+      return lab !== null && authorize(req.actor, 'view', lab.configurationId);
+    });
+    return reply.status(200).send({ data: jobs });
   });
 
   // GET /api/v1/deploy-jobs/:id - Get a deploy job status (requires view permission on the lab's configuration)
