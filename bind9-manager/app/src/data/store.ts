@@ -13,6 +13,7 @@ import type {
   Acl,
   TsigKey,
   ServerGroup,
+  Block,
   RecordTemplate,
 } from '../types/entities';
 import { seedUsers } from './users.seed';
@@ -77,7 +78,7 @@ export interface StoreData {
   zones: Zone[];
   records: ResourceRecord[];
   externalHosts: ExternalHost[];
-  networkBlocks: any[];
+  networkBlocks: Block[];
   servers: any[];
   deploymentRoles: any[];
   deploymentOptions: any[];
@@ -162,6 +163,12 @@ export function useApi() {
       createServerGroup: (configId: string, input: api.CreateServerGroupInput) => api.createServerGroup(store, configId, input),
       updateServerGroup: (configId: string, groupId: string, patch: api.UpdateServerGroupPatch) => api.updateServerGroup(store, configId, groupId, patch),
       deleteServerGroup: (configId: string, groupId: string) => api.deleteServerGroup(store, configId, groupId),
+      listBlocks: (configId: string) => api.listBlocks(store, configId),
+      getBlock: (configId: string, blockId: string) => api.getBlock(store, configId, blockId),
+      createBlock: (configId: string, input: api.CreateBlockInput) => api.createBlock(store, configId, input),
+      updateBlock: (configId: string, blockId: string, patch: api.UpdateBlockPatch) => api.updateBlock(store, configId, blockId, patch),
+      deleteBlock: (configId: string, blockId: string) => api.deleteBlock(store, configId, blockId),
+      reconcileBlock: (configId: string, blockId: string) => api.reconcileBlock(store, configId, blockId),
       listRecordTemplates: (configId: string) => api.listRecordTemplates(store, configId),
       getRecordTemplate: (configId: string, templateId: string) => api.getRecordTemplate(store, configId, templateId),
       createRecordTemplate: (configId: string, input: api.CreateRecordTemplateInput) => api.createRecordTemplate(store, configId, input),

@@ -28,6 +28,8 @@ import type {
   AclEvalResult,
   TsigKey,
   ServerGroup,
+  Block,
+  BlockKind,
   RecordTemplate,
   RecordTemplateEntry,
   ChangeSetResponse,
@@ -617,6 +619,114 @@ export async function deleteServerGroup(
   const index = store.serverGroups.findIndex((g) => g.id === groupId && g.configurationId === configId);
   if (index >= 0) store.serverGroups.splice(index, 1);
   return { deleted: true };
+}
+
+export interface CreateBlockInput {
+  name: string;
+  cidr: string;
+  kind: BlockKind;
+  parentBlockId?: string | null;
+  viewId?: string;
+}
+
+export interface UpdateBlockPatch {
+  name?: string;
+  cidr?: string;
+  parentBlockId?: string | null;
+  viewId?: string;
+}
+
+export async function listBlocks(store: StoreData, configId: string): Promise<Block[]> {
+  if (isApiEnabled()) {
+    return apiFetch<Block[]>(`/api/v1/configurations/${configId}/blocks`);
+  }
+
+  return store.networkBlocks.filter((b) => b.configurationId === configId);
+}
+
+export async function getBlock(store: StoreData, configId: string, blockId: string): Promise<Block | null> {
+  if (isApiEnabled()) {
+    try {
+      return await apiFetch<Block>(`/api/v1/configurations/${configId}/blocks/${blockId}`);
+    } catch (err: any) {
+      if (err?.status === 404) return null;
+      throw err;
+    }
+  }
+
+  return store.networkBlocks.find((b) => b.id === blockId && b.configurationId === configId) ?? null;
+}
+
+export async function createBlock(store: StoreData, configId: string, input: CreateBlockInput): Promise<Block> {
+  if (isApiEnabled()) {
+    return apiFetch<Block>(`/api/v1/configurations/${configId}/blocks`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  const block: Block = {
+    id: 'blk-' + Math.random().toString(16).slice(2, 10),
+    configurationId: configId,
+    name: input.name,
+    cidr: input.cidr,
+    kind: input.kind,
+    parentBlockId: input.parentBlockId ?? null,
+    viewId: input.kind === 'NETWORK' ? input.viewId : undefined,
+  };
+  store.networkBlocks.push(block);
+  return block;
+}
+
+export async function updateBlock(
+  store: StoreData,
+  configId: string,
+  blockId: string,
+  patch: UpdateBlockPatch
+): Promise<Block> {
+  if (isApiEnabled()) {
+    return apiFetch<Block>(`/api/v1/configurations/${configId}/blocks/${blockId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  const block = store.networkBlocks.find((b) => b.id === blockId && b.configurationId === configId);
+  if (!block) {
+    throw new Error(`Block with id ${blockId} not found`);
+  }
+  if (patch.name !== undefined) block.name = patch.name;
+  if (patch.cidr !== undefined) block.cidr = patch.cidr;
+  if (patch.parentBlockId !== undefined) block.parentBlockId = patch.parentBlockId;
+  if (patch.viewId !== undefined) block.viewId = patch.viewId;
+  return block;
+}
+
+export async function deleteBlock(store: StoreData, configId: string, blockId: string): Promise<{ deleted: boolean }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ deleted: boolean }>(`/api/v1/configurations/${configId}/blocks/${blockId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  const hasChildren = store.networkBlocks.some((b) => b.parentBlockId === blockId && b.configurationId === configId);
+  if (hasChildren) {
+    throw new Error('Delete or reparent child blocks first');
+  }
+  const index = store.networkBlocks.findIndex((b) => b.id === blockId && b.configurationId === configId);
+  if (index >= 0) store.networkBlocks.splice(index, 1);
+  return { deleted: true };
+}
+
+export async function reconcileBlock(_store: StoreData, configId: string, blockId: string): Promise<{ created: number }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ created: number }>(`/api/v1/configurations/${configId}/blocks/${blockId}/reconcile`, {
+      method: 'POST',
+    });
+  }
+
+  // ponytail: fixture store has no A-record/PTR model to reconcile against — reports zero.
+  return { created: 0 };
 }
 
 export interface CreateRecordTemplateInput {

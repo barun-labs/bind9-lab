@@ -234,6 +234,8 @@ export interface AclEvalResult { matched: boolean; decision: 'ALLOW'|'DENY'; tra
 export type TsigAlgorithm = 'hmac-sha256'|'hmac-sha512'|'hmac-sha384'|'hmac-sha224'|'hmac-sha1'|'hmac-md5';
 export interface TsigKey { id: string; configurationId: string; name: string; algorithm: TsigAlgorithm; secret?: string; usedByCount: number; }
 export interface ServerGroup { id: string; configurationId: string; name: string; description?: string; memberCount: number; }
+export type BlockKind = 'BLOCK'|'NETWORK';
+export interface Block { id: string; configurationId: string; name: string; cidr: string; parentBlockId: string | null; kind: BlockKind; viewId?: string; }
 export interface RecordTemplateEntry { name: string; type: RecordType; ttl?: number; rdata: Record<string, unknown>; disabled?: boolean; }
 export interface RecordTemplate { id: string; configurationId: string; name: string; description?: string; entries: RecordTemplateEntry[]; }
 

@@ -36,6 +36,8 @@ import { AclEvaluator } from './routes/Acls/AclEvaluator';
 import { TsigKeys } from './routes/TsigKeys/TsigKeys';
 import { ServerGroups } from './routes/ServerGroups/ServerGroups';
 import { ServerGroupDetail } from './routes/ServerGroups/ServerGroupDetail';
+import { Blocks } from './routes/Blocks/Blocks';
+import { BlockDetail } from './routes/Blocks/BlockDetail';
 import { RecordTemplates } from './routes/RecordTemplates/RecordTemplates';
 import { RecordTemplateDetail } from './routes/RecordTemplates/RecordTemplateDetail';
 import { ReviewDeploy } from './routes/ReviewDeploy/ReviewDeploy';
@@ -138,21 +140,11 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/blocks',
-        element: (
-          <Placeholder
-            title="Network Blocks & Reverse Zones"
-            description="CIDR network blocks and reverse DNS hierarchy."
-          />
-        ),
+        element: <Blocks />,
       },
       {
         path: 'config/:configId/blocks/:blockId',
-        element: (
-          <Placeholder
-            title="Block Detail"
-            description="Network block IP assignments and reverse delegation."
-          />
-        ),
+        element: <BlockDetail />,
       },
       {
         path: 'config/:configId/roles',
