@@ -66,6 +66,18 @@ import {
   createAcl,
   updateAcl,
   deleteAcl,
+  listRpzPolicies,
+  getRpzPolicy,
+  createRpzPolicy,
+  updateRpzPolicy,
+  deleteRpzPolicy,
+  listRpzRules,
+  getRpzRule,
+  createRpzRule,
+  updateRpzRule,
+  deleteRpzRule,
+  rpzPolicyNameError,
+  rpzRuleError,
   listTsigKeys,
   getTsigKey,
   createTsigKey,
@@ -1364,6 +1376,170 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'ACL not found' } });
     }
     const result = deleteAcl(db, aclId);
+    return reply.status(200).send(result);
+  });
+
+  // --- RPZ ROUTES (PLANE #58) ---
+
+  // GET /api/v1/configurations/:configId/rpz-policies - List RPZ policies (ordered)
+  app.get('/api/v1/configurations/:configId/rpz-policies', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    return reply.status(200).send(listRpzPolicies(db, configId));
+  });
+
+  // GET /api/v1/configurations/:configId/rpz-policies/:policyId - Get single policy (scope-checked)
+  app.get('/api/v1/configurations/:configId/rpz-policies/:policyId', async (req, reply) => {
+    const { configId, policyId } = req.params as { configId: string; policyId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const policy = getRpzPolicy(db, policyId);
+    if (!policy || policy.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'RPZ policy not found' } });
+    }
+    return reply.status(200).send(policy);
+  });
+
+  // POST /api/v1/configurations/:configId/rpz-policies - Create a policy (requires edit)
+  app.post('/api/v1/configurations/:configId/rpz-policies', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const name = typeof body.name === 'string' ? body.name : '';
+    const nameError = rpzPolicyNameError(name);
+    if (nameError) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: nameError } });
+    }
+    const viewId = typeof body.viewId === 'string' ? body.viewId : '';
+    const view = getView(db, viewId);
+    if (!view || view.configurationId !== configId) {
+      return reply.status(422).send({ error: { code: 'INVALID_VIEW', message: 'viewId must reference a view in this configuration' } });
+    }
+    const policy = createRpzPolicy(db, configId, {
+      viewId,
+      name,
+      order: typeof body.order === 'number' ? body.order : undefined,
+      defaultPolicy: typeof body.defaultPolicy === 'string' ? body.defaultPolicy : undefined,
+    });
+    return reply.status(201).send(policy);
+  });
+
+  // PATCH /api/v1/configurations/:configId/rpz-policies/:policyId - Update a policy (scope-checked, requires edit)
+  app.patch('/api/v1/configurations/:configId/rpz-policies/:policyId', async (req, reply) => {
+    const { configId, policyId } = req.params as { configId: string; policyId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getRpzPolicy(db, policyId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'RPZ policy not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const patch: { viewId?: string; name?: string; order?: number; defaultPolicy?: any } = {};
+    if (body.name !== undefined) patch.name = typeof body.name === 'string' ? body.name : '';
+    if (body.viewId !== undefined) patch.viewId = typeof body.viewId === 'string' ? body.viewId : existing.viewId;
+    if (typeof body.order === 'number') patch.order = body.order;
+    if (body.defaultPolicy !== undefined) patch.defaultPolicy = body.defaultPolicy;
+    const updated = updateRpzPolicy(db, policyId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/configurations/:configId/rpz-policies/:policyId - Delete a policy (scope-checked, requires edit)
+  app.delete('/api/v1/configurations/:configId/rpz-policies/:policyId', async (req, reply) => {
+    const { configId, policyId } = req.params as { configId: string; policyId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getRpzPolicy(db, policyId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'RPZ policy not found' } });
+    }
+    const result = deleteRpzPolicy(db, policyId);
+    return reply.status(200).send(result);
+  });
+
+  // GET /api/v1/configurations/:configId/rpz-policies/:policyId/rules - List rules (ordered)
+  app.get('/api/v1/configurations/:configId/rpz-policies/:policyId/rules', async (req, reply) => {
+    const { configId, policyId } = req.params as { configId: string; policyId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const policy = getRpzPolicy(db, policyId);
+    if (!policy || policy.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'RPZ policy not found' } });
+    }
+    return reply.status(200).send(listRpzRules(db, policyId));
+  });
+
+  // POST /api/v1/configurations/:configId/rpz-policies/:policyId/rules - Create a rule (requires edit)
+  app.post('/api/v1/configurations/:configId/rpz-policies/:policyId/rules', async (req, reply) => {
+    const { configId, policyId } = req.params as { configId: string; policyId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const policy = getRpzPolicy(db, policyId);
+    if (!policy || policy.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'RPZ policy not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const error = rpzRuleError({
+      trigger: body.trigger,
+      value: body.value,
+      action: body.action,
+      cname: body.cname,
+    });
+    if (error) {
+      return reply.status(422).send({ error: { code: 'INVALID_RULE', message: error } });
+    }
+    const rule = createRpzRule(db, policyId, {
+      trigger: body.trigger,
+      value: body.value,
+      action: body.action,
+      cname: typeof body.cname === 'string' ? body.cname : undefined,
+      order: typeof body.order === 'number' ? body.order : undefined,
+    });
+    return reply.status(201).send(rule);
+  });
+
+  // PATCH /api/v1/configurations/:configId/rpz-rules/:ruleId - Update a rule (scope-checked, requires edit)
+  app.patch('/api/v1/configurations/:configId/rpz-rules/:ruleId', async (req, reply) => {
+    const { configId, ruleId } = req.params as { configId: string; ruleId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getRpzRule(db, ruleId);
+    const policy = existing ? getRpzPolicy(db, existing.policyId) : null;
+    if (!existing || !policy || policy.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'RPZ rule not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const patch: { trigger?: any; value?: string; action?: any; cname?: string; order?: number } = {};
+    if (body.trigger !== undefined) patch.trigger = body.trigger;
+    if (body.value !== undefined) patch.value = typeof body.value === 'string' ? body.value : '';
+    if (body.action !== undefined) patch.action = body.action;
+    if (body.cname !== undefined) patch.cname = typeof body.cname === 'string' ? body.cname : undefined;
+    if (typeof body.order === 'number') patch.order = body.order;
+    const updated = updateRpzRule(db, ruleId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/configurations/:configId/rpz-rules/:ruleId - Delete a rule (scope-checked, requires edit)
+  app.delete('/api/v1/configurations/:configId/rpz-rules/:ruleId', async (req, reply) => {
+    const { configId, ruleId } = req.params as { configId: string; ruleId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getRpzRule(db, ruleId);
+    const policy = existing ? getRpzPolicy(db, existing.policyId) : null;
+    if (!existing || !policy || policy.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'RPZ rule not found' } });
+    }
+    const result = deleteRpzRule(db, ruleId);
     return reply.status(200).send(result);
   });
 

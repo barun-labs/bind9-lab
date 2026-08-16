@@ -3,6 +3,7 @@ import { generateNamedConf } from './generateNamedConf';
 import { renderZoneFile } from './renderZoneFile';
 import { zonesForServer } from './resolve';
 import { findRootServer, generateRootHints, serverNeedsRootHints } from './rootHints';
+import { renderRpzZoneFile } from './rpz';
 
 export * from './model';
 export * from './generateNamedConf';
@@ -10,6 +11,7 @@ export * from './renderZoneFile';
 export * from './resolve';
 export * from './validate';
 export * from './rootHints';
+export * from './rpz';
 
 export function generateServerConfig(
   model: ConfigModel,
@@ -27,6 +29,11 @@ export function generateServerConfig(
     const zoneRecords = model.records?.filter((r) => r.zoneId === zone.id) ?? [];
     const zoneFileName = zone.name === '.' ? 'root' : zone.name;
     files[`zones/db.${zoneFileName}`] = renderZoneFile(zone, zoneRecords);
+  }
+
+  for (const policy of model.rpzPolicies ?? []) {
+    const rules = (model.rpzRules ?? []).filter((r) => r.policyId === policy.id);
+    files[`zones/db.rpz.${policy.name}`] = renderRpzZoneFile(policy, rules);
   }
 
   if (serverNeedsRootHints(model, serverId)) {

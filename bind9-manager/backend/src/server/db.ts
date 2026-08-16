@@ -131,6 +131,20 @@ export function openDb(path = ':memory:'): Database.Database {
       FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS rpz_policies (
+      id TEXT PRIMARY KEY,
+      configurationId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      FOREIGN KEY (configurationId) REFERENCES configurations(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS rpz_rules (
+      id TEXT PRIMARY KEY,
+      policyId TEXT NOT NULL,
+      data TEXT NOT NULL,
+      FOREIGN KEY (policyId) REFERENCES rpz_policies(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS server_groups (
       id TEXT PRIMARY KEY,
       configurationId TEXT NOT NULL,
@@ -217,6 +231,8 @@ export function openDb(path = ':memory:'): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_servers_configId ON servers(configurationId);
     CREATE INDEX IF NOT EXISTS idx_labs_configId ON labs(configurationId);
     CREATE INDEX IF NOT EXISTS idx_acls_configId ON acls(configurationId);
+    CREATE INDEX IF NOT EXISTS idx_rpz_policies_configId ON rpz_policies(configurationId);
+    CREATE INDEX IF NOT EXISTS idx_rpz_rules_policyId ON rpz_rules(policyId);
     CREATE INDEX IF NOT EXISTS idx_server_groups_configId ON server_groups(configurationId);
     CREATE INDEX IF NOT EXISTS idx_blocks_configId ON blocks(configurationId);
     CREATE INDEX IF NOT EXISTS idx_tsig_keys_configId ON tsig_keys(configurationId);

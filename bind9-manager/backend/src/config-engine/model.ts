@@ -1,4 +1,4 @@
-import type { Configuration, View, Zone, ResourceRecord, ExternalHost, Acl, DeploymentRoleRow } from '../../../shared/entities';
+import type { Configuration, View, Zone, ResourceRecord, ExternalHost, Acl, DeploymentRoleRow, RpzPolicy, RpzRule } from '../../../shared/entities';
 
 export type ServerRole = 'PRIMARY' | 'SECONDARY' | 'FORWARDER' | 'STUB' | 'RECURSIVE';
 
@@ -47,6 +47,8 @@ export interface ConfigModel {
   roleRows?: DeploymentRoleRow[];
   options: DeploymentOption[];
   externalHosts?: ExternalHost[];
+  rpzPolicies?: RpzPolicy[];
+  rpzRules?: RpzRule[];
 }
 
 export type { Configuration, View, Zone, ResourceRecord, ExternalHost };

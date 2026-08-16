@@ -71,6 +71,25 @@ export type InheritMode = 'INHERIT' | 'OVERRIDE' | 'DISABLE';
 export interface DeploymentOptionRow { id: string; configurationId: string; scope: OptionScope; scopeId: string; key: string; value: unknown | null; disabled: boolean; }
 export interface DeploymentRoleRow { id: string; configurationId: string; scope: OptionScope; scopeId: string; serverId: string; role: string; disabled: boolean; }
 export interface EffectiveOption { key: string; mode: InheritMode; effectiveValue: unknown | null; inheritedValue: unknown | null; }
+export type RpzTrigger = 'QNAME' | 'CLIENT_IP' | 'IP';
+export type RpzAction = 'NXDOMAIN' | 'NODATA' | 'PASSTHRU' | 'DROP' | 'TCP_ONLY' | 'CNAME';
+export interface RpzPolicy {
+  id: string;
+  configurationId: string;
+  viewId: string;
+  name: string;
+  order: number;
+  defaultPolicy?: RpzAction;
+}
+export interface RpzRule {
+  id: string;
+  policyId: string;
+  trigger: RpzTrigger;
+  value: string;
+  action: RpzAction;
+  cname?: string;
+  order: number;
+}
 export interface ApiKey {
   id: string;
   name: string;

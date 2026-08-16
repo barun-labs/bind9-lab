@@ -20,8 +20,13 @@ import type {
   OptionScope,
   DeploymentOptionRow,
   DeploymentRoleRow,
+  RpzPolicy,
+  RpzRule,
+  RpzTrigger,
+  RpzAction,
 } from '../../../shared/entities';
 import type { Server, ServerRole, DeploymentRole, DeploymentOption, ConfigModel } from '../config-engine/model';
+import { parseCidr } from './ipv4';
 
 export interface ZoneFilters {
   view?: string;
@@ -333,6 +338,285 @@ export function updateAcl(db: Database.Database, id: string, patch: { name?: str
  */
 export function deleteAcl(db: Database.Database, id: string): { deleted: true } {
   db.prepare('DELETE FROM acls WHERE id = ?').run(id);
+  return { deleted: true };
+}
+
+const RPZ_TRIGGERS: readonly string[] = ['QNAME', 'CLIENT_IP', 'IP'];
+const RPZ_ACTIONS: readonly string[] = ['NXDOMAIN', 'NODATA', 'PASSTHRU', 'DROP', 'TCP_ONLY', 'CNAME'];
+
+/**
+ * Valid domain name (label charset, ≤253, no empty/`..` labels, no label
+ * leading/trailing '-'). Mirrors the external-host FQDN check in app.ts.
+ */
+function isValidDomainName(value: string): boolean {
+  if (typeof value !== 'string' || value.length < 1 || value.length > 253) return false;
+  if (!/^[A-Za-z0-9.-]+$/.test(value)) return false;
+  let body = value;
+  if (body.endsWith('.')) body = body.slice(0, -1);
+  if (body.length === 0 || body.startsWith('.') || body.endsWith('.')) return false;
+  if (body.includes('..')) return false;
+  for (const label of body.split('.')) {
+    if (label.length === 0 || label.startsWith('-') || label.endsWith('-')) return false;
+  }
+  return true;
+}
+
+/**
+ * Validate a policy name. It becomes the zone name and zone filename, so the
+ * charset is DNS-label safe and `..` is forbidden (path traversal guard).
+ */
+export function rpzPolicyNameError(name: string): string | null {
+  if (typeof name !== 'string' || name.length === 0 || !/^[A-Za-z0-9._-]+$/.test(name)) {
+    return 'name must be a DNS-safe name ([A-Za-z0-9._-])';
+  }
+  if (name.includes('..')) {
+    return 'name must not contain consecutive dots';
+  }
+  return null;
+}
+
+/**
+ * Validate a rule's trigger/value/action/cname combination. Returns an error
+ * message, or null when the rule is valid.
+ */
+export function rpzRuleError(input: {
+  trigger: unknown;
+  value: unknown;
+  action: unknown;
+  cname?: unknown;
+}): string | null {
+  const { trigger, value, action, cname } = input;
+
+  if (typeof trigger !== 'string' || !RPZ_TRIGGERS.includes(trigger)) {
+    return `trigger must be one of: ${RPZ_TRIGGERS.join(', ')}`;
+  }
+  if (typeof action !== 'string' || !RPZ_ACTIONS.includes(action)) {
+    return `action must be one of: ${RPZ_ACTIONS.join(', ')}`;
+  }
+  if (typeof value !== 'string' || value.length === 0) {
+    return 'value is required';
+  }
+
+  if (trigger === 'QNAME') {
+    if (!isValidDomainName(value)) {
+      return 'value must be a valid domain name';
+    }
+  } else if (!parseCidr(value)) {
+    return 'value must be a valid IPv4 CIDR';
+  }
+
+  if (action === 'CNAME') {
+    if (typeof cname !== 'string' || !isValidDomainName(cname)) {
+      return 'cname is required and must be a valid domain name for CNAME actions';
+    }
+  } else if (cname !== undefined && cname !== null && cname !== '') {
+    return 'cname is only allowed on CNAME actions';
+  }
+
+  return null;
+}
+
+/**
+ * List RPZ policies for a configuration, ordered by `order`.
+ */
+export function listRpzPolicies(db: Database.Database, configId: string): RpzPolicy[] {
+  const rows = db.prepare('SELECT data FROM rpz_policies WHERE configurationId = ?').all(configId) as { data: string }[];
+  return rows
+    .map((r) => JSON.parse(r.data) as RpzPolicy)
+    .sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Get RPZ policy by ID.
+ */
+export function getRpzPolicy(db: Database.Database, id: string): RpzPolicy | null {
+  const row = db.prepare('SELECT data FROM rpz_policies WHERE id = ?').get(id) as { data: string } | undefined;
+  if (!row) return null;
+  return JSON.parse(row.data) as RpzPolicy;
+}
+
+/**
+ * Create a new RPZ policy for a configuration.
+ */
+export function createRpzPolicy(
+  db: Database.Database,
+  configId: string,
+  input: { viewId: string; name: string; order?: number; defaultPolicy?: RpzAction },
+): RpzPolicy {
+  const nameError = rpzPolicyNameError(input.name);
+  if (nameError) {
+    throw new Error(nameError);
+  }
+  if (input.defaultPolicy !== undefined && !RPZ_ACTIONS.includes(input.defaultPolicy)) {
+    throw new Error(`defaultPolicy must be one of: ${RPZ_ACTIONS.join(', ')}`);
+  }
+
+  const policy: RpzPolicy = {
+    id: 'rpz-' + randomBytes(6).toString('hex'),
+    configurationId: configId,
+    viewId: input.viewId,
+    name: input.name,
+    order: typeof input.order === 'number' ? input.order : listRpzPolicies(db, configId).length,
+    defaultPolicy: input.defaultPolicy,
+  };
+  db.prepare('INSERT INTO rpz_policies (id, configurationId, data) VALUES (?, ?, ?)').run(
+    policy.id,
+    configId,
+    JSON.stringify(policy),
+  );
+  return policy;
+}
+
+/**
+ * Update an existing RPZ policy.
+ */
+export function updateRpzPolicy(
+  db: Database.Database,
+  id: string,
+  patch: { viewId?: string; name?: string; order?: number; defaultPolicy?: RpzAction },
+): RpzPolicy {
+  const existing = getRpzPolicy(db, id);
+  if (!existing) {
+    throw new Error(`Rpz policy ${id} not found`);
+  }
+  if (patch.name !== undefined) {
+    const nameError = rpzPolicyNameError(patch.name);
+    if (nameError) {
+      throw new Error(nameError);
+    }
+  }
+  if (patch.defaultPolicy !== undefined && !RPZ_ACTIONS.includes(patch.defaultPolicy)) {
+    throw new Error(`defaultPolicy must be one of: ${RPZ_ACTIONS.join(', ')}`);
+  }
+
+  const updated: RpzPolicy = {
+    ...existing,
+    id: existing.id,
+    configurationId: existing.configurationId,
+    viewId: patch.viewId ?? existing.viewId,
+    name: patch.name ?? existing.name,
+    order: typeof patch.order === 'number' ? patch.order : existing.order,
+    defaultPolicy: patch.defaultPolicy !== undefined ? patch.defaultPolicy : existing.defaultPolicy,
+  };
+
+  db.prepare('UPDATE rpz_policies SET configurationId = ?, data = ? WHERE id = ?').run(
+    updated.configurationId,
+    JSON.stringify(updated),
+    id,
+  );
+  return updated;
+}
+
+/**
+ * Delete an RPZ policy by ID. Its rules cascade via their FK.
+ */
+export function deleteRpzPolicy(db: Database.Database, id: string): { deleted: true } {
+  db.prepare('DELETE FROM rpz_policies WHERE id = ?').run(id);
+  return { deleted: true };
+}
+
+/**
+ * List RPZ rules for a policy, ordered by `order`.
+ */
+export function listRpzRules(db: Database.Database, policyId: string): RpzRule[] {
+  const rows = db.prepare('SELECT data FROM rpz_rules WHERE policyId = ?').all(policyId) as { data: string }[];
+  return rows
+    .map((r) => JSON.parse(r.data) as RpzRule)
+    .sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Get RPZ rule by ID.
+ */
+export function getRpzRule(db: Database.Database, id: string): RpzRule | null {
+  const row = db.prepare('SELECT data FROM rpz_rules WHERE id = ?').get(id) as { data: string } | undefined;
+  if (!row) return null;
+  return JSON.parse(row.data) as RpzRule;
+}
+
+/**
+ * Create a new RPZ rule in a policy. The rule's trigger/value/action/cname
+ * combination is validated at this write boundary.
+ */
+export function createRpzRule(
+  db: Database.Database,
+  policyId: string,
+  input: { trigger: RpzTrigger; value: string; action: RpzAction; cname?: string; order?: number },
+): RpzRule {
+  const policy = getRpzPolicy(db, policyId);
+  if (!policy) {
+    throw new Error(`Rpz policy ${policyId} not found`);
+  }
+  const error = rpzRuleError(input);
+  if (error) {
+    throw new Error(error);
+  }
+
+  const rule: RpzRule = {
+    id: 'rpzr-' + randomBytes(6).toString('hex'),
+    policyId,
+    trigger: input.trigger,
+    value: input.value,
+    action: input.action,
+    cname: input.action === 'CNAME' ? input.cname : undefined,
+    order: typeof input.order === 'number' ? input.order : listRpzRules(db, policyId).length,
+  };
+  db.prepare('INSERT INTO rpz_rules (id, policyId, data) VALUES (?, ?, ?)').run(
+    rule.id,
+    policyId,
+    JSON.stringify(rule),
+  );
+  return rule;
+}
+
+/**
+ * Update an existing RPZ rule. The merged rule is re-validated as a whole, so
+ * a partial patch cannot produce an invalid trigger/action combination.
+ */
+export function updateRpzRule(
+  db: Database.Database,
+  id: string,
+  patch: { trigger?: RpzTrigger; value?: string; action?: RpzAction; cname?: string; order?: number },
+): RpzRule {
+  const existing = getRpzRule(db, id);
+  if (!existing) {
+    throw new Error(`Rpz rule ${id} not found`);
+  }
+
+  const merged = {
+    trigger: patch.trigger ?? existing.trigger,
+    value: patch.value ?? existing.value,
+    action: patch.action ?? existing.action,
+    cname: patch.cname !== undefined ? patch.cname : existing.cname,
+  };
+  const error = rpzRuleError(merged);
+  if (error) {
+    throw new Error(error);
+  }
+
+  const updated: RpzRule = {
+    ...existing,
+    id: existing.id,
+    policyId: existing.policyId,
+    trigger: merged.trigger,
+    value: merged.value,
+    action: merged.action,
+    cname: merged.action === 'CNAME' ? merged.cname : undefined,
+    order: typeof patch.order === 'number' ? patch.order : existing.order,
+  };
+  db.prepare('UPDATE rpz_rules SET policyId = ?, data = ? WHERE id = ?').run(
+    updated.policyId,
+    JSON.stringify(updated),
+    id,
+  );
+  return updated;
+}
+
+/**
+ * Delete an RPZ rule by ID.
+ */
+export function deleteRpzRule(db: Database.Database, id: string): { deleted: true } {
+  db.prepare('DELETE FROM rpz_rules WHERE id = ?').run(id);
   return { deleted: true };
 }
 
@@ -1461,6 +1745,9 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
   const externalHosts = listExternalHosts(db, configId);
   const acls = listAcls(db, configId);
 
+  const rpzPolicies = listRpzPolicies(db, configId);
+  const rpzRules = rpzPolicies.flatMap((p) => listRpzRules(db, p.id));
+
   const options: DeploymentOption[] = listDeploymentOptions(db, configId).map((row) => ({
     id: row.id,
     scopeType: row.scope,
@@ -1528,6 +1815,8 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
     roleRows,
     options,
     externalHosts,
+    rpzPolicies,
+    rpzRules,
   };
 }
 

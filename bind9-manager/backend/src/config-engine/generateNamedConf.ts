@@ -239,6 +239,19 @@ function renderView(
     lines.push(`    forward ${forward};`);
   }
 
+  // response policy zones
+  const rpzPolicies = (model.rpzPolicies ?? [])
+    .filter((p) => p.viewId === view.id)
+    .sort((a, b) => a.order - b.order);
+
+  if (rpzPolicies.length > 0) {
+    const refs = rpzPolicies.map((p) => {
+      const policyPart = p.defaultPolicy ? ` policy ${p.defaultPolicy}` : '';
+      return `        zone "${p.name}"${policyPart};`;
+    });
+    lines.push(`    response-policy {\n${refs.join('\n')}\n    };`);
+  }
+
   // zones in this view
   const zonesInView = serverZoneEntries.filter((entry) => entry.view.id === view.id);
   const isRecursive = recursion === true || recursion === 'yes';
@@ -250,6 +263,12 @@ function renderView(
 
   for (const entry of zonesInView) {
     zoneBlocks.push(renderZone(model, serverId, view.id, entry.zone, entry.role));
+  }
+
+  for (const p of rpzPolicies) {
+    zoneBlocks.push(
+      `    zone "${p.name}" {\n        type master;\n        file "/etc/bind/zones/db.rpz.${p.name}";\n    };`,
+    );
   }
 
   if (isRecursive && !hasHintOrDot) {
