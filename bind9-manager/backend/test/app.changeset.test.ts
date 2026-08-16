@@ -344,6 +344,62 @@ describe('change-set review & deploy API', () => {
     expect(wrong.statusCode).toBe(404);
   });
 
+  it('GET deploy-jobs lists a config\'s change-set deploy jobs, newest first', async () => {
+    const token = await loginAs('admin', 'admin');
+    const header = { authorization: `Bearer ${token}` };
+    const labId = dnsLabId();
+    const serverId = `srv-${labId}-ns1`;
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/api/v1/configurations/dns-lab/deploy-jobs',
+      headers: header,
+      payload: { targetServerIds: [serverId] },
+    });
+    const firstJobId = JSON.parse(first.body).jobId;
+    const second = await app.inject({
+      method: 'POST',
+      url: '/api/v1/configurations/dns-lab/deploy-jobs',
+      headers: header,
+      payload: { targetServerIds: [serverId] },
+    });
+    const secondJobId = JSON.parse(second.body).jobId;
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/configurations/dns-lab/deploy-jobs',
+      headers: header,
+    });
+    expect(res.statusCode).toBe(200);
+    const { data } = JSON.parse(res.body);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.map((j: any) => j.id)).toEqual([secondJobId, firstJobId]);
+  });
+
+  it('GET deploy-jobs: 403 without view permission', async () => {
+    createUserWithRole('usr-other2', 'other-user2', [
+      { configurationId: 'other-config', role: 'admin', canDeploy: true },
+    ]);
+    const denied = await app.inject({
+      method: 'GET',
+      url: '/api/v1/configurations/dns-lab/deploy-jobs',
+      headers: { authorization: `Bearer ${await loginAs('other-user2', 'password123')}` },
+    });
+    expect(denied.statusCode).toBe(403);
+  });
+
+  it('GET deploy-jobs: 404 for an unknown configId', async () => {
+    createUserWithRole('usr-ghost', 'ghost-viewer', [
+      { configurationId: 'ghost-config', role: 'viewer', canDeploy: false },
+    ]);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/configurations/ghost-config/deploy-jobs',
+      headers: { authorization: `Bearer ${await loginAs('ghost-viewer', 'password123')}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
   it('POST deploy-jobs/:jobId/retry: failed push then successful retry replaces the baseline', async () => {
     const token = await loginAs('admin', 'admin');
     const header = { authorization: `Bearer ${token}` };

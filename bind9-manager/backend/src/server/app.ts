@@ -159,6 +159,7 @@ import {
   getBaselineModel,
   createDeployJob,
   getDeployJob as getChangeSetDeployJob,
+  listChangeSetDeployJobs,
 } from './changeSetStore';
 import {
   captureSnapshot,
@@ -2429,6 +2430,20 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     const job = createDeployJob(db, configId, { changeSetItemIds, targetServerIds, warningAck });
     await runChangeSetDeploy(db, configId, lab, job, { run: activeRunner, labDir, targetServerIds, warningAck });
     return reply.status(201).send({ jobId: job.id });
+  });
+
+  // GET /api/v1/configurations/:configId/deploy-jobs - list a config's change-set deploy jobs (requires view)
+  app.get('/api/v1/configurations/:configId/deploy-jobs', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const jobs = listChangeSetDeployJobs(db, configId);
+    return reply.status(200).send({ data: jobs });
   });
 
   // GET /api/v1/configurations/:configId/deploy-jobs/:jobId - a change-set deploy job (requires view)

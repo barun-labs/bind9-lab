@@ -67,6 +67,18 @@ export function getDeployJob(
   return JSON.parse(row.data) as ChangeSetDeployJob;
 }
 
+export function listChangeSetDeployJobs(
+  db: Database.Database,
+  configId: string,
+): ChangeSetDeployJob[] {
+  const rows = db
+    .prepare('SELECT data FROM changeset_deploy_jobs WHERE configurationId = ?')
+    .all(configId) as { data: string }[];
+  return rows
+    .map((row) => JSON.parse(row.data) as ChangeSetDeployJob)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
 export function updateDeployJob(
   db: Database.Database,
   job: ChangeSetDeployJob,
