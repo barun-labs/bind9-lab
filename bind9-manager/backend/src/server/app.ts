@@ -27,6 +27,8 @@ import {
   listExternalHosts,
   listServers,
   getServer,
+  upsertServer,
+  deleteServerById,
   buildConfigModel,
   type ZoneFilters,
   type RecordFilters,
@@ -51,6 +53,7 @@ import {
   type LinkSpec,
   type TopologyModel,
 } from '../config-engine/topology';
+import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import {
   generateServerConfig,
@@ -658,6 +661,89 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
       return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Server not found' } });
     }
     return reply.status(200).send(server);
+  });
+
+  // POST /api/v1/configurations/:configId/servers - Register a DNS server directly (requires edit)
+  app.post('/api/v1/configurations/:configId/servers', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const body = (req.body ?? {}) as any;
+    if (typeof body.hostname !== 'string' || !/^[A-Za-z0-9._-]+$/.test(body.hostname)) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'hostname must be a DNS-safe name ([A-Za-z0-9._-])' } });
+    }
+    if (body.nodeName !== undefined && (typeof body.nodeName !== 'string' || !/^[A-Za-z0-9_-]+$/.test(body.nodeName))) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'nodeName must be [A-Za-z0-9_-]' } });
+    }
+    const serviceInterfaces = Array.isArray(body.serviceInterfaces)
+      ? body.serviceInterfaces
+          .filter((i: any) => i && typeof i.address === 'string')
+          .map((i: any) => ({ address: i.address, port: typeof i.port === 'number' ? i.port : 53 }))
+      : [];
+    const server = {
+      id: 'srv-' + randomBytes(8).toString('hex'), // server-side ONLY
+      configurationId: configId,
+      hostname: body.hostname,
+      name: typeof body.name === 'string' ? body.name : body.hostname,
+      mgmtAddress: typeof body.mgmtAddress === 'string' ? body.mgmtAddress : undefined,
+      image: typeof body.image === 'string' ? body.image : undefined,
+      nodeName: typeof body.nodeName === 'string' ? body.nodeName : undefined,
+      serviceInterfaces,
+      adminState: body.adminState === 'DISABLED' ? 'DISABLED' : 'ENABLED',
+      syncState: 'PENDING',
+    };
+    upsertServer(db, server);
+    return reply.status(201).send(server);
+  });
+
+  // PATCH /api/v1/configurations/:configId/servers/:serverId - Update a server (scope-checked, requires edit)
+  app.patch('/api/v1/configurations/:configId/servers/:serverId', async (req, reply) => {
+    const { configId, serverId } = req.params as { configId: string; serverId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getServer(db, serverId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Server not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    if (body.hostname !== undefined && (typeof body.hostname !== 'string' || !/^[A-Za-z0-9._-]+$/.test(body.hostname))) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'hostname must be a DNS-safe name' } });
+    }
+    if (body.nodeName !== undefined && (typeof body.nodeName !== 'string' || !/^[A-Za-z0-9_-]+$/.test(body.nodeName))) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'nodeName must be [A-Za-z0-9_-]' } });
+    }
+    const merged: any = { ...existing };
+    for (const k of ['hostname', 'name', 'mgmtAddress', 'image', 'nodeName']) {
+      if (body[k] !== undefined) merged[k] = body[k];
+    }
+    if (body.adminState !== undefined) {
+      merged.adminState = body.adminState === 'DISABLED' ? 'DISABLED' : 'ENABLED';
+    }
+    if (Array.isArray(body.serviceInterfaces)) {
+      merged.serviceInterfaces = body.serviceInterfaces
+        .filter((i: any) => i && typeof i.address === 'string')
+        .map((i: any) => ({ address: i.address, port: typeof i.port === 'number' ? i.port : 53 }));
+    }
+    merged.id = existing.id;                 // never change id
+    merged.configurationId = configId;       // never change scope
+    upsertServer(db, merged);
+    return reply.status(200).send(merged);
+  });
+
+  // DELETE /api/v1/configurations/:configId/servers/:serverId - Delete a server (scope-checked, requires edit)
+  app.delete('/api/v1/configurations/:configId/servers/:serverId', async (req, reply) => {
+    const { configId, serverId } = req.params as { configId: string; serverId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getServer(db, serverId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Server not found' } });
+    }
+    deleteServerById(db, serverId);
+    return reply.status(200).send({ deleted: true });
   });
 
   // PATCH /api/v1/labs/:id - Update a lab (requires edit)
