@@ -10,7 +10,7 @@ import { useStore } from '../../data/store';
 import { useAuth } from '../../auth/AuthProvider';
 
 export function Chrome() {
-  const { configId, zoneId, viewId, serverId, blockId, groupId, aclId, snapshotId, policyId } = useParams();
+  const { configId, zoneId, viewId, blockId, groupId, aclId, snapshotId, policyId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -97,11 +97,6 @@ export function Chrome() {
       { label: 'Configuration', href: '/configurations' },
       { label: currentConfig?.name ?? currentConfigId },
       { label: 'DNS Views' },
-    ];
-  } else if (pathname.includes('/servers/') && serverId) {
-    breadcrumbs = [
-      { label: 'Servers & Interfaces', href: `/config/${currentConfigId}/servers` },
-      { label: serverId },
     ];
   } else if (pathname.endsWith('/servers')) {
     breadcrumbs = [

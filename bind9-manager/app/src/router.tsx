@@ -46,6 +46,8 @@ import { RpzPolicyDetail } from './routes/Rpz/RpzPolicyDetail';
 import { Snapshots } from './routes/Snapshots/Snapshots';
 import { SnapshotDetail } from './routes/Snapshots/SnapshotDetail';
 import { ReviewDeploy } from './routes/ReviewDeploy/ReviewDeploy';
+import { ConfigReview } from './routes/ConfigReview/ConfigReview';
+import { DeploymentHistory } from './routes/History/DeploymentHistory';
 import { RequireAuth } from './auth/RequireAuth';
 
 export const routes: RouteObject[] = [
@@ -159,15 +161,6 @@ export const routes: RouteObject[] = [
         element: <Servers />,
       },
       {
-        path: 'config/:configId/servers/:serverId',
-        element: (
-          <Placeholder
-            title="Server Detail"
-            description="Server status, interfaces, deployment roles, and live configs."
-          />
-        ),
-      },
-      {
         path: 'config/:configId/labs',
         element: <Labs />,
       },
@@ -225,12 +218,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/config-review',
-        element: (
-          <Placeholder
-            title="Config Review"
-            description="Inspect generated named.conf and zone files across all servers."
-          />
-        ),
+        element: <ConfigReview />,
       },
       {
         path: 'config/:configId/review-deploy',
@@ -238,12 +226,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/history',
-        element: (
-          <Placeholder
-            title="Deployment History"
-            description="Audit log and results of previous deployments."
-          />
-        ),
+        element: <DeploymentHistory />,
       },
       {
         path: 'config/:configId/backups',

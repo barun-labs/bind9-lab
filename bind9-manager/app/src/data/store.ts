@@ -248,6 +248,8 @@ export function useApi() {
       createDeployJob: (configId: string, input: api.CreateDeployJobInput) => api.createDeployJob(store, configId, input),
       getChangeSetDeployJob: (configId: string, jobId: string) => api.getChangeSetDeployJob(store, configId, jobId),
       retryDeployJob: (configId: string, jobId: string, serverId?: string) => api.retryDeployJob(store, configId, jobId, serverId),
+      listChangeSetDeployJobs: (configId: string) => api.listChangeSetDeployJobs(store, configId),
+      getRenderedConfig: (configId: string) => api.getRenderedConfig(store, configId),
     }),
     [store]
   );

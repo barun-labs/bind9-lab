@@ -262,3 +262,5 @@ export interface ChangeSetDeployJob { id:string; configurationId:string; changeS
   targetServerIds:string[]; status:'QUEUED'|'RUNNING'|'SUCCEEDED'|'FAILED'|'PARTIAL'|'CANCELLED';
   preflight?:DeployPreflight; serverResults:DeployServerResult[]; warningAck?:boolean; createdAt:string; }
 
+export interface RenderedServerConfig { serverId: string; hostname: string; text: string; }
+

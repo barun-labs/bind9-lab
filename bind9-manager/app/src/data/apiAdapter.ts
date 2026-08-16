@@ -41,6 +41,7 @@ import type {
   DeployPreflight,
   ChangeSetDeployJob,
   Snapshot,
+  RenderedServerConfig,
 } from '../types/entities';
 export type {
   Lab,
@@ -2588,6 +2589,32 @@ export async function retryDeployJob(
     );
   }
   return { jobId };
+}
+
+export async function listChangeSetDeployJobs(
+  _store: StoreData,
+  configId: string
+): Promise<ChangeSetDeployJob[]> {
+  if (isApiEnabled()) {
+    const res = await apiFetch<{ data: ChangeSetDeployJob[] }>(
+      `/api/v1/configurations/${configId}/deploy-jobs`
+    );
+    return res.data;
+  }
+  return [];
+}
+
+export async function getRenderedConfig(
+  _store: StoreData,
+  configId: string
+): Promise<RenderedServerConfig[]> {
+  if (isApiEnabled()) {
+    const res = await apiFetch<{ data: RenderedServerConfig[] }>(
+      `/api/v1/configurations/${configId}/rendered-config`
+    );
+    return res.data;
+  }
+  return [];
 }
 
 function syntheticChangeSetDeployJob(
