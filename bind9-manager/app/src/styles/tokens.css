@@ -78,7 +78,90 @@
   --chrome-max-content-w: 1040px;
 }
 
-/* Dark theme: intentionally not shipped. The bound Industry design system is light-native and its
-   ramps are undocumented for dark use — do not invent dark values. Revisit if the design system
-   publishes a dark variant. */
-[data-theme="dark"] { }
+/* ============================================================================
+   THEMES — two composing attributes on <html>:
+     data-theme  = light (default, the :root palette above) | dark
+     data-accent = steel (default) | green | violet
+   "Auto" is resolved to an explicit data-theme in JS (ThemeProvider), so the
+   CSS below only needs the dark overrides — no prefers-color-scheme block.
+   Dark reuses each accent's hue with the ramp REVERSED (subtle -100 -> strong
+   -900 flips direction), so every existing `--color-accent-800`-style "strong
+   accent" usage lands light-on-dark without touching a single component.
+   ============================================================================ */
+
+/* --- Accent axis (light) — steel is the :root default above --- */
+[data-accent="green"] {
+  --color-accent: #3c8059;
+  --color-accent-100: #e9f6ee; --color-accent-200: #cdebd8; --color-accent-300: #a6d8ba;
+  --color-accent-400: #77bd94; --color-accent-500: #4f9e72; --color-accent-600: #3c8059;
+  --color-accent-700: #2f6446; --color-accent-800: #234a34; --color-accent-900: #173322;
+}
+[data-accent="violet"] {
+  --color-accent: #7156b0;
+  --color-accent-100: #f1eefb; --color-accent-200: #e0d8f6; --color-accent-300: #c7b8ee;
+  --color-accent-400: #a892e0; --color-accent-500: #8b6fce; --color-accent-600: #7156b0;
+  --color-accent-700: #57428a; --color-accent-800: #3e2f63; --color-accent-900: #291f42;
+}
+
+/* --- Dark base (steel accent) --- */
+[data-theme="dark"] {
+  /* Surface — off-black, cool to match the steel wireframe (never pure #000). */
+  --color-bg: #17191c;
+  --color-surface: #1f2226;
+  --color-divider: color-mix(in srgb, #e8eaed 13%, transparent);
+
+  /* Text — off-white ramp (never pure #fff). */
+  --color-text: #e5e7ea;
+  --color-text-secondary: color-mix(in srgb, #e5e7ea 70%, transparent);
+  --color-text-tertiary: color-mix(in srgb, #e5e7ea 52%, transparent);
+  --color-text-inverse: #17191c;
+  --color-text-code: #e5e7ea;
+
+  /* Accent — steel, ramp reversed so -900 is the brightest step. */
+  --color-accent: #749dc4;
+  --color-accent-100: #1d2d3d; --color-accent-200: #2c455d; --color-accent-300: #416180;
+  --color-accent-400: #597ea3; --color-accent-500: #749dc4; --color-accent-600: #94bce3;
+  --color-accent-700: #b5d9fd; --color-accent-800: #d6ebff; --color-accent-900: #eef6ff;
+
+  /* Neutral ramp reversed: -100 darkest, -900 lightest. */
+  --color-neutral-100: #2b2b2d; --color-neutral-200: #424244; --color-neutral-300: #5d5d60;
+  --color-neutral-400: #7a7a7d; --color-neutral-500: #98989b; --color-neutral-600: #b7b7ba;
+  --color-neutral-700: #d4d4d7; --color-neutral-800: #e7e7ea; --color-neutral-900: #f5f5f8;
+
+  /* Semantic state — lifted for a dark ground; tints via color-mix so they sit
+     on the dark surface. Still always paired with an icon or label. */
+  --state-synced: var(--color-neutral-500);
+  --state-pending: #d3ab5f;   --state-pending-bg: color-mix(in srgb, #d3ab5f 16%, transparent);
+  --state-deploying: var(--color-accent);
+  --state-drift: #d98d61;     --state-drift-bg: color-mix(in srgb, #d98d61 16%, transparent);
+  --state-error: #e2857a;     --state-error-bg: color-mix(in srgb, #e2857a 16%, transparent);
+  --state-success: #72b088;   --state-success-bg: color-mix(in srgb, #72b088 16%, transparent);
+  --state-disabled: var(--color-neutral-400);
+
+  /* Diff — re-declared here so the var() references resolve against the DARK
+     state tokens. A var() inside a custom property is substituted where the
+     property is declared: left only in :root, these freeze to the light values
+     and inherit into dark, painting light diff rows on the dark surface. */
+  --diff-added-bg: var(--state-success-bg);   --diff-added-text: var(--state-success);
+  --diff-removed-bg: var(--state-error-bg);   --diff-removed-text: var(--state-error);
+  --diff-context-text: var(--color-text);
+
+  /* Elevation — deeper on a dark ground. */
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #000 40%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #000 46%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #000 55%, transparent);
+}
+
+/* --- Dark accent variants (reversed ramps) --- */
+[data-theme="dark"][data-accent="green"] {
+  --color-accent: #4f9e72;
+  --color-accent-100: #173322; --color-accent-200: #234a34; --color-accent-300: #2f6446;
+  --color-accent-400: #3c8059; --color-accent-500: #4f9e72; --color-accent-600: #77bd94;
+  --color-accent-700: #a6d8ba; --color-accent-800: #cdebd8; --color-accent-900: #e9f6ee;
+}
+[data-theme="dark"][data-accent="violet"] {
+  --color-accent: #8b6fce;
+  --color-accent-100: #291f42; --color-accent-200: #3e2f63; --color-accent-300: #57428a;
+  --color-accent-400: #7156b0; --color-accent-500: #8b6fce; --color-accent-600: #a892e0;
+  --color-accent-700: #c7b8ee; --color-accent-800: #e0d8f6; --color-accent-900: #f1eefb;
+}

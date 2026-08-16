@@ -5,6 +5,7 @@ import { PendingChangesPill } from '../../components/PendingChangesPill/PendingC
 import { Breadcrumb, type BreadcrumbItem } from '../../components/Breadcrumb/Breadcrumb';
 import { Button } from '../../components/Button/Button';
 import { Sidebar } from '../Sidebar/Sidebar';
+import { ThemeSwitcher } from '../../theme/ThemeSwitcher';
 import { useStore } from '../../data/store';
 import { useAuth } from '../../auth/AuthProvider';
 
@@ -332,6 +333,8 @@ export function Chrome() {
             </div>
 
             <div style={{ flex: 1 }} />
+
+            <ThemeSwitcher />
 
             <PendingChangesPill
               count={0}

@@ -4,7 +4,23 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>app</title>
+    <title>Bind9-Manager</title>
+    <!-- Resolve the saved theme before first paint to avoid a flash. Mirrors
+         the keys and logic in src/theme/theme.ts; keep the two in sync. -->
+    <script>
+      (function () {
+        try {
+          var m = localStorage.getItem('b9m.theme.mode');
+          if (m !== 'light' && m !== 'dark' && m !== 'auto') m = 'auto';
+          var a = localStorage.getItem('b9m.theme.accent');
+          if (a !== 'steel' && a !== 'green' && a !== 'violet') a = 'steel';
+          var dark = m === 'dark' || (m === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var root = document.documentElement;
+          root.setAttribute('data-theme', dark ? 'dark' : 'light');
+          root.setAttribute('data-accent', a);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
