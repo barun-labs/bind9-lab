@@ -168,6 +168,7 @@ export function useApi() {
       getDeployJob: (jobId: string) => api.getDeployJob(store, jobId),
       getNodeLogs: (labId: string, node: string, tail?: number) => api.getNodeLogs(store, labId, node, tail),
       openTelemetryStream: (labId: string, onFrame: (snap: TelemetrySnapshot) => void) => api.openTelemetryStream(store, labId, onFrame),
+      getLabStatistics: (labId: string) => api.getLabStatistics(store, labId),
     }),
     [store]
   );

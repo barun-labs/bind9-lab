@@ -187,3 +187,22 @@ export interface TelemetrySnapshot {
   runtimeError?: string;
 }
 
+export interface ServerStatistics {
+  serverId: string;
+  nodeName: string;
+  containerName: string;
+  present: boolean;
+  totalQueries?: number;
+  responseCodes?: { NOERROR: number; NXDOMAIN: number; SERVFAIL: number; REFUSED: number };
+  cacheHits?: number;
+  cacheMisses?: number;
+  cacheHitRatio?: number;
+  recursionCount?: number;
+}
+
+export interface StatisticsSnapshot {
+  servers: ServerStatistics[];
+  at: string;
+  runtimeError?: string;
+}
+

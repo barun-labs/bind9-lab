@@ -53,6 +53,7 @@ import {
 } from './labStore';
 import { parseInspect, destroy } from './deployEngine';
 import { snapshot } from './telemetry';
+import { statisticsSnapshot } from './statistics';
 import {
   generateClabTopology,
   validateTopology,
@@ -1355,6 +1356,30 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
 
     const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
     return reply.status(200).send(await snapshot(lab, activeRunner, labDir));
+  });
+
+  // GET /api/v1/labs/:id/statistics - Per-server BIND statistics snapshot (requires view; DNS-lab only)
+  app.get('/api/v1/labs/:id/statistics', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const lab = getLab(db, id);
+    if (!lab) {
+      return reply.status(404).send({
+        error: { code: 'NOT_FOUND', message: 'Lab not found' },
+      });
+    }
+
+    if (!authorize(req.actor, 'view', lab.configurationId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+
+    if (!isDnsLab(lab)) {
+      return reply.status(422).send({
+        error: { code: 'NOT_A_DNS_LAB', message: 'Bind9-Manager only manages DNS labs (labs with a bind node).' },
+      });
+    }
+
+    const labDir = opts.labDir || `/home/lun/${lab.topology.name}`;
+    return reply.status(200).send(await statisticsSnapshot(lab, activeRunner, labDir));
   });
 
   // GET /api/v1/labs/:id/telemetry/stream - Server-sent events, one snapshot every 2.5s (requires view)

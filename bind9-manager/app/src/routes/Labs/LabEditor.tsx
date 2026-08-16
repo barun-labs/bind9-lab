@@ -13,8 +13,9 @@ import { SidePanel } from '../../components/SidePanel/SidePanel';
 import { StatusPill } from '../../components/StatusPill/StatusPill';
 import { InlineAlert } from '../../components/InlineAlert/InlineAlert';
 import { DeployProgress } from './DeployProgress';
+import { StatisticsPanel } from './StatisticsPanel';
 
-type TabType = 'form' | 'yaml' | 'preview';
+type TabType = 'form' | 'yaml' | 'preview' | 'metrics';
 
 interface NodeFormState {
   name: string;
@@ -606,6 +607,20 @@ export function LabEditor() {
         >
           Preview & Validate
         </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange('metrics')}
+          className="btn btn-ghost"
+          style={{
+            borderRadius: 0,
+            borderBottom: activeTab === 'metrics' ? '2px solid var(--color-accent)' : '2px solid transparent',
+            color: activeTab === 'metrics' ? 'var(--color-accent-800)' : 'var(--color-text)',
+            fontWeight: activeTab === 'metrics' ? 600 : 400,
+            padding: '8px 16px',
+          }}
+        >
+          Metrics
+        </button>
       </div>
 
       {/* TAB 1: FORM EDITOR */}
@@ -1056,6 +1071,11 @@ export function LabEditor() {
             />
           </div>
         </div>
+      )}
+
+      {/* TAB 4: METRICS */}
+      {activeTab === 'metrics' && (
+        <StatisticsPanel labId={labId ?? ''} active={activeTab === 'metrics'} />
       )}
 
       {/* NODE ADD / EDIT SIDEPANEL */}

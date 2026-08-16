@@ -20,6 +20,7 @@ import type {
   Server,
   TelemetryNode,
   TelemetrySnapshot,
+  StatisticsSnapshot,
 } from '../types/entities';
 export type {
   Lab,
@@ -1105,6 +1106,11 @@ export async function getNodeLogs(
     `named[1]: client @0x7f3a2c001000 10.70.0.1#54011 (example.com): query: example.com IN A +E (10.70.0.11)`,
     `named[1]: resolver priming query complete`,
   ].join('\n');
+}
+
+export async function getLabStatistics(_store: StoreData, labId: string): Promise<StatisticsSnapshot> {
+  if (isApiEnabled()) return apiFetch<StatisticsSnapshot>(`/api/v1/labs/${labId}/statistics`);
+  return { servers: [], at: new Date().toISOString() };
 }
 
 function fixtureTelemetrySnapshot(tick: number): TelemetrySnapshot {
