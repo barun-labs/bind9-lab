@@ -19,6 +19,7 @@ import {
   createConfiguration,
   updateConfiguration,
   deleteConfiguration,
+  cloneConfiguration,
   listViews,
   getView,
   createView,
@@ -480,6 +481,33 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     }
     const result = deleteConfiguration(db, configId);
     return reply.status(200).send(result);
+  });
+
+  // POST /api/v1/configurations/:configId/clone - Deep-copy a configuration into a new one (admin-only)
+  app.post('/api/v1/configurations/:configId/clone', async (req, reply) => {
+    // ponytail: same admin-on-any-config predicate as POST /configurations
+    const isAdmin = (req.actor.user.roles ?? []).some((r) =>
+      authorize(req.actor, 'admin', r.configurationId)
+    );
+    if (!isAdmin) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const { configId } = req.params as { configId: string };
+    const source = getConfiguration(db, configId);
+    if (!source) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const name = typeof body.name === 'string' ? body.name : '';
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'Invalid configuration name' } });
+    }
+    const all = listConfigurations(db);
+    if (all.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+      return reply.status(409).send({ error: { code: 'CONFLICT', message: 'A configuration with this name already exists' } });
+    }
+    const cloned = cloneConfiguration(db, configId, name);
+    return reply.status(201).send(cloned);
   });
 
   // GET /api/v1/configurations/:configId/zones - List zones with filters

@@ -1342,4 +1342,193 @@ export function buildConfigModel(db: Database.Database, configId: string): Confi
   };
 }
 
+/**
+ * Remap a deployment_options/deployment_roles scopeId through the id map that
+ * matches its scopeType. Returns undefined for an unmapped (dangling) source
+ * id or an unrecognized scopeType, so the caller can skip the row rather than
+ * copy a reference that points nowhere in the clone.
+ */
+function remapScopeId(
+  scopeType: string,
+  scopeId: string,
+  maps: {
+    newConfigId: string;
+    viewIdMap: Map<string, string>;
+    zoneIdMap: Map<string, string>;
+    serverIdMap: Map<string, string>;
+    groupIdMap: Map<string, string>;
+  },
+): string | undefined {
+  switch (scopeType) {
+    case 'CONFIGURATION':
+      return maps.newConfigId;
+    case 'VIEW':
+      return maps.viewIdMap.get(scopeId);
+    case 'ZONE':
+      return maps.zoneIdMap.get(scopeId);
+    case 'SERVER':
+      return maps.serverIdMap.get(scopeId);
+    case 'SERVER_GROUP':
+      return maps.groupIdMap.get(scopeId);
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Deep-copy a configuration's entire entity tree (server groups, servers,
+ * views, zones, records, acls, tsig keys, external hosts, deployment options,
+ * deployment roles) into a brand-new configuration with fresh ids, remapping
+ * every cross-reference to the new ids. Labs, deploy jobs and deployed
+ * baselines are runtime/lab state, not part of a config's DNS definition, and
+ * are intentionally NOT cloned.
+ *
+ * Copy order matters: parents are copied (and their id maps built) before the
+ * children that reference them. The whole copy runs in one transaction, so a
+ * failure partway through leaves neither the new configuration nor any of its
+ * partial entities behind.
+ */
+export function cloneConfiguration(
+  db: Database.Database,
+  sourceConfigId: string,
+  newName: string,
+): Configuration {
+  const source = getConfiguration(db, sourceConfigId);
+  if (!source) {
+    throw new Error(`Configuration ${sourceConfigId} not found`);
+  }
+
+  const cloneTx = db.transaction((): Configuration => {
+    const newConfig = createConfiguration(db, { name: newName });
+    const newConfigId = newConfig.id;
+
+    const groupIdMap = new Map<string, string>();
+    for (const group of listServerGroups(db, sourceConfigId)) {
+      const copy = createServerGroup(db, newConfigId, { name: group.name, description: group.description });
+      groupIdMap.set(group.id, copy.id);
+    }
+
+    // No createServer(): servers are otherwise only ever upserted by lab
+    // reconciliation with a caller-supplied id, so the fresh id is minted here.
+    const serverIdMap = new Map<string, string>();
+    for (const server of listServers(db, sourceConfigId)) {
+      const newServerId = 'srv-' + randomBytes(6).toString('hex');
+      const clonedServer: Server & { configurationId: string } = {
+        ...(JSON.parse(JSON.stringify(server)) as Server),
+        id: newServerId,
+        configurationId: newConfigId,
+        serverGroupId:
+          typeof server.serverGroupId === 'string' ? groupIdMap.get(server.serverGroupId) : undefined,
+      };
+      upsertServer(db, clonedServer);
+      serverIdMap.set(server.id, newServerId);
+    }
+
+    const viewIdMap = new Map<string, string>();
+    for (const view of listViews(db, sourceConfigId)) {
+      const copy = createView(db, newConfigId, { name: view.name, order: view.order, matchClients: view.matchClients });
+      viewIdMap.set(view.id, copy.id);
+    }
+
+    // Raw select, not listZones(): listZones returns a paginated envelope
+    // (default page size 50) and a clone must copy every zone.
+    const zoneIdMap = new Map<string, string>();
+    const sourceZoneRows = db.prepare('SELECT data FROM zones WHERE configurationId = ?').all(sourceConfigId) as { data: string }[];
+    for (const row of sourceZoneRows) {
+      const zone = JSON.parse(row.data) as Zone;
+      const mappedViewId = viewIdMap.get(zone.viewId);
+      if (!mappedViewId) continue; // dangling view ref on the source — skip rather than copy it
+      const copy = createZone(db, newConfigId, {
+        viewId: mappedViewId,
+        name: zone.name,
+        type: zone.type,
+        soa: zone.soa,
+        allowTransfer: zone.allowTransfer,
+        allowUpdate: zone.allowUpdate,
+      });
+      zoneIdMap.set(zone.id, copy.id);
+    }
+
+    // Raw select per zone, not listRecords(): same pagination reason as zones.
+    for (const [oldZoneId, newZoneId] of zoneIdMap) {
+      const sourceRecordRows = db.prepare('SELECT data FROM records WHERE zoneId = ?').all(oldZoneId) as { data: string }[];
+      for (const row of sourceRecordRows) {
+        const record = JSON.parse(row.data) as ResourceRecord;
+        createRecord(db, newZoneId, {
+          name: record.name,
+          type: record.type,
+          ttl: record.ttl,
+          rdata: record.rdata,
+          disabled: record.disabled,
+          syncState: record.syncState,
+          issue: record.issue,
+        });
+      }
+    }
+
+    // ACL entries reference TSIG keys by name (KEY_NAME), and names are
+    // preserved below, so entries copy verbatim — no id remap needed here.
+    for (const acl of listAcls(db, sourceConfigId)) {
+      createAcl(db, newConfigId, { name: acl.name, entries: acl.entries });
+    }
+
+    // Direct row insert, not createTsigKey(): that regenerates the secret,
+    // which would silently break every deployed server still trusting the
+    // original. The clone must be a functional twin, so the secret is copied.
+    for (const key of listTsigKeys(db, sourceConfigId)) {
+      const withSecret = getTsigKeyWithSecret(db, key.id);
+      if (!withSecret) continue;
+      const newKey: TsigKeyRecord = {
+        id: 'tsig-' + randomBytes(6).toString('hex'),
+        configurationId: newConfigId,
+        name: withSecret.name,
+        algorithm: withSecret.algorithm,
+        secret: withSecret.secret,
+        usedByCount: 0,
+      };
+      db.prepare('INSERT INTO tsig_keys (id, configurationId, data) VALUES (?, ?, ?)').run(
+        newKey.id,
+        newConfigId,
+        JSON.stringify(newKey),
+      );
+    }
+
+    for (const host of listExternalHosts(db, sourceConfigId)) {
+      createExternalHost(db, newConfigId, { fqdn: host.fqdn });
+    }
+
+    const scopeMaps = { newConfigId, viewIdMap, zoneIdMap, serverIdMap, groupIdMap };
+    for (const option of listDeploymentOptions(db, sourceConfigId)) {
+      const mappedScopeId = remapScopeId(option.scope, option.scopeId, scopeMaps);
+      if (!mappedScopeId) continue; // dangling scope ref on the source — skip rather than copy it
+      createDeploymentOption(db, newConfigId, {
+        scope: option.scope,
+        scopeId: mappedScopeId,
+        key: option.key,
+        value: option.value,
+        disabled: option.disabled,
+      });
+    }
+
+    for (const role of listDeploymentRoles(db, sourceConfigId)) {
+      const mappedScopeId = remapScopeId(role.scope, role.scopeId, scopeMaps);
+      const mappedServerId = serverIdMap.get(role.serverId);
+      if (!mappedScopeId || !mappedServerId) continue; // dangling scope/server ref — skip rather than copy it
+      createDeploymentRole(db, newConfigId, {
+        scope: role.scope,
+        scopeId: mappedScopeId,
+        serverId: mappedServerId,
+        role: role.role,
+        disabled: role.disabled,
+      });
+    }
+
+    // counts are recomputed live by getConfiguration()/computeConfigCounts(),
+    // not stored, so no explicit count write is needed here.
+    return getConfiguration(db, newConfigId) as Configuration;
+  });
+
+  return cloneTx();
+}
+
 
