@@ -1,6 +1,6 @@
 import fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type Database from 'better-sqlite3';
-import type { View, ChangeSetItem, ChangeSetObjectType } from '../../../shared/entities';
+import type { View, ChangeSetItem, ChangeSetObjectType, RecordTemplateEntry } from '../../../shared/entities';
 import { load } from 'js-yaml';
 import {
   login,
@@ -61,6 +61,12 @@ import {
   updateTsigKey,
   deleteTsigKey,
   TSIG_ALGORITHMS,
+  listRecordTemplates,
+  getRecordTemplate,
+  createRecordTemplate,
+  updateRecordTemplate,
+  deleteRecordTemplate,
+  applyRecordTemplate,
   listDeploymentOptions,
   getDeploymentOption,
   createDeploymentOption,
@@ -188,6 +194,27 @@ function normalizeDescription(value: unknown): { ok: true; value?: string } | { 
   if (value === undefined) return { ok: true }; // not provided
   if (typeof value !== 'string') return { ok: false };
   return { ok: true, value: value.trim().slice(0, 256) };
+}
+
+const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'NS', 'PTR', 'CAA', 'ALIAS'];
+const RECORD_LABEL_RE = /^[A-Za-z0-9._@*-]+$/;
+
+// Record-template entry names become labels in generated zone-file content, so
+// they are held to a tight charset with an explicit '..' traversal rejection.
+function validateRecordTemplateEntries(value: unknown): RecordTemplateEntry[] | null {
+  if (!Array.isArray(value)) return null;
+  for (const e of value) {
+    if (!e || typeof e !== 'object') return null;
+    const name = (e as { name?: unknown }).name;
+    const type = (e as { type?: unknown }).type;
+    if (typeof name !== 'string' || name.length === 0 || name.includes('..') || !RECORD_LABEL_RE.test(name)) return null;
+    if (typeof type !== 'string' || !RECORD_TYPES.includes(type)) return null;
+    const rdata = (e as { rdata?: unknown }).rdata;
+    if (rdata === undefined || rdata === null || typeof rdata !== 'object' || Array.isArray(rdata)) return null;
+    const ttl = (e as { ttl?: unknown }).ttl;
+    if (ttl !== undefined && (typeof ttl !== 'number' || !Number.isFinite(ttl) || ttl < 0)) return null;
+  }
+  return value as RecordTemplateEntry[];
 }
 
 function isValidExternalFqdn(fqdn: string): boolean {
@@ -1380,6 +1407,131 @@ export function buildApp(db: Database.Database, opts: AppOptions = {}): FastifyI
     }
     const result = deleteTsigKey(db, keyId);
     return reply.status(200).send(result);
+  });
+
+  // --- RECORD TEMPLATES ROUTES (BLUECAT GAP #55) ---
+
+  // GET /api/v1/configurations/:configId/record-templates - List record templates
+  app.get('/api/v1/configurations/:configId/record-templates', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    return reply.status(200).send(listRecordTemplates(db, configId));
+  });
+
+  // GET /api/v1/configurations/:configId/record-templates/:templateId - Get single template (scope-checked)
+  app.get('/api/v1/configurations/:configId/record-templates/:templateId', async (req, reply) => {
+    const { configId, templateId } = req.params as { configId: string; templateId: string };
+    if (!authorize(req.actor, 'view', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const template = getRecordTemplate(db, templateId);
+    if (!template || template.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Record template not found' } });
+    }
+    return reply.status(200).send(template);
+  });
+
+  // POST /api/v1/configurations/:configId/record-templates - Create a record template (requires edit)
+  app.post('/api/v1/configurations/:configId/record-templates', async (req, reply) => {
+    const { configId } = req.params as { configId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const config = getConfiguration(db, configId);
+    if (!config) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Configuration not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const name = typeof body.name === 'string' ? body.name : '';
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+      return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be [A-Za-z0-9._-]' } });
+    }
+    const description = normalizeDescription(body.description);
+    if (!description.ok) {
+      return reply.status(422).send({ error: { code: 'INVALID_DESCRIPTION', message: 'description must be a string' } });
+    }
+    const entries = body.entries !== undefined ? validateRecordTemplateEntries(body.entries) : [];
+    if (entries === null) {
+      return reply.status(422).send({ error: { code: 'INVALID_ENTRY', message: 'entries must each have a safe name and a valid type' } });
+    }
+    const template = createRecordTemplate(db, configId, { name, description: description.value, entries });
+    return reply.status(201).send(template);
+  });
+
+  // PATCH /api/v1/configurations/:configId/record-templates/:templateId - Update a template (scope-checked, requires edit)
+  app.patch('/api/v1/configurations/:configId/record-templates/:templateId', async (req, reply) => {
+    const { configId, templateId } = req.params as { configId: string; templateId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getRecordTemplate(db, templateId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Record template not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const patch: { name?: string; description?: string; entries?: RecordTemplateEntry[] } = {};
+    if (body.name !== undefined) {
+      if (typeof body.name !== 'string' || !/^[A-Za-z0-9._-]+$/.test(body.name)) {
+        return reply.status(422).send({ error: { code: 'INVALID_NAME', message: 'name must be [A-Za-z0-9._-]' } });
+      }
+      patch.name = body.name;
+    }
+    if (body.description !== undefined) {
+      const description = normalizeDescription(body.description);
+      if (!description.ok) {
+        return reply.status(422).send({ error: { code: 'INVALID_DESCRIPTION', message: 'description must be a string' } });
+      }
+      patch.description = description.value;
+    }
+    if (body.entries !== undefined) {
+      const entries = validateRecordTemplateEntries(body.entries);
+      if (entries === null) {
+        return reply.status(422).send({ error: { code: 'INVALID_ENTRY', message: 'entries must each have a safe name and a valid type' } });
+      }
+      patch.entries = entries;
+    }
+    const updated = updateRecordTemplate(db, templateId, patch);
+    return reply.status(200).send(updated);
+  });
+
+  // DELETE /api/v1/configurations/:configId/record-templates/:templateId - Delete a template (scope-checked, requires edit)
+  app.delete('/api/v1/configurations/:configId/record-templates/:templateId', async (req, reply) => {
+    const { configId, templateId } = req.params as { configId: string; templateId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const existing = getRecordTemplate(db, templateId);
+    if (!existing || existing.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Record template not found' } });
+    }
+    const result = deleteRecordTemplate(db, templateId);
+    return reply.status(200).send(result);
+  });
+
+  // POST /api/v1/configurations/:configId/record-templates/:templateId/apply - Apply a template to a zone (requires edit)
+  app.post('/api/v1/configurations/:configId/record-templates/:templateId/apply', async (req, reply) => {
+    const { configId, templateId } = req.params as { configId: string; templateId: string };
+    if (!authorize(req.actor, 'edit', configId)) {
+      return reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
+    }
+    const template = getRecordTemplate(db, templateId);
+    if (!template || template.configurationId !== configId) {
+      return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Record template not found' } });
+    }
+    const body = (req.body ?? {}) as any;
+    const zoneId = typeof body.zoneId === 'string' ? body.zoneId : '';
+    const zone = zoneId ? getZone(db, zoneId) : null;
+    if (!zone || zone.configurationId !== configId) {
+      return reply.status(422).send({ error: { code: 'ZONE_NOT_IN_CONFIG', message: 'Zone not found in this configuration' } });
+    }
+    const created = applyRecordTemplate(db, templateId, zoneId);
+    return reply.status(201).send({ created });
   });
 
   // POST /api/v1/configurations/:configId/acls/evaluate - Evaluate an ACL against a client IP (requires view)

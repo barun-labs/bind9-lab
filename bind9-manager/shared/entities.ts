@@ -42,6 +42,20 @@ export interface Acl { id: string; configurationId: string; name: string; entrie
 export type TsigAlgorithm = 'hmac-sha256' | 'hmac-sha512' | 'hmac-sha384' | 'hmac-sha224' | 'hmac-sha1' | 'hmac-md5';
 export interface TsigKey { id: string; configurationId: string; name: string; algorithm: TsigAlgorithm; secret?: string; usedByCount: number; }
 export interface ServerGroup { id: string; configurationId: string; name: string; description?: string; memberCount: number; }
+export interface RecordTemplateEntry {
+  name: string;            // relative record label as it will be stored on the record, e.g. '@', 'www', 'mail'
+  type: RecordType;
+  ttl?: number;            // optional; createRecord defaults to 3600 when omitted
+  rdata: Record<string, unknown>;
+  disabled?: boolean;
+}
+export interface RecordTemplate {
+  id: string;
+  configurationId: string;
+  name: string;
+  description?: string;
+  entries: RecordTemplateEntry[];
+}
 export type OptionScope = 'VIEW' | 'ZONE';
 export type InheritMode = 'INHERIT' | 'OVERRIDE' | 'DISABLE';
 export interface DeploymentOptionRow { id: string; configurationId: string; scope: OptionScope; scopeId: string; key: string; value: unknown | null; disabled: boolean; }

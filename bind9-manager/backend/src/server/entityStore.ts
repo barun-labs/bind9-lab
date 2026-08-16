@@ -12,6 +12,8 @@ import type {
   TsigKey,
   TsigAlgorithm,
   ServerGroup,
+  RecordTemplate,
+  RecordTemplateEntry,
   ListEnvelope,
   RecordType,
   SyncState,
@@ -964,6 +966,118 @@ export function updateServerGroup(
 export function deleteServerGroup(db: Database.Database, id: string): { deleted: true } {
   db.prepare('DELETE FROM server_groups WHERE id = ?').run(id);
   return { deleted: true };
+}
+
+/**
+ * List record templates for a configuration.
+ */
+export function listRecordTemplates(db: Database.Database, configId: string): RecordTemplate[] {
+  const rows = db.prepare('SELECT data FROM record_templates WHERE configurationId = ?').all(configId) as { data: string }[];
+  return rows.map((r) => JSON.parse(r.data) as RecordTemplate);
+}
+
+/**
+ * Get record template by ID.
+ */
+export function getRecordTemplate(db: Database.Database, id: string): RecordTemplate | null {
+  const row = db.prepare('SELECT data FROM record_templates WHERE id = ?').get(id) as { data: string } | undefined;
+  if (!row) return null;
+  return JSON.parse(row.data) as RecordTemplate;
+}
+
+/**
+ * Create a new record template for a configuration.
+ */
+export function createRecordTemplate(
+  db: Database.Database,
+  configId: string,
+  input: { name: string; description?: string; entries?: RecordTemplateEntry[] }
+): RecordTemplate {
+  const template: RecordTemplate = {
+    id: 'rt-' + randomBytes(6).toString('hex'),
+    configurationId: configId,
+    name: input.name,
+    description: input.description,
+    entries: input.entries ?? [],
+  };
+  db.prepare('INSERT INTO record_templates (id, configurationId, data) VALUES (?, ?, ?)').run(
+    template.id,
+    configId,
+    JSON.stringify(template)
+  );
+  return template;
+}
+
+/**
+ * Update an existing record template.
+ */
+export function updateRecordTemplate(
+  db: Database.Database,
+  id: string,
+  patch: { name?: string; description?: string; entries?: RecordTemplateEntry[] }
+): RecordTemplate {
+  const existing = getRecordTemplate(db, id);
+  if (!existing) {
+    throw new Error(`Record template ${id} not found`);
+  }
+
+  const updated: RecordTemplate = {
+    ...existing,
+    id: existing.id,
+    configurationId: existing.configurationId,
+    name: typeof patch.name === 'string' ? patch.name : existing.name,
+    description: patch.description !== undefined ? patch.description : existing.description,
+    entries: patch.entries !== undefined ? patch.entries : existing.entries,
+  };
+
+  db.prepare('UPDATE record_templates SET configurationId = ?, data = ? WHERE id = ?').run(
+    updated.configurationId,
+    JSON.stringify(updated),
+    id
+  );
+
+  return updated;
+}
+
+/**
+ * Delete a record template by ID.
+ */
+export function deleteRecordTemplate(db: Database.Database, id: string): { deleted: true } {
+  db.prepare('DELETE FROM record_templates WHERE id = ?').run(id);
+  return { deleted: true };
+}
+
+/**
+ * Apply a record template to a zone, creating one record per entry verbatim.
+ * Record names are stored exactly as written — zone-file name semantics are
+ * resolved at render time elsewhere, not here.
+ */
+export function applyRecordTemplate(
+  db: Database.Database,
+  templateId: string,
+  zoneId: string
+): ResourceRecord[] {
+  const template = getRecordTemplate(db, templateId);
+  if (!template) {
+    throw new Error(`Record template ${templateId} not found`);
+  }
+  const zone = getZone(db, zoneId);
+  if (!zone) {
+    throw new Error(`Zone ${zoneId} not found`);
+  }
+
+  const applyTx = db.transaction(() =>
+    template.entries.map((entry) =>
+      createRecord(db, zoneId, {
+        name: entry.name,
+        type: entry.type,
+        ttl: entry.ttl,
+        rdata: entry.rdata,
+        disabled: entry.disabled,
+      })
+    )
+  );
+  return applyTx();
 }
 
 /**
