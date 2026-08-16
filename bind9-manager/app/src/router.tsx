@@ -14,6 +14,8 @@ import { LabEditor } from './routes/Labs/LabEditor';
 import { Servers } from './routes/Servers/Servers';
 import { Views } from './routes/Views/Views';
 import { ExternalHosts } from './routes/ExternalHosts/ExternalHosts';
+import { QueryTool } from './routes/QueryTool/QueryTool';
+import { ZoneHealth } from './routes/ZoneHealth/ZoneHealth';
 import { RequireAuth } from './auth/RequireAuth';
 
 export const routes: RouteObject[] = [
@@ -207,21 +209,11 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'config/:configId/health',
-        element: (
-          <Placeholder
-            title="Zone Health"
-            description="Automated linting and health checks across zones and records."
-          />
-        ),
+        element: <ZoneHealth />,
       },
       {
         path: 'config/:configId/query',
-        element: (
-          <Placeholder
-            title="Query Tool"
-            description="Simulate DNS queries against live or staged server configs."
-          />
-        ),
+        element: <QueryTool />,
       },
       {
         path: 'config/:configId/rpz',

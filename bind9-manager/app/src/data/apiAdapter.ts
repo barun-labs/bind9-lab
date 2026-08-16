@@ -21,6 +21,8 @@ import type {
   TelemetryNode,
   TelemetrySnapshot,
   StatisticsSnapshot,
+  QueryResult,
+  HealthFinding,
 } from '../types/entities';
 export type {
   Lab,
@@ -1111,6 +1113,37 @@ export async function getNodeLogs(
 export async function getLabStatistics(_store: StoreData, labId: string): Promise<StatisticsSnapshot> {
   if (isApiEnabled()) return apiFetch<StatisticsSnapshot>(`/api/v1/labs/${labId}/statistics`);
   return { servers: [], at: new Date().toISOString() };
+}
+
+export async function runQuery(
+  _store: StoreData,
+  labId: string,
+  input: { node: string; qname: string; qtype?: string; server?: string }
+): Promise<QueryResult> {
+  if (isApiEnabled()) {
+    return apiFetch<QueryResult>(`/api/v1/labs/${labId}/query`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+  return {
+    node: input.node,
+    containerName: `clab-lab-${input.node}`,
+    qname: input.qname,
+    qtype: input.qtype ?? 'A',
+    output: '(offline: no query executed)',
+    exitCode: 0,
+  };
+}
+
+export async function getConfigHealth(
+  _store: StoreData,
+  configId: string
+): Promise<{ findings: HealthFinding[] }> {
+  if (isApiEnabled()) {
+    return apiFetch<{ findings: HealthFinding[] }>(`/api/v1/configurations/${configId}/health`);
+  }
+  return { findings: [] };
 }
 
 function fixtureTelemetrySnapshot(tick: number): TelemetrySnapshot {

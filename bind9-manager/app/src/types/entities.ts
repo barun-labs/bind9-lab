@@ -206,3 +206,20 @@ export interface StatisticsSnapshot {
   runtimeError?: string;
 }
 
+export interface QueryResult {
+  node: string;
+  containerName: string;
+  qname: string;
+  qtype: string;
+  server?: string;
+  output: string;
+  exitCode: number;
+}
+
+export interface HealthFinding {
+  severity: 'ERROR' | 'WARNING' | 'INFO';
+  code: string;
+  message: string;
+  subject?: string;
+}
+

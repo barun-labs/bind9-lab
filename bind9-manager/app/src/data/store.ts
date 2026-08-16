@@ -169,6 +169,8 @@ export function useApi() {
       getNodeLogs: (labId: string, node: string, tail?: number) => api.getNodeLogs(store, labId, node, tail),
       openTelemetryStream: (labId: string, onFrame: (snap: TelemetrySnapshot) => void) => api.openTelemetryStream(store, labId, onFrame),
       getLabStatistics: (labId: string) => api.getLabStatistics(store, labId),
+      runQuery: (labId: string, input: { node: string; qname: string; qtype?: string; server?: string }) => api.runQuery(store, labId, input),
+      getConfigHealth: (configId: string) => api.getConfigHealth(store, configId),
     }),
     [store]
   );
